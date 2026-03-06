@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moderator Panel</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="admin-container">
+        <div class="header">
+            <h1>Moderator Panel</h1>
+            <div class="controls">
+                <button id="clearAllBtn" class="danger-btn">Clear All Posts</button>
+            </div>
+        </div>
+        
+        <div class="sections">
+            <div class="section">
+                <h2>Pending Review (<span id="pendingCount">0</span>)</h2>
+                <div id="pendingPosts" class="posts-list"></div>
+            </div>
+            
+            <div class="section">
+                <h2>Approved Posts (<span id="approvedCount">0</span>)</h2>
+                <div id="approvedPosts" class="posts-list"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="admin.js"></script>
+</body>
+</html>

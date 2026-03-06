@@ -1,0 +1,290 @@
+{
+  "currentAlgorithmicLevels": {
+    "level1": {
+      "name": "Basic Input/Output",
+      "description": "WebSocket communication, post submission",
+      "dataStructures": {
+        "posts": "Array of raw text strings",
+        "nodes": "Array of Node objects with position/velocity"
+      },
+      "connections": "None - just raw data"
+    },
+    "level2": {
+      "name": "NLP Processing",
+      "description": "Tokenization, stemming, stop word removal, TF-IDF",
+      "dataStructures": {
+        "node.keywords": "Array of stemmed words",
+        "node.tfidf": "Map<word, score> - Term frequency-inverse document frequency",
+        "nlpEngine.documentFrequency": "Map<word, count> - How many documents contain each word",
+        "nlpEngine.totalDocuments": "Number - Total posts processed"
+      },
+      "connections": {
+        "type": "Word-level",
+        "structure": "Each node has TF-IDF vector",
+        "example": {
+          "post": "Climate change requires action",
+          "keywords": ["climat", "chang", "requir", "action"],
+          "tfidf": {
+            "climat": 0.85,
+            "chang": 0.72,
+            "requir": 0.45,
+            "action": 0.68
+          }
+        }
+      }
+    },
+    "level3": {
+      "name": "Semantic Similarity & Clustering",
+      "description": "Cosine similarity, K-means clustering",
+      "dataStructures": {
+        "connectionCache": "Map<'i-j', similarity> - Pairwise similarity scores",
+        "node.cluster": "Number (0-2) - K-means cluster assignment",
+        "node.clusterColor": "Object {h, s, b} - HSB color for cluster",
+        "node.avgSimilarity": "Number - Average similarity to all connected nodes",
+        "kmeans.centroids": "Array of 3 centroid vectors",
+        "kmeans.clusterColors": "Array of 3 HSB colors"
+      },
+      "connections": {
+        "type": "Similarity-based",
+        "structure": "Undirected weighted graph",
+        "thresholds": {
+          "strongLink": ">0.6 (60%) - Red line",
+          "regularLink": "0.3-0.6 (30-60%) - Blue line",
+          "noLink": "<0.3 (30%) - No connection"
+        },
+        "example": {
+          "node0": "Climate change is urgent",
+          "node1": "Climate action needed",
+          "similarity": 0.73,
+          "connectionType": "strongLink",
+          "visualRepresentation": "Red line with 73% label"
+        }
+      }
+    },
+    "level4": {
+      "name": "Force-Directed Graph Physics",
+      "description": "Node positioning, attraction/repulsion forces",
+      "dataStructures": {
+        "node.x": "Number - X position",
+        "node.y": "Number - Y position",
+        "node.vx": "Number - X velocity",
+        "node.vy": "Number - Y velocity"
+      },
+      "connections": {
+        "type": "Physical forces",
+        "forces": {
+          "repulsion": "All nodes repel each other (inverse square)",
+          "attraction": "Similar nodes attract (proportional to similarity)",
+          "centerGravity": "Weak pull toward canvas center",
+          "damping": "0.70 - Reduces velocity each frame"
+        },
+        "result": "Spatially organized network - similar posts cluster together"
+      }
+    },
+    "level5": {
+      "name": "Metaball Visualization",
+      "description": "Marching squares algorithm for organic cluster boundaries",
+      "dataStructures": {
+        "themedGroups": "Array of {nodes, theme, centerX, centerY}",
+        "node.isMerged": "Boolean - Part of themed group",
+        "node.targetX/targetY": "Number - Animation target position",
+        "mergeProgress": "Number (0-1) - Animation state"
+      },
+      "connections": {
+        "type": "Visual grouping",
+        "structure": "Metaball field strength based on node proximity",
+        "algorithm": "Marching squares with interpolated edges",
+        "output": {
+          "automaticClusters": "3 white metaballs (K-means)",
+          "themedGroups": "Gold metaballs (connected components)"
+        }
+      }
+    }
+  },
+  "proposedLevel6": {
+    "name": "Sentiment & Stance Detection",
+    "description": "Detect emotional tone and argumentative stance",
+    "newDataStructures": {
+      "node.sentiment": {
+        "type": "Object",
+        "properties": {
+          "polarity": "Number (-1 to 1) - Negative to positive",
+          "subjectivity": "Number (0 to 1) - Objective to subjective",
+          "emotions": "Array ['anger', 'joy', 'fear', 'sadness']",
+          "intensity": "Number (0 to 1) - Emotional intensity"
+        }
+      },
+      "node.stance": {
+        "type": "Object",
+        "properties": {
+          "position": "String - 'for', 'against', 'neutral'",
+          "confidence": "Number (0 to 1)",
+          "target": "String - What the stance is about"
+        }
+      }
+    },
+    "newConnections": {
+      "sentimentSimilarity": "Connect posts with similar emotional tone",
+      "stanceAlignment": "Connect posts with same position",
+      "stanceOpposition": "Identify opposing viewpoints (different color)",
+      "emotionalResonance": "Weight connections by emotional intensity"
+    },
+    "visualEnhancements": {
+      "sentimentColors": "Hue based on polarity (red=negative, green=positive)",
+      "stanceIndicators": "Icons or shapes (▲ for, ▼ against, ● neutral)",
+      "oppositionLines": "Dashed lines between opposing stances"
+    }
+  },
+  "proposedLevel7": {
+    "name": "Argument Mining & Discourse Structure",
+    "description": "Extract claims, evidence, and argumentative relationships",
+    "newDataStructures": {
+      "node.argumentStructure": {
+        "type": "Object",
+        "properties": {
+          "claim": "String - Main assertion",
+          "evidence": "Array of strings - Supporting facts",
+          "warrant": "String - Logical connection",
+          "qualifier": "String - Degree of certainty",
+          "rebuttal": "String - Counter-argument acknowledgment"
+        }
+      },
+      "node.discourseRole": {
+        "type": "String",
+        "values": ["claim", "support", "attack", "question", "elaboration"]
+      },
+      "argumentGraph": {
+        "type": "Directed graph",
+        "edges": {
+          "supports": "Node A supports Node B",
+          "attacks": "Node A attacks Node B",
+          "elaborates": "Node A elaborates on Node B"
+        }
+      }
+    },
+    "newConnections": {
+      "supportLinks": "Green arrows - A supports B",
+      "attackLinks": "Red arrows - A attacks B",
+      "elaborationLinks": "Blue arrows - A elaborates B",
+      "questionLinks": "Yellow arrows - A questions B"
+    },
+    "visualEnhancements": {
+      "directedEdges": "Arrows showing argument flow",
+      "argumentChains": "Highlight paths of reasoning",
+      "contradictionDetection": "Flag logical inconsistencies"
+    }
+  },
+  "proposedLevel8": {
+    "name": "Topic Modeling & Hierarchical Themes",
+    "description": "Discover latent topics and hierarchical theme structure",
+    "newDataStructures": {
+      "topicModel": {
+        "type": "LDA (Latent Dirichlet Allocation)",
+        "topics": "Array of topic distributions",
+        "topicWords": "Map<topicId, Array<{word, weight}>>"
+      },
+      "node.topicDistribution": {
+        "type": "Array of probabilities",
+        "example": "[0.7, 0.2, 0.1] - 70% topic 0, 20% topic 1, 10% topic 2"
+      },
+      "hierarchicalTopics": {
+        "type": "Tree structure",
+        "levels": {
+          "level1": "Broad themes (Politics, Environment, Economy)",
+          "level2": "Sub-themes (Climate Policy, Immigration, Healthcare)",
+          "level3": "Specific issues (Carbon Tax, Border Security, Medicare)"
+        }
+      }
+    },
+    "newConnections": {
+      "topicSimilarity": "Connect posts sharing dominant topic",
+      "crossTopicBridges": "Identify posts spanning multiple topics",
+      "topicEvolution": "Track how topics emerge and fade over time"
+    },
+    "visualEnhancements": {
+      "topicLayers": "Hierarchical metaballs (nested boundaries)",
+      "topicLabels": "Auto-generated theme names from top words",
+      "topicFlowDiagram": "Sankey diagram showing topic relationships"
+    }
+  },
+  "proposedLevel9": {
+    "name": "Temporal Dynamics & Opinion Evolution",
+    "description": "Track how opinions and connections change over time",
+    "newDataStructures": {
+      "node.timestamp": "Already exists - Date object",
+      "temporalGraph": {
+        "type": "Time-series graph snapshots",
+        "snapshots": "Array of graph states at different times"
+      },
+      "opinionTrajectory": {
+        "type": "Array of {time, sentiment, stance, topics}",
+        "tracks": "How a user's position evolves"
+      },
+      "influenceNetwork": {
+        "type": "Directed graph",
+        "edges": "Who influences whom (based on temporal patterns)"
+      }
+    },
+    "newConnections": {
+      "temporalProximity": "Connect posts close in time",
+      "opinionShift": "Track changes in stance over time",
+      "influenceLinks": "Show who influenced opinion changes",
+      "trendingTopics": "Identify topics gaining/losing attention"
+    },
+    "visualEnhancements": {
+      "timelineView": "Horizontal axis = time, vertical = topic",
+      "opinionTrails": "Animated paths showing evolution",
+      "influenceRipples": "Visualize how ideas spread",
+      "heatmaps": "Show activity intensity over time"
+    }
+  },
+  "proposedLevel10": {
+    "name": "Deliberative Quality Metrics",
+    "description": "Measure quality of discourse and democratic deliberation",
+    "newDataStructures": {
+      "deliberationMetrics": {
+        "diversity": "Number - Range of perspectives represented",
+        "reciprocity": "Number - Mutual engagement between participants",
+        "justification": "Number - Ratio of claims with evidence",
+        "respectfulness": "Number - Absence of toxic language",
+        "commonGround": "Number - Shared understanding emerging",
+        "opennessToChange": "Number - Willingness to revise views"
+      },
+      "polarizationIndex": {
+        "type": "Number (0-1)",
+        "calculation": "Distance between cluster centroids / total variance",
+        "interpretation": "0 = consensus, 1 = extreme polarization"
+      },
+      "echoChamberScore": {
+        "type": "Number (0-1)",
+        "calculation": "Ratio of strong intra-cluster links to inter-cluster links",
+        "interpretation": "0 = diverse network, 1 = isolated echo chambers"
+      }
+    },
+    "newConnections": {
+      "qualityWeighting": "Weight connections by deliberative quality",
+      "bridgingPotential": "Identify posts that could bridge divides",
+      "toxicityFlags": "Mark harmful connections",
+      "constructiveDialogue": "Highlight productive exchanges"
+    },
+    "visualEnhancements": {
+      "qualityHeatmap": "Color-code by deliberation quality",
+      "polarizationGauge": "Visual indicator of division",
+      "echoChamberHighlight": "Highlight isolated clusters",
+      "bridgeRecommendations": "Suggest posts to connect groups"
+    }
+  },
+  "implementationPriority": {
+    "immediate": ["Level 6: Sentiment & Stance"],
+    "shortTerm": ["Level 7: Argument Mining", "Level 8: Topic Modeling"],
+    "mediumTerm": ["Level 9: Temporal Dynamics"],
+    "longTerm": ["Level 10: Deliberative Quality Metrics"]
+  },
+  "dataRequirements": {
+    "level6": "Sentiment lexicon, stance detection training data",
+    "level7": "Argument annotation corpus, discourse markers",
+    "level8": "LDA implementation, topic coherence metrics",
+    "level9": "Time-series analysis tools, influence detection algorithms",
+    "level10": "Deliberation quality rubrics, toxicity detection models"
+  }
+}

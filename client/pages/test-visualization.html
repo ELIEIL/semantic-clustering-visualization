@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: sans-serif;
+            background: white;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #visualizationCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        #debug {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="debug">
+        <div>Status: <span id="status">Loading...</span></div>
+        <div>Nodes: <span id="nodeCount">0</span></div>
+        <div>Canvas: <span id="canvasSize">-</span></div>
+    </div>
+    <canvas id="visualizationCanvas"></canvas>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <script>
+        let nodes = [];
+        
+        function setup() {
+            const canvas = createCanvas(windowWidth, windowHeight);
+            canvas.parent(document.body);
+            colorMode(HSB);
+            
+            document.getElementById('status').textContent = 'Ready';
+            document.getElementById('canvasSize').textContent = `${width}x${height}`;
+            
+            // Add test node after 1 second
+            setTimeout(() => {
+                addTestPost('Hello World! This is a test post.');
+            }, 1000);
+            
+            setTimeout(() => {
+                addTestPost('Another test post with different content.');
+            }, 2000);
+        }
+        
+        function draw() {
+            background(255);
+            
+            // Draw connections
+            stroke(0, 0, 0, 50);
+            strokeWeight(2);
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    line(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y);
+                }
+            }
+            
+            // Update and display nodes
+            nodes.forEach(node => {
+                node.update();
+                node.display();
+            });
+            
+            document.getElementById('nodeCount').textContent = nodes.length;
+        }
+        
+        function addTestPost(content) {
+            console.log('Adding test post:', content);
+            const node = {
+                content: content,
+                x: random(100, width - 100),
+                y: random(100, height - 100),
+                vx: 0,
+                vy: 0,
+                size: 60,
+                angle: 0,
+                
+                update() {
+                    // Simple drift
+                    this.vx += random(-0.5, 0.5);
+                    this.vy += random(-0.5, 0.5);
+                    this.vx *= 0.9;
+                    this.vy *= 0.9;
+                    
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    
+                    this.x = constrain(this.x, this.size, width - this.size);
+                    this.y = constrain(this.y, this.size, height - this.size);
+                    
+                    this.angle += 0.02;
+                },
+                
+                display() {
+                    push();
+                    translate(this.x, this.y);
+                    
+                    // Draw particles
+                    for (let i = 0; i < 8; i++) {
+                        const angle = this.angle + (i * TWO_PI / 8);
+                        const px = cos(angle) * this.size;
+                        const py = sin(angle) * this.size;
+                        
+                        noStroke();
+                        fill(200, 70, 50);
+                        circle(px, py, 8);
+                    }
+                    
+                    // Draw node
+                    stroke(0);
+                    strokeWeight(2);
+                    fill(255);
+                    circle(0, 0, this.size);
+                    
+                    // Draw text
+                    fill(0);
+                    noStroke();
+                    textAlign(CENTER, CENTER);
+                    textSize(12);
+                    text(this.content.substring(0, 15) + '...', 0, 0);
+                    
+                    pop();
+                }
+            };
+            
+            nodes.push(node);
+        }
+        
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+            document.getElementById('canvasSize').textContent = `${width}x${height}`;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: sans-serif;
+    background: white;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.admin-container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid black;
+}
+
+.header h1 {
+    font-size: 28px;
+    color: black;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+}
+
+.danger-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    color: white;
+    background: black;
+    border: 2px solid black;
+    cursor: pointer;
+}
+
+.sections {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+.section {
+    border: 2px solid black;
+    padding: 20px;
+}
+
+.section h2 {
+    font-size: 20px;
+    margin-bottom: 20px;
+    color: black;
+}
+
+.posts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.post-item {
+    border: 1px solid black;
+    padding: 15px;
+    background: white;
+}
+
+.post-content {
+    font-size: 16px;
+    color: black;
+    margin-bottom: 10px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.post-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.approve-btn, .reject-btn, .delete-btn {
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: bold;
+    border: 2px solid black;
+    cursor: pointer;
+}
+
+.approve-btn {
+    background: black;
+    color: white;
+}
+
+.reject-btn, .delete-btn {
+    background: white;
+    color: black;
+}
+
+.post-time {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+}
+
+.empty-state {
+    text-align: center;
+    color: #999;
+    padding: 40px;
+    font-size: 14px;
+}
+
+@media (max-width: 900px) {
+    .sections {
+        grid-template-columns: 1fr;
+    }
+}

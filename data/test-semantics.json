@@ -1,0 +1,183 @@
+{
+  "description": "Test data for semantic analysis and clustering - showcases various word combinations and similarity levels",
+  "testSets": {
+    "highSimilarity": {
+      "description": "Posts with >60% similarity - should create strong links (red lines) and tight clusters",
+      "posts": [
+        "Climate change requires immediate action",
+        "Climate action is urgently needed",
+        "We must act on climate change now",
+        "Urgent climate action is necessary",
+        "Climate crisis demands immediate response"
+      ],
+      "expectedBehavior": "Red connection lines, single tight cluster, theme: 'climat & action & urgent'"
+    },
+    "mediumSimilarity": {
+      "description": "Posts with 30-60% similarity - should create regular links (blue lines)",
+      "posts": [
+        "Environmental protection is important",
+        "We need sustainable energy solutions",
+        "Green technology can help the planet",
+        "Renewable resources are the future",
+        "Conservation efforts matter greatly"
+      ],
+      "expectedBehavior": "Blue connection lines, looser cluster, theme: 'environ & sustain & green'"
+    },
+    "lowSimilarity": {
+      "description": "Posts with <30% similarity - should have no connections",
+      "posts": [
+        "I love pizza on Fridays",
+        "Mathematics is fascinating",
+        "The ocean is beautiful",
+        "Music brings joy",
+        "Coffee tastes great"
+      ],
+      "expectedBehavior": "No connection lines, isolated nodes, no clustering"
+    },
+    "polarizedOpinions": {
+      "description": "Opposing viewpoints on same topic - tests echo chamber detection",
+      "group1": [
+        "Climate change is the greatest threat",
+        "We must prioritize climate action",
+        "Climate science is clear and urgent"
+      ],
+      "group2": [
+        "Economic growth matters more than climate",
+        "Climate policies hurt the economy",
+        "Jobs are more important than climate action"
+      ],
+      "expectedBehavior": "Two separate clusters with red lines within each, no lines between clusters, themes: 'climat & action & threat' vs 'econom & job & growth'"
+    },
+    "bridgingPosts": {
+      "description": "Posts that connect different topics - tests cross-cluster connections",
+      "posts": [
+        "Green technology creates new jobs",
+        "Renewable energy boosts the economy",
+        "Climate action and economic growth can coexist",
+        "Sustainable development benefits everyone"
+      ],
+      "expectedBehavior": "Blue lines connecting to both climate and economy clusters, acts as bridge"
+    },
+    "nuancedSemantics": {
+      "description": "Tests stemming and semantic understanding",
+      "posts": [
+        "Politicians are corrupt and dishonest",
+        "Political corruption undermines democracy",
+        "Politics breeds dishonesty and lies",
+        "The political system is broken",
+        "Politicians cannot be trusted"
+      ],
+      "expectedBehavior": "High similarity despite different word forms (politic/politician/politics), theme: 'politic & corrupt & dishonest'"
+    },
+    "stopWordFiltering": {
+      "description": "Tests that stop words are properly filtered",
+      "posts": [
+        "The climate is changing and it is urgent",
+        "Climate change is happening now",
+        "It is clear that climate is urgent"
+      ],
+      "expectedBehavior": "High similarity despite different stop words (the, is, it, that, and), focuses on 'climat & chang & urgent'"
+    },
+    "multiThematicClusters": {
+      "description": "Multiple distinct themes for testing Generate Theme feature",
+      "themes": {
+        "healthcare": [
+          "Healthcare is a human right",
+          "Universal healthcare saves lives",
+          "Medical care should be free",
+          "Health insurance is too expensive"
+        ],
+        "education": [
+          "Education should be accessible to all",
+          "Free university tuition is essential",
+          "Student debt is crushing young people",
+          "Quality education is a right"
+        ],
+        "technology": [
+          "Artificial intelligence will transform society",
+          "AI ethics are critically important",
+          "Technology must serve humanity",
+          "Digital privacy is a fundamental right"
+        ]
+      },
+      "expectedBehavior": "Three separate gold metaballs after Generate, themes: 'healthcar & medic & free', 'educ & student & univers', 'technolog & artifici & intellig'"
+    },
+    "echoChamberScenario": {
+      "description": "Strong echo chamber with many strong links",
+      "posts": [
+        "Immigration is destroying our country",
+        "Immigrants are taking our jobs",
+        "We need to close the borders now",
+        "Immigration policy is too lenient",
+        "Illegal immigration is out of control",
+        "Border security must be strengthened",
+        "Immigration threatens our culture"
+      ],
+      "expectedBehavior": "Dense network of red lines (>60% similarity), single tight cluster, strong echo chamber indicator, theme: 'immigr & border & job'"
+    },
+    "deliberativeDiscourse": {
+      "description": "Balanced discussion with multiple perspectives",
+      "posts": [
+        "We should consider all viewpoints on this issue",
+        "Both sides have valid concerns",
+        "Finding common ground is important",
+        "Compromise requires understanding different perspectives",
+        "Respectful dialogue leads to better solutions",
+        "We must listen to opposing views",
+        "Nuanced thinking is needed here"
+      ],
+      "expectedBehavior": "Medium similarity connections (blue lines), distributed cluster, theme: 'view & perspect & understand'"
+    },
+    "emotionalLanguage": {
+      "description": "Tests handling of emotional vs neutral language",
+      "emotional": [
+        "I HATE when people ignore climate change",
+        "Climate deniers make me furious",
+        "It's infuriating that nothing is being done"
+      ],
+      "neutral": [
+        "Climate change requires policy action",
+        "Environmental regulations need updating",
+        "Carbon emissions should be reduced"
+      ],
+      "expectedBehavior": "Emotional posts cluster together (hate, furious, infuriating), neutral posts cluster separately, different themes despite same topic"
+    },
+    "complexSemantics": {
+      "description": "Tests advanced semantic relationships",
+      "synonyms": [
+        "Large corporations dominate the market",
+        "Big companies control the economy",
+        "Giant firms have too much power"
+      ],
+      "antonyms": [
+        "Wealth inequality is growing",
+        "Economic equality is declining"
+      ],
+      "metaphors": [
+        "The economy is a house of cards",
+        "Our financial system is built on sand"
+      ],
+      "expectedBehavior": "Synonyms: high similarity. Antonyms: medium similarity (same topic, opposite stance). Metaphors: lower similarity (abstract language)"
+    }
+  },
+  "usageInstructions": {
+    "manual": "Copy posts from any test set and paste into mobile controller",
+    "automated": "Could be used for automated testing in future",
+    "expectedMetrics": {
+      "highSimilarity": ">60% = red lines",
+      "mediumSimilarity": "30-60% = blue lines",
+      "lowSimilarity": "<30% = no lines",
+      "clustering": "3 automatic K-means clusters (white metaballs)",
+      "generateTheme": "Gold metaballs with theme labels for connected groups"
+    }
+  },
+  "semanticConcepts": {
+    "tfIdf": "Term Frequency-Inverse Document Frequency - weights words by uniqueness",
+    "cosineSimilarity": "Measures angle between TF-IDF vectors (0-1 scale)",
+    "stemming": "Reduces words to root form (running → run, politics → politic)",
+    "stopWords": "Common words filtered out (the, is, and, or, etc.)",
+    "clustering": "K-means groups posts into 3 semantic clusters",
+    "connectedComponents": "Graph traversal finds groups of linked posts",
+    "themeExtraction": "Weighted keywords from connections determine theme"
+  }
+}

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile Controller</title>
+    <link rel="stylesheet" href="../styles/mobile.css">
+</head>
+<body>
+    <!-- Connection Status Indicator -->
+    <div id="connectionStatus" class="connection-status disconnected">
+        <span class="status-dot"></span>
+        <span class="status-text">Connecting...</span>
+    </div>
+    
+    <div class="compose-area" id="composeArea">
+        <div class="input-wrapper">
+            <textarea id="textInput" placeholder="What's on your mind?" autocomplete="off" maxlength="500"></textarea>
+            <div class="character-counter">
+                <span id="charCount">0</span> / 500
+            </div>
+        </div>
+        <button id="submitBtn" class="submit-btn">
+            <span class="btn-text">Post</span>
+            <span class="btn-loader" style="display: none;">●●●</span>
+        </button>
+    </div>
+    
+    <!-- Success Animation -->
+    <div id="successAnimation" class="success-animation" style="display: none;">
+        <div class="success-checkmark">✓</div>
+        <div class="success-text">Posted!</div>
+    </div>
+    
+    <!-- Post History -->
+    <div id="postHistory" class="post-history" style="display: none;">
+        <h3>Your Recent Posts</h3>
+        <div id="historyList" class="history-list"></div>
+    </div>
+    
+    <!-- Cluster Feedback Panel -->
+    <div id="clusterFeedback" style="display: none; margin-top: 20px; padding: 20px; background: #f5f5f5; border: 2px solid #9C27B0; border-radius: 10px;">
+        <h3 style="margin: 0 0 10px 0; color: #9C27B0;">📊 Your Post Cluster</h3>
+        <div id="clusterInfo" style="font-size: 14px; line-height: 1.6;"></div>
+        <div id="recommendations" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <strong style="color: #666;">Others in your cluster:</strong>
+            <div id="recommendedPosts" style="margin-top: 10px; font-size: 13px;"></div>
+        </div>
+    </div>
+    
+    <script src="../mobile.js"></script>
+</body>
+</html>

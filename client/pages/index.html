@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" style="background: black;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main Display</title>
+    <link rel="stylesheet" href="../styles/styles.css">
+</head>
+<body style="background: black;">
+    <!-- Hamburger Menu Button -->
+    <button id="hamburgerBtn" style="position: fixed; top: 20px; left: 20px; z-index: 3000; background: rgba(76, 175, 80, 0.9); border: none; width: 50px; height: 50px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; padding: 0; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);">
+        <span style="width: 30px; height: 3px; background: white; border-radius: 2px; transition: all 0.3s ease;"></span>
+        <span style="width: 30px; height: 3px; background: white; border-radius: 2px; transition: all 0.3s ease;"></span>
+        <span style="width: 30px; height: 3px; background: white; border-radius: 2px; transition: all 0.3s ease;"></span>
+    </button>
+    
+    <!-- Slide-out Panel -->
+    <div id="slidePanel" style="position: fixed; top: 0; left: -500px; width: 480px; height: 100vh; background: rgba(0, 0, 0, 0.98); z-index: 2500; transition: left 0.4s ease; overflow-y: auto; padding: 80px 20px 20px 20px; border-right: 3px solid #4CAF50; box-shadow: 4px 0 30px rgba(76, 175, 80, 0.3);">
+        
+        <div id="topBar" style="margin-bottom: 20px;">
+            <p style="color: white; font-size: 18px; font-weight: bold;">Placeholder question</p>
+        </div>
+    
+    <!-- Removed static debug panel - keeping only real-time monitoring panels -->
+    
+    <div id="loading" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 20px;">
+        Loading visualization...
+    </div>
+    
+    <!-- Unified Real-Time Monitoring Dashboard (Inside Panel) -->
+    <div id="monitoringDashboard" style="background: rgba(0, 0, 0, 0.5); color: white; padding: 20px; border-radius: 12px; font-family: 'Courier New', monospace; font-size: 11px; margin-bottom: 20px; border: 2px solid #4CAF50;">
+        
+        <!-- Header with Toggle -->
+        <div style="margin-bottom: 15px; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <strong style="font-size: 16px; color: #4CAF50;">🔬 Real-Time Algorithm Monitor</strong>
+            <button id="toggleMonitor" style="background: #4CAF50; color: white; border: none; padding: 6px 12px; cursor: pointer; font-size: 10px; border-radius: 5px; font-weight: bold; font-family: 'Courier New', monospace;">Hide Details</button>
+        </div>
+        
+        <!-- System Status Section -->
+        <div style="margin-bottom: 15px; padding: 12px; background: rgba(76, 175, 80, 0.15); border-radius: 8px; border-left: 3px solid #4CAF50;">
+            <div style="font-size: 12px; color: #4CAF50; font-weight: bold; margin-bottom: 8px;">📊 System Status</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10px;">
+                <div>
+                    <span style="color: #888;">Database:</span>
+                    <span id="currentDbDisplay" style="color: #4CAF50; font-weight: bold;">Transformer</span>
+                </div>
+                <div>
+                    <span style="color: #888;">Status:</span>
+                    <span id="algorithmStatus" style="color: #4CAF50; font-weight: bold;">Ready</span>
+                </div>
+                <div>
+                    <span style="color: #888;">API Calls:</span>
+                    <span id="apiCallCount" style="color: #4CAF50;">0</span>
+                </div>
+                <div>
+                    <span style="color: #888;">Cached:</span>
+                    <span id="cacheHits" style="color: #2196F3;">0</span>
+                </div>
+                <div>
+                    <span style="color: #888;">Avg Time:</span>
+                    <span id="avgResponseTime" style="color: #E91E63;">0ms</span>
+                </div>
+                <div>
+                    <span style="color: #888;">Posts:</span>
+                    <span id="postCount" style="color: #FF9800;">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Live Activity Feed (Collapsible) -->
+        <div id="activityFeedSection" style="margin-bottom: 10px; padding: 10px; background: rgba(76, 175, 80, 0.1); border-radius: 8px;">
+            <div style="font-size: 12px; color: #4CAF50; font-weight: bold; margin-bottom: 8px;">⚡ Live Activity Feed</div>
+            <div id="activityLog" style="font-size: 10px; line-height: 1.6; max-height: 400px; overflow-y: auto;">
+                <div style="color: #888; font-style: italic;">Waiting for activity...</div>
+            </div>
+        </div>
+        
+    </div>
+    
+    <!-- Remove old separate panels -->
+    <!-- Removed: Old API Monitor panel - now part of unified dashboard -->
+    
+    <!-- Database Selector (Inside Panel) -->
+    <div id="databaseSelector" style="font-family: 'Open Sans', sans-serif; margin-bottom: 20px;">
+        <button id="dbToggleBtn" style="background: #9C27B0; color: white; border: none; padding: 12px 24px; font-size: 14px; font-weight: bold; cursor: pointer; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s ease; width: 220px; text-align: left;">
+            📊 Database: Transformer ▼
+        </button>
+        <div id="dbDropdown" style="display: none; margin-top: 8px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); overflow: hidden; width: 100%;">
+            <div class="db-option" data-db="tfidf" style="padding: 12px 20px; cursor: pointer; color: #333; border-bottom: 1px solid #eee; transition: background 0.2s;">
+                <strong>TF-IDF</strong><br>
+                <span style="font-size: 11px; color: #666;">Basic word matching - exact stems only</span>
+            </div>
+            <div class="db-option" data-db="transformer" style="padding: 12px 20px; cursor: pointer; color: #333; border-bottom: 1px solid #eee; transition: background 0.2s; background: #e3f2fd;">
+                <strong>Sentence Transformer (Current)</strong><br>
+                <span style="font-size: 11px; color: #666;">Neural embeddings - fast & accurate semantic similarity</span>
+            </div>
+            <div class="db-option" data-db="conceptnet" style="padding: 12px 20px; cursor: pointer; color: #333; border-bottom: 1px solid #eee; transition: background 0.2s;">
+                <strong>ConceptNet</strong><br>
+                <span style="font-size: 11px; color: #666;">21M semantic relationships - understands context</span>
+            </div>
+            <div class="db-option" data-db="wordnet" style="padding: 12px 20px; cursor: pointer; color: #333; border-bottom: 1px solid #eee; transition: background 0.2s;">
+                <strong>WordNet</strong><br>
+                <span style="font-size: 11px; color: #666;">Synonym sets & word hierarchies</span>
+            </div>
+            <div class="db-option" data-db="word2vec" style="padding: 12px 20px; cursor: pointer; color: #333; transition: background 0.2s;">
+                <strong>Word2Vec Embeddings</strong><br>
+                <span style="font-size: 11px; color: #666;">Vector similarity - fast & offline</span>
+            </div>
+        </div>
+    </div>
+    
+    </div> <!-- End Slide Panel -->
+    
+    <!-- Removed: Generate Theme button -->
+    
+    <style>
+        .db-option:hover {
+            background: #f5f5f5 !important;
+        }
+        .db-option.active {
+            background: #e3f2fd !important;
+        }
+    </style>
+    
+    <script>
+        // Hamburger menu toggle
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const slidePanel = document.getElementById('slidePanel');
+        let panelOpen = false;
+        
+        hamburgerBtn.addEventListener('click', () => {
+            panelOpen = !panelOpen;
+            if (panelOpen) {
+                slidePanel.style.left = '0';
+                hamburgerBtn.style.left = '500px';
+            } else {
+                slidePanel.style.left = '-500px';
+                hamburgerBtn.style.left = '20px';
+            }
+        });
+        
+        // Check if p5.js loads
+        window.addEventListener('load', () => {
+            const loadingDiv = document.getElementById('loading');
+            if (typeof p5 !== 'undefined') {
+                console.log('p5.js loaded successfully');
+                loadingDiv.textContent = 'p5.js loaded. Initializing...';
+            } else {
+                console.error('p5.js failed to load');
+                loadingDiv.textContent = 'ERROR: p5.js failed to load';
+                loadingDiv.style.color = 'red';
+            }
+        });
+    </script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js" crossorigin="anonymous"></script>
+    <script src="../../script.js" defer></script>
+</body>
+</html>
