@@ -6,6 +6,10 @@ let clusters = [];
 let numClusters = 5; // More clusters = more color variety for different topics
 let connectionCache = new Map(); // Cache for similarity calculations
 
+// Visualization mode
+let visualizationMode = 'metaball'; // 'metaball', 'metaball2', 'metaball3', or 'outline'
+window.visualizationMode = visualizationMode; // Make globally accessible
+
 // ConceptNet API monitoring
 let currentDatabase = 'transformer';
 let apiCallCount = 0;
@@ -642,12 +646,364 @@ function showDatabaseNotification(dbName) {
     }, 3000);
 }
 
+function drawMetaballFilled() {
+    if (nodes.length < 1) return;
+    
+    // FILLED METABALL RENDERING - Same as original but with fill instead of stroke
+    const similarityThreshold = 0.2;
+    const metaballRadius = 80;
+    const fieldThreshold = 1.2;
+    const resolution = 12;
+    
+    // Group ALL posts by similarity (including single posts)
+    const groups = [];
+    const processed = new Set();
+    
+    nodes.forEach((node, i) => {
+        if (processed.has(i)) return;
+        
+        const group = [i];
+        processed.add(i);
+        
+        for (let j = i + 1; j < nodes.length; j++) {
+            if (processed.has(j)) continue;
+            
+            const key = `${i}-${j}`;
+            const similarity = connectionCache.get(key) || 0;
+            
+            // ONLY group if similarity is above threshold
+            if (similarity > similarityThreshold) {
+                group.push(j);
+                processed.add(j);
+            }
+        }
+        
+        // Add ALL groups (even single posts)
+        groups.push(group);
+    });
+    
+    // Draw each group as metaballs (posts themselves, not background)
+    groups.forEach((group, groupIndex) => {
+        const groupNodes = group.map(i => nodes[i]);
+        if (groupNodes.length === 0) return;
+        
+        // Use the cluster color from the first node, or generate unique color per group
+        const color = groupNodes[0].clusterColor || {
+            h: (groupIndex * 360 / groups.length) % 360,
+            s: 70,
+            b: 80
+        };
+        
+        // Calculate bounding box
+        const minX = Math.min(...groupNodes.map(n => n.x)) - metaballRadius * 2;
+        const maxX = Math.max(...groupNodes.map(n => n.x)) + metaballRadius * 2;
+        const minY = Math.min(...groupNodes.map(n => n.y)) - metaballRadius * 2;
+        const maxY = Math.max(...groupNodes.map(n => n.y)) + metaballRadius * 2;
+        
+        // Create field strength grid using metaball equation: f = a/r
+        const cols = Math.ceil((maxX - minX) / resolution);
+        const rows = Math.ceil((maxY - minY) / resolution);
+        const field = [];
+        
+        for (let i = 0; i <= cols; i++) {
+            field[i] = [];
+            for (let j = 0; j <= rows; j++) {
+                const x = minX + i * resolution;
+                const y = minY + j * resolution;
+                
+                // Calculate metaball field from THIS group's nodes
+                let strength = 0;
+                groupNodes.forEach(node => {
+                    const dx = x - node.x;
+                    const dy = y - node.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance > 0) {
+                        // Metaball equation: f = a / r
+                        strength += metaballRadius / distance;
+                    } else {
+                        strength += 999; // At center
+                    }
+                });
+                
+                // BUBBLE PHYSICS: Add influence from ALL other nodes (creates deformation)
+                nodes.forEach(otherNode => {
+                    if (groupNodes.includes(otherNode)) return;
+                    
+                    const dx = x - otherNode.x;
+                    const dy = y - otherNode.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance > 0 && distance < metaballRadius * 5) {
+                        // Other nodes create VERY STRONG negative field (dramatic indentation)
+                        const influence = (metaballRadius * 2.5) / distance;
+                        strength -= influence * 1.5; // Extremely strong deformation
+                    }
+                });
+                
+                field[i][j] = strength;
+            }
+        }
+        
+        // Draw metaball shape with FILL instead of stroke
+        push();
+        fill(255); // White fill
+        noStroke(); // No stroke
+        
+        // Trace contour where field >= threshold
+        const contourPoints = [];
+        for (let i = 0; i < cols; i++) {
+            for (let j = 0; j < rows; j++) {
+                const x = minX + i * resolution;
+                const y = minY + j * resolution;
+                
+                // Check if this cell crosses the threshold
+                const tl = field[i][j] >= fieldThreshold;
+                const tr = field[i + 1][j] >= fieldThreshold;
+                const br = field[i + 1][j + 1] >= fieldThreshold;
+                const bl = field[i][j + 1] >= fieldThreshold;
+                
+                // If any corner is inside, add to contour
+                if (tl || tr || br || bl) {
+                    contourPoints.push({x: x + resolution/2, y: y + resolution/2});
+                }
+            }
+        }
+        
+        // Draw smooth metaball shape from contour points
+        if (contourPoints.length > 0) {
+            beginShape();
+            const hull = convexHull(contourPoints);
+            const smoothed = smoothHull(hull);
+            smoothed.forEach(p => vertex(p.x, p.y));
+            endShape(CLOSE);
+        }
+        
+        // Calculate cluster center
+        const centerX = groupNodes.reduce((sum, n) => sum + n.x, 0) / groupNodes.length;
+        const centerY = groupNodes.reduce((sum, n) => sum + n.y, 0) / groupNodes.length;
+        
+        // Only draw individual post text for single posts (not in a cluster)
+        // For multi-post clusters, only show the cluster label
+        if (groupNodes.length === 1) {
+            // Single post - show its text
+            const node = groupNodes[0];
+            push();
+            translate(node.x, node.y);
+            
+            textAlign(CENTER, CENTER);
+            textSize(14);
+            
+            const lineHeight = 20;
+            const startY = -(node.lines.length - 1) * lineHeight / 2;
+            
+            node.lines.forEach((line, i) => {
+                // Black text
+                fill(0, 255);
+                noStroke();
+                text(line, 0, startY + i * lineHeight);
+            });
+            
+            pop();
+        }
+        // For clusters with 2+ posts, don't draw individual post text
+        // Only the cluster label will be drawn below
+        
+        pop();
+        
+        // Draw cluster label if multiple posts
+        if (groupNodes.length >= 2) {
+            push();
+            const centerX = groupNodes.reduce((sum, n) => sum + n.x, 0) / groupNodes.length;
+            const centerY = groupNodes.reduce((sum, n) => sum + n.y, 0) / groupNodes.length;
+        
+            const keywordFreq = new Map();
+            groupNodes.forEach(node => {
+                if (node.keywords) {
+                    node.keywords.forEach(kw => {
+                        keywordFreq.set(kw, (keywordFreq.get(kw) || 0) + 1);
+                    });
+                }
+            });
+            
+            const topKeywords = Array.from(keywordFreq.entries())
+                .filter(([_, count]) => count >= 2)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 2)
+                .map(([word]) => word.charAt(0).toUpperCase() + word.slice(1));
+            
+            if (topKeywords.length > 0) {
+                const label = topKeywords.join(' & ');
+                textAlign(CENTER, CENTER);
+                textSize(18);
+                textStyle(BOLD);
+                // Black text for filled mode
+                fill(0, 255);
+                noStroke();
+                text(label, centerX, centerY);
+                textStyle(NORMAL);
+            }
+            pop();
+        }
+    });
+    
+    // Update node physics
+    nodes.forEach(node => {
+        node.update();
+    });
+}
+
+function drawMetaball3() {
+    if (nodes.length < 1) return;
+    
+    // SYMMETRICAL GRID-BASED COLORED STROKE RENDERING
+    // No physics - algorithmic placement in grid pattern
+    
+    // Calculate grid layout
+    const cols = Math.ceil(Math.sqrt(nodes.length));
+    const rows = Math.ceil(nodes.length / cols);
+    
+    const cellWidth = width / cols;
+    const cellHeight = height / rows;
+    const padding = 40;
+    
+    // Draw each node in grid position with colored stroke
+    nodes.forEach((node, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        
+        // Calculate centered position in grid cell
+        const x = col * cellWidth + cellWidth / 2;
+        const y = row * cellHeight + cellHeight / 2;
+        
+        // Use cluster color for stroke
+        const color = node.clusterColor || {
+            h: (i * 360 / nodes.length) % 360,
+            s: 70,
+            b: 80
+        };
+        
+        // Calculate text dimensions
+        const maxWidth = cellWidth - padding * 2;
+        const lineHeight = 20;
+        
+        // Split text into lines
+        const words = node.content.split(' ');
+        const lines = [];
+        let currentLine = '';
+        
+        textSize(14);
+        words.forEach(word => {
+            const testLine = currentLine + (currentLine ? ' ' : '') + word;
+            if (textWidth(testLine) > maxWidth) {
+                if (currentLine) lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+        });
+        if (currentLine) lines.push(currentLine);
+        
+        const textHeight = lines.length * lineHeight;
+        const boxWidth = Math.min(maxWidth + padding * 2, cellWidth - 20);
+        const boxHeight = textHeight + padding * 2;
+        const cornerRadius = 30;
+        
+        // Draw rounded rectangle with colored stroke
+        push();
+        translate(x, y);
+        
+        noFill();
+        stroke(color.h, color.s, color.b, 255);
+        strokeWeight(4);
+        
+        rectMode(CENTER);
+        rect(0, 0, boxWidth, boxHeight, cornerRadius);
+        
+        // Draw text inside
+        fill(255);
+        noStroke();
+        textAlign(CENTER, CENTER);
+        textSize(14);
+        
+        const startY = -(lines.length - 1) * lineHeight / 2;
+        lines.forEach((line, i) => {
+            text(line, 0, startY + i * lineHeight);
+        });
+        
+        pop();
+    });
+}
+
+function drawOutlineMode() {
+    // Draw each post as a rounded rectangle with stroke outline
+    nodes.forEach(node => {
+        node.update();
+        
+        // Calculate text dimensions for rounded rectangle
+        const maxWidth = 300;
+        const padding = 20;
+        const lineHeight = 20;
+        
+        // Split text into lines
+        const words = node.content.split(' ');
+        const lines = [];
+        let currentLine = '';
+        
+        textSize(14);
+        words.forEach(word => {
+            const testLine = currentLine + (currentLine ? ' ' : '') + word;
+            if (textWidth(testLine) > maxWidth - padding * 2) {
+                if (currentLine) lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+        });
+        if (currentLine) lines.push(currentLine);
+        
+        const boxWidth = maxWidth;
+        const boxHeight = lines.length * lineHeight + padding * 2;
+        const cornerRadius = 20;
+        
+        // Draw rounded rectangle with stroke outline
+        push();
+        translate(node.x, node.y);
+        
+        // No fill, only stroke
+        noFill();
+        stroke(255); // White stroke
+        strokeWeight(2);
+        
+        // Draw rounded rectangle
+        rectMode(CENTER);
+        rect(0, 0, boxWidth, boxHeight, cornerRadius);
+        
+        // Draw text inside
+        fill(255);
+        noStroke();
+        textAlign(CENTER, CENTER);
+        textSize(14);
+        
+        const startY = -(lines.length - 1) * lineHeight / 2;
+        lines.forEach((line, i) => {
+            text(line, 0, startY + i * lineHeight);
+        });
+        
+        pop();
+    });
+}
+
 function windowResized() {
     resizeCanvas(windowWidth, windowHeight);
 }
 
+// WebSocket is declared at top of file (line 1)
+window.ws = null; // Expose WebSocket globally for control panel
+
 function connectWebSocket() {
     ws = new WebSocket('ws://localhost:8080');
+    window.ws = ws; // Make accessible to control panel
     
     ws.onopen = () => {
         console.log('Display connected to server');
@@ -661,8 +1017,49 @@ function connectWebSocket() {
             addPost(data.content, data.timestamp);
         }
         
-        if (data.type === 'clear_all') {
+        if (data.type === 'clear') {
             clearAllPosts();
+        }
+        
+        if (data.type === 'headline') {
+            // Update centered headline display
+            const headlineText = document.getElementById('headlineText');
+            const headlineTimestamp = document.getElementById('headlineTimestamp');
+            
+            if (headlineText) {
+                headlineText.textContent = data.headline;
+            }
+            
+            if (headlineTimestamp && data.timestamp) {
+                const date = new Date(data.timestamp);
+                const options = { 
+                    hour: 'numeric', 
+                    minute: '2-digit',
+                    hour12: true,
+                    timeZoneName: 'short',
+                    weekday: 'short',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                };
+                const formattedDate = date.toLocaleString('en-US', options);
+                headlineTimestamp.textContent = `Updated ${formattedDate}`;
+            }
+            
+            // Update API control panel
+            const apiCurrentHeadline = document.getElementById('apiCurrentHeadline');
+            const apiHeadlineTime = document.getElementById('apiHeadlineTime');
+            
+            if (apiCurrentHeadline) {
+                apiCurrentHeadline.textContent = data.headline;
+            }
+            
+            if (apiHeadlineTime && data.timestamp) {
+                const date = new Date(data.timestamp);
+                const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                apiHeadlineTime.textContent = `Fetched: ${timeStr}`;
+                window.headlineFetchTime = data.timestamp;
+            }
         }
     };
     
@@ -777,6 +1174,25 @@ class Node {
         let fx = 0;
         let fy = 0;
         
+        // HEADLINE REPULSION ZONE - prevent posts from overlapping with centered headline
+        const headlineX = width / 2;
+        const headlineY = height / 2;
+        const headlineWidth = 700;
+        const headlineHeight = 200;
+        const repelDistance = 350; // Distance at which repulsion starts
+        
+        // Calculate distance to headline center
+        const dxHeadline = this.x - headlineX;
+        const dyHeadline = this.y - headlineY;
+        const distToHeadline = sqrt(dxHeadline * dxHeadline + dyHeadline * dyHeadline);
+        
+        // Strong repulsion from headline area
+        if (distToHeadline < repelDistance) {
+            const repelForce = (repelDistance - distToHeadline) / repelDistance * 3.0;
+            fx += (dxHeadline / distToHeadline) * repelForce;
+            fy += (dyHeadline / distToHeadline) * repelForce;
+        }
+        
         // Attraction to similar nodes, strong repulsion between different clusters
         nodes.forEach(other => {
             if (other === this) return;
@@ -799,28 +1215,46 @@ class Node {
                                     this.cluster !== other.cluster;
             
             if (similarity > 0.3) {
-                // MUCH STRONGER attraction - pulls posts together FAST
+                // ATTRACTION for similar posts - they cluster together
                 const force = (similarity - 0.3) * 2.5;
                 fx += (dx / dist) * force;
                 fy += (dy / dist) * force;
-            }
-            
-            // Prevent excessive overlap - even for similar posts
-            if (dist < 100) {
-                // Strong repulsion when too close to prevent overlap
-                const repelForce = (100 - dist) / 100 * 2.5;
-                fx -= (dx / dist) * repelForce;
-                fy -= (dy / dist) * repelForce;
-            } else if (differentCluster && dist < 400) {
-                // EXTREMELY STRONG repulsion between different clusters
-                const repelForce = (400 - dist) / 400 * 4.0;
-                fx -= (dx / dist) * repelForce;
-                fy -= (dy / dist) * repelForce;
-            } else if (dist < 200) {
-                // Normal repulsion for same cluster or no cluster
-                const repelForce = (200 - dist) / 200 * 0.5;
-                fx -= (dx / dist) * repelForce;
-                fy -= (dy / dist) * repelForce;
+                
+                // Prevent excessive overlap within cluster
+                if (dist < 100) {
+                    const repelForce = (100 - dist) / 100 * 2.5;
+                    fx -= (dx / dist) * repelForce;
+                    fy -= (dy / dist) * repelForce;
+                }
+            } else {
+                // BOUNCING PHYSICS for dissimilar posts
+                // Calculate collision radius to match visual metaball outline
+                const collisionRadius = 80; // Match metaballRadius from rendering
+                const minDistance = collisionRadius * 1.8; // Slightly larger for smoother collision
+                
+                if (dist < minDistance) {
+                    // COLLISION DETECTED - gentle bounce away
+                    const overlap = minDistance - dist;
+                    const bounceForce = (overlap / minDistance) * 1.5; // Gentler bounce
+                    
+                    // Push away from collision
+                    fx -= (dx / dist) * bounceForce;
+                    fy -= (dy / dist) * bounceForce;
+                    
+                    // Add velocity-based bounce (more subtle)
+                    const relativeVx = (other.vx || 0) - (this.vx || 0);
+                    const relativeVy = (other.vy || 0) - (this.vy || 0);
+                    const bounceTransfer = 0.1; // Reduced from 0.3
+                    fx -= relativeVx * bounceTransfer;
+                    fy -= relativeVy * bounceTransfer;
+                }
+                
+                // Additional repulsion for different clusters (reduced)
+                if (differentCluster && dist < 350) {
+                    const repelForce = (350 - dist) / 350 * 1.5; // Reduced from 3.0
+                    fx -= (dx / dist) * repelForce;
+                    fy -= (dy / dist) * repelForce;
+                }
             }
         });
         
@@ -1034,15 +1468,20 @@ function draw() {
         background(0);
         
         if (nodes.length === 0) {
-            fill(255);
-            noStroke();
-            textAlign(CENTER, TOP);
-            textSize(12);
-            text('Placeholder question', width/2, 30);
             return;
         }
         
-        drawClusterMetaballs();
+        // Render based on visualization mode
+        const mode = window.visualizationMode || visualizationMode;
+        if (mode === 'outline') {
+            drawOutlineMode();
+        } else if (mode === 'metaball2') {
+            drawMetaballFilled();
+        } else if (mode === 'metaball3') {
+            drawMetaball3();
+        } else {
+            drawClusterMetaballs();
+        }
         
         connectionCache.forEach((similarity, key) => {
             const [i, j] = key.split('-').map(Number);
@@ -1149,7 +1588,7 @@ function drawClusterMetaballs() {
                 const x = minX + i * resolution;
                 const y = minY + j * resolution;
                 
-                // Calculate metaball field: sum of (radius/distance) for all nodes
+                // Calculate metaball field from THIS group's nodes
                 let strength = 0;
                 groupNodes.forEach(node => {
                     const dx = x - node.x;
@@ -1164,14 +1603,29 @@ function drawClusterMetaballs() {
                     }
                 });
                 
+                // BUBBLE PHYSICS: Add influence from ALL other nodes (creates deformation)
+                nodes.forEach(otherNode => {
+                    if (groupNodes.includes(otherNode)) return;
+                    
+                    const dx = x - otherNode.x;
+                    const dy = y - otherNode.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance > 0 && distance < metaballRadius * 5) {
+                        // Other nodes create VERY STRONG negative field (dramatic indentation)
+                        const influence = (metaballRadius * 2.5) / distance;
+                        strength -= influence * 1.5; // Extremely strong deformation
+                    }
+                });
+                
                 field[i][j] = strength;
             }
         }
         
         // Draw metaball shape (this IS the post, not background)
         push();
-        fill(color.h, color.s, color.b, 255);
-        stroke(255, 200);
+        noFill(); // No fill - stroke only
+        stroke(255); // White stroke
         strokeWeight(2);
         
         // Trace contour where field >= threshold

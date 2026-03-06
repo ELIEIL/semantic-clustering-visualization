@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const WebSocket = require('ws');
 const http = require('http');
 const fs = require('fs');
@@ -6,6 +8,7 @@ const qrcode = require('qrcode-terminal');
 const os = require('os');
 const CONFIG = require('./config.js');
 const ConceptNetClient = require('./api/conceptnet-client.js');
+const NewsAPIClient = require('./api/news-api.js');
 
 const PORT = 8080;
 const HTTP_PORT = 3000;
@@ -29,6 +32,17 @@ const rateLimitMap = new Map();
 // Initialize ConceptNet client for semantic understanding
 const conceptNet = new ConceptNetClient();
 console.log('ConceptNet client initialized');
+
+// Initialize NewsAPI client
+const NEWSAPI_KEY = process.env.NEWSAPI_KEY || 'YOUR_API_KEY_HERE';
+const newsAPI = new NewsAPIClient(NEWSAPI_KEY);
+let currentHeadline = 'What are your thoughts on current events?';
+
+// Fetch initial headline
+(async () => {
+    currentHeadline = await newsAPI.getTopHeadline('general', 'us');
+    console.log('Current headline:', currentHeadline);
+})();
 
 // Initialize Sentence Transformer (dynamic import for ES module)
 let sentenceTransformer = null;
@@ -111,12 +125,60 @@ wss.on('connection', (ws) => {
             
             if (data.type === 'register_display') {
                 displayClients.add(ws);
-                ws.clientType = 'display';
                 console.log('Display registered');
+                
+                // Send current headline to display
+                ws.send(JSON.stringify({
+                    type: 'headline',
+                    headline: currentHeadline,
+                    timestamp: Date.now()
+                }));
                 
                 approvedPosts.forEach(post => {
                     ws.send(JSON.stringify(post));
                 });
+                return;
+            }
+            
+            if (data.type === 'request_headline') {
+                ws.send(JSON.stringify({
+                    type: 'headline',
+                    headline: currentHeadline,
+                    timestamp: Date.now()
+                }));
+                return;
+            }
+            
+            if (data.type === 'refresh_headline') {
+                newsAPI.clearCache();
+                (async () => {
+                    currentHeadline = await newsAPI.getTopHeadline('general', 'us');
+                    broadcastToDisplays({
+                        type: 'headline',
+                        headline: currentHeadline,
+                        timestamp: Date.now()
+                    });
+                })();
+                return;
+            }
+            
+            if (data.type === 'clear_cache') {
+                newsAPI.clearCache();
+                console.log('Cache cleared manually');
+                return;
+            }
+            
+            if (data.type === 'update_news_settings') {
+                // Update settings and fetch new headline
+                newsAPI.clearCache();
+                (async () => {
+                    currentHeadline = await newsAPI.getTopHeadline(data.category || 'general', data.country || 'us');
+                    broadcastToDisplays({
+                        type: 'headline',
+                        headline: currentHeadline,
+                        timestamp: Date.now()
+                    });
+                })();
                 return;
             }
             

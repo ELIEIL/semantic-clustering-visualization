@@ -14,12 +14,134 @@
         <span style="width: 30px; height: 3px; background: white; border-radius: 2px; transition: all 0.3s ease;"></span>
     </button>
     
+    <!-- Left-aligned Headline Display -->
+    <div id="headlineDisplay" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: left; z-index: 10000; pointer-events: none; max-width: 700px; padding: 40px; background: black; border: 2px solid white;">
+        <h1 id="headlineText" style="color: white; font-size: 48px; font-weight: 300; margin: 0 0 15px 0; line-height: 1.3; letter-spacing: -0.5px;">News headline</h1>
+        <p id="headlineTimestamp" style="color: rgba(255, 255, 255, 0.6); font-size: 16px; margin: 0; font-weight: 400;">Updated 5:38 AM EST, Fri March 6, 2026</p>
+    </div>
+    
     <!-- Slide-out Panel -->
     <div id="slidePanel" style="position: fixed; top: 0; left: -500px; width: 480px; height: 100vh; background: rgba(0, 0, 0, 0.98); z-index: 2500; transition: left 0.4s ease; overflow-y: auto; padding: 80px 20px 20px 20px; border-right: 3px solid #4CAF50; box-shadow: 4px 0 30px rgba(76, 175, 80, 0.3);">
+    
+    <!-- Visualization Control Panel -->
+    <div id="visualizationPanel" style="background: rgba(233, 30, 99, 0.15); color: white; padding: 20px; border-radius: 12px; font-family: 'Courier New', monospace; font-size: 11px; margin-bottom: 20px; border: 2px solid #E91E63;">
         
-        <div id="topBar" style="margin-bottom: 20px;">
-            <p style="color: white; font-size: 18px; font-weight: bold;">Placeholder question</p>
+        <!-- Header -->
+        <div style="margin-bottom: 15px; border-bottom: 2px solid #E91E63; padding-bottom: 10px;">
+            <strong style="font-size: 16px; color: #E91E63;">🎨 Visualization Modes</strong>
         </div>
+        
+        <!-- Visualization Options Container -->
+        <div id="visualizationOptions" style="display: flex; flex-direction: column; gap: 10px;">
+            
+            <!-- Mode Selection -->
+            <div style="padding: 12px; background: rgba(233, 30, 99, 0.1); border-radius: 8px;">
+                <div style="font-size: 12px; color: #E91E63; font-weight: bold; margin-bottom: 10px;">Rendering Mode</div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px;">
+                    <button id="modeMetaball" class="viz-mode-btn active" style="padding: 10px; background: #E91E63; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                        Metaball
+                    </button>
+                    <button id="modeMetaball2" class="viz-mode-btn" style="padding: 10px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                        Metaball 2
+                    </button>
+                    <button id="modeMetaball3" class="viz-mode-btn" style="padding: 10px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                        Metaball 3
+                    </button>
+                    <button id="modeOutline" class="viz-mode-btn" style="padding: 10px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                        Outline
+                    </button>
+                </div>
+            </div>
+            
+        </div>
+        
+    </div>
+    
+    <!-- NewsAPI Control Panel -->
+    <div id="newsApiPanel" style="background: rgba(33, 150, 243, 0.15); color: white; padding: 20px; border-radius: 12px; font-family: 'Courier New', monospace; font-size: 11px; margin-bottom: 20px; border: 2px solid #2196F3;">
+        
+        <!-- Header -->
+        <div style="margin-bottom: 15px; border-bottom: 2px solid #2196F3; padding-bottom: 10px;">
+            <strong style="font-size: 16px; color: #2196F3;">📰 NewsAPI Control Panel</strong>
+        </div>
+        
+        <!-- Current Headline Display -->
+        <div style="margin-bottom: 15px; padding: 12px; background: rgba(33, 150, 243, 0.1); border-radius: 8px; border-left: 3px solid #2196F3;">
+            <div style="font-size: 12px; color: #2196F3; font-weight: bold; margin-bottom: 8px;">Current Headline</div>
+            <div id="apiCurrentHeadline" style="font-size: 11px; color: #fff; line-height: 1.4; font-style: italic;">Loading...</div>
+            <div id="apiHeadlineTime" style="font-size: 9px; color: #888; margin-top: 5px;">Fetched: --</div>
+        </div>
+        
+        <!-- API Usage Stats -->
+        <div style="margin-bottom: 15px; padding: 12px; background: rgba(33, 150, 243, 0.1); border-radius: 8px;">
+            <div style="font-size: 12px; color: #2196F3; font-weight: bold; margin-bottom: 8px;">📊 API Usage</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10px;">
+                <div>
+                    <span style="color: #888;">Requests Today:</span>
+                    <span id="apiRequestsToday" style="color: #2196F3; font-weight: bold;">0</span>
+                </div>
+                <div>
+                    <span style="color: #888;">Daily Limit:</span>
+                    <span style="color: #888;">100</span>
+                </div>
+                <div>
+                    <span style="color: #888;">Cache Status:</span>
+                    <span id="apiCacheStatus" style="color: #4CAF50;">Active</span>
+                </div>
+                <div>
+                    <span style="color: #888;">Cache Expires:</span>
+                    <span id="apiCacheExpiry" style="color: #888;">--</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Category & Country Selection -->
+        <div style="margin-bottom: 15px; padding: 12px; background: rgba(33, 150, 243, 0.1); border-radius: 8px;">
+            <div style="font-size: 12px; color: #2196F3; font-weight: bold; margin-bottom: 8px;">⚙️ Settings</div>
+            
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-size: 10px; color: #888; margin-bottom: 4px;">Category:</label>
+                <select id="newsCategory" style="width: 100%; padding: 6px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #2196F3; border-radius: 4px; font-size: 11px; font-family: 'Courier New', monospace;">
+                    <option value="general">General</option>
+                    <option value="business">Business</option>
+                    <option value="entertainment">Entertainment</option>
+                    <option value="health">Health</option>
+                    <option value="science">Science</option>
+                    <option value="sports">Sports</option>
+                    <option value="technology">Technology</option>
+                </select>
+            </div>
+            
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-size: 10px; color: #888; margin-bottom: 4px;">Country:</label>
+                <select id="newsCountry" style="width: 100%; padding: 6px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #2196F3; border-radius: 4px; font-size: 11px; font-family: 'Courier New', monospace;">
+                    <option value="us">United States</option>
+                    <option value="gb">United Kingdom</option>
+                    <option value="ca">Canada</option>
+                    <option value="au">Australia</option>
+                    <option value="de">Germany</option>
+                    <option value="fr">France</option>
+                    <option value="it">Italy</option>
+                    <option value="jp">Japan</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button id="refreshHeadlineBtn" style="background: #2196F3; color: white; border: none; padding: 10px; cursor: pointer; font-size: 11px; border-radius: 6px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                🔄 Refresh Headline
+            </button>
+            <button id="clearCacheBtn" style="background: #FF9800; color: white; border: none; padding: 10px; cursor: pointer; font-size: 11px; border-radius: 6px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                🗑️ Clear Cache
+            </button>
+        </div>
+        
+        <div style="margin-top: 10px; font-size: 9px; color: #888; text-align: center; font-style: italic;">
+            Questions only • 1hr cache • 100 req/day limit
+        </div>
+    </div>
     
     <!-- Removed static debug panel - keeping only real-time monitoring panels -->
     
@@ -137,6 +259,120 @@
                 slidePanel.style.left = '-500px';
                 hamburgerBtn.style.left = '20px';
             }
+        });
+        
+        // NewsAPI Control Panel
+        let apiRequestCount = 0;
+        let headlineFetchTime = null;
+        
+        // Refresh Headline Button
+        document.getElementById('refreshHeadlineBtn').addEventListener('click', () => {
+            const ws = window.ws; // Access WebSocket from script.js
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'refresh_headline' }));
+                apiRequestCount++;
+                document.getElementById('apiRequestsToday').textContent = apiRequestCount;
+                document.getElementById('refreshHeadlineBtn').textContent = '⏳ Fetching...';
+                setTimeout(() => {
+                    document.getElementById('refreshHeadlineBtn').textContent = '🔄 Refresh Headline';
+                }, 2000);
+            }
+        });
+        
+        // Clear Cache Button
+        document.getElementById('clearCacheBtn').addEventListener('click', () => {
+            const ws = window.ws;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'clear_cache' }));
+                document.getElementById('apiCacheStatus').textContent = 'Cleared';
+                document.getElementById('apiCacheStatus').style.color = '#FF9800';
+                setTimeout(() => {
+                    document.getElementById('apiCacheStatus').textContent = 'Active';
+                    document.getElementById('apiCacheStatus').style.color = '#4CAF50';
+                }, 2000);
+            }
+        });
+        
+        // Category/Country change handlers
+        document.getElementById('newsCategory').addEventListener('change', (e) => {
+            const ws = window.ws;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ 
+                    type: 'update_news_settings',
+                    category: e.target.value,
+                    country: document.getElementById('newsCountry').value
+                }));
+            }
+        });
+        
+        document.getElementById('newsCountry').addEventListener('change', (e) => {
+            const ws = window.ws;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ 
+                    type: 'update_news_settings',
+                    category: document.getElementById('newsCategory').value,
+                    country: e.target.value
+                }));
+            }
+        });
+        
+        // Update cache expiry timer
+        function updateCacheExpiry() {
+            if (headlineFetchTime) {
+                const now = Date.now();
+                const elapsed = now - headlineFetchTime;
+                const remaining = 3600000 - elapsed; // 1 hour in ms
+                
+                if (remaining > 0) {
+                    const minutes = Math.floor(remaining / 60000);
+                    document.getElementById('apiCacheExpiry').textContent = `${minutes}m`;
+                } else {
+                    document.getElementById('apiCacheExpiry').textContent = 'Expired';
+                }
+            }
+        }
+        
+        setInterval(updateCacheExpiry, 10000); // Update every 10 seconds
+        
+        // Visualization Mode Toggle
+        function setActiveMode(activeId) {
+            const modes = ['modeMetaball', 'modeMetaball2', 'modeMetaball3', 'modeOutline'];
+            modes.forEach(id => {
+                const btn = document.getElementById(id);
+                if (id === activeId) {
+                    btn.style.background = '#E91E63';
+                    btn.style.color = 'white';
+                    btn.style.border = 'none';
+                } else {
+                    btn.style.background = 'rgba(233, 30, 99, 0.2)';
+                    btn.style.color = '#E91E63';
+                    btn.style.border = '2px solid #E91E63';
+                }
+            });
+        }
+        
+        document.getElementById('modeMetaball').addEventListener('click', () => {
+            window.visualizationMode = 'metaball';
+            setActiveMode('modeMetaball');
+            console.log('Switched to metaball mode (stroke)');
+        });
+        
+        document.getElementById('modeMetaball2').addEventListener('click', () => {
+            window.visualizationMode = 'metaball2';
+            setActiveMode('modeMetaball2');
+            console.log('Switched to metaball 2 mode (filled)');
+        });
+        
+        document.getElementById('modeMetaball3').addEventListener('click', () => {
+            window.visualizationMode = 'metaball3';
+            setActiveMode('modeMetaball3');
+            console.log('Switched to metaball 3 mode (colored strokes)');
+        });
+        
+        document.getElementById('modeOutline').addEventListener('click', () => {
+            window.visualizationMode = 'outline';
+            setActiveMode('modeOutline');
+            console.log('Switched to outline mode');
         });
         
         // Check if p5.js loads
