@@ -8,7 +8,10 @@ let isConnected = false;
 let postHistoryData = [];
 
 function connect() {
-    const serverUrl = `ws://${window.location.hostname}:8080`;
+    // Use the actual hostname from the browser, not localhost
+    const hostname = window.location.hostname || '127.0.0.1';
+    const serverUrl = `ws://${hostname}:8080`;
+    console.log('Connecting to:', serverUrl);
     ws = new WebSocket(serverUrl);
     
     ws.onopen = () => {
@@ -110,18 +113,7 @@ function updateConnectionStatus(connected) {
     }
 }
 
-function updateCharacterCount() {
-    const count = textInput.value.length;
-    charCount.textContent = count;
-    
-    // Update color based on character count
-    charCounter.classList.remove('warning', 'danger');
-    if (count > 450) {
-        charCounter.classList.add('danger');
-    } else if (count > 400) {
-        charCounter.classList.add('warning');
-    }
-}
+// Character count removed - no longer needed
 
 function showSuccessAnimation() {
     successAnimation.style.display = 'block';
@@ -176,4 +168,3 @@ textInput.addEventListener('keydown', (e) => {
 
 connect();
 textInput.focus();
-updateCharacterCount();

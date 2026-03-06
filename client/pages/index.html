@@ -15,13 +15,25 @@
     </button>
     
     <!-- Left-aligned Headline Display -->
-    <div id="headlineDisplay" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: left; z-index: 10000; pointer-events: none; max-width: 700px; padding: 40px; background: black; border: 2px solid white;">
+    <div id="headlineDisplay" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: left; z-index: 100; pointer-events: none; max-width: 700px; padding: 40px; background: black; border: 2px solid white;">
         <h1 id="headlineText" style="color: white; font-size: 48px; font-weight: 300; margin: 0 0 15px 0; line-height: 1.3; letter-spacing: -0.5px;">News headline</h1>
         <p id="headlineTimestamp" style="color: rgba(255, 255, 255, 0.6); font-size: 16px; margin: 0; font-weight: 400;">Updated 5:38 AM EST, Fri March 6, 2026</p>
     </div>
     
     <!-- Slide-out Panel -->
     <div id="slidePanel" style="position: fixed; top: 0; left: -500px; width: 480px; height: 100vh; background: rgba(0, 0, 0, 0.98); z-index: 2500; transition: left 0.4s ease; overflow-y: auto; padding: 80px 20px 20px 20px; border-right: 3px solid #4CAF50; box-shadow: 4px 0 30px rgba(76, 175, 80, 0.3);">
+    
+    <!-- Mobile Controller QR Code -->
+    <div style="background: rgba(76, 175, 80, 0.15); color: white; padding: 20px; border-radius: 12px; font-family: 'Courier New', monospace; font-size: 11px; margin-bottom: 20px; border: 2px solid #4CAF50; text-align: center;">
+        <div style="margin-bottom: 15px; border-bottom: 2px solid #4CAF50; padding-bottom: 10px;">
+            <strong style="font-size: 16px; color: #4CAF50;">📱 Mobile Controller</strong>
+        </div>
+        <div style="margin-bottom: 10px; color: #888; font-size: 10px;">
+            Scan to connect your phone as a controller
+        </div>
+        <div id="qrcode" style="display: inline-block; padding: 10px; background: white; border-radius: 8px;"></div>
+        <div id="mobileUrl" style="margin-top: 10px; font-size: 10px; color: #4CAF50; word-break: break-all;"></div>
+    </div>
     
     <!-- Visualization Control Panel -->
     <div id="visualizationPanel" style="background: rgba(233, 30, 99, 0.15); color: white; padding: 20px; border-radius: 12px; font-family: 'Courier New', monospace; font-size: 11px; margin-bottom: 20px; border: 2px solid #E91E63;">
@@ -387,9 +399,137 @@
                 loadingDiv.style.color = 'red';
             }
         });
-    </script>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js" crossorigin="anonymous"></script>
-    <script src="../../script.js" defer></script>
+    // Refresh Headline Button
+    document.getElementById('refreshHeadlineBtn').addEventListener('click', () => {
+        const ws = window.ws; // Access WebSocket from script.js
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'refresh_headline' }));
+            apiRequestCount++;
+            document.getElementById('apiRequestsToday').textContent = apiRequestCount;
+            document.getElementById('refreshHeadlineBtn').textContent = '⏳ Fetching...';
+            setTimeout(() => {
+                document.getElementById('refreshHeadlineBtn').textContent = '🔄 Refresh Headline';
+            }, 2000);
+        }
+    });
+    
+    // Clear Cache Button
+    document.getElementById('clearCacheBtn').addEventListener('click', () => {
+        const ws = window.ws;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'clear_cache' }));
+            document.getElementById('apiCacheStatus').textContent = 'Cleared';
+            document.getElementById('apiCacheStatus').style.color = '#FF9800';
+            setTimeout(() => {
+                document.getElementById('apiCacheStatus').textContent = 'Active';
+                document.getElementById('apiCacheStatus').style.color = '#4CAF50';
+            }, 2000);
+        }
+    });
+    
+    // Category/Country change handlers
+    document.getElementById('newsCategory').addEventListener('change', (e) => {
+        const ws = window.ws;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ 
+                type: 'update_news_settings',
+                category: e.target.value,
+                country: document.getElementById('newsCountry').value
+            }));
+        }
+    });
+    
+    document.getElementById('newsCountry').addEventListener('change', (e) => {
+        const ws = window.ws;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ 
+                type: 'update_news_settings',
+                category: document.getElementById('newsCategory').value,
+                country: e.target.value
+            }));
+        }
+    });
+    
+    // Update cache expiry timer
+    function updateCacheExpiry() {
+        if (headlineFetchTime) {
+            const now = Date.now();
+            const elapsed = now - headlineFetchTime;
+            const remaining = 3600000 - elapsed; // 1 hour in ms
+            
+            if (remaining > 0) {
+                const minutes = Math.floor(remaining / 60000);
+                document.getElementById('apiCacheExpiry').textContent = `${minutes}m`;
+            } else {
+                document.getElementById('apiCacheExpiry').textContent = 'Expired';
+            }
+        }
+    }
+    
+    setInterval(updateCacheExpiry, 10000); // Update every 10 seconds
+    
+    // Visualization Mode Toggle
+    function setActiveMode(activeId) {
+        const modes = ['modeMetaball', 'modeMetaball2', 'modeMetaball3', 'modeOutline'];
+        modes.forEach(id => {
+            const btn = document.getElementById(id);
+            if (id === activeId) {
+                btn.style.background = '#E91E63';
+                btn.style.color = 'white';
+                btn.style.border = 'none';
+            } else {
+                btn.style.background = 'rgba(233, 30, 99, 0.2)';
+                btn.style.color = '#E91E63';
+                btn.style.border = '2px solid #E91E63';
+            }
+        });
+    }
+    
+    document.getElementById('modeMetaball').addEventListener('click', () => {
+        window.visualizationMode = 'metaball';
+        setActiveMode('modeMetaball');
+        console.log('Switched to metaball mode (stroke)');
+    });
+    
+    document.getElementById('modeMetaball2').addEventListener('click', () => {
+        window.visualizationMode = 'metaball2';
+        setActiveMode('modeMetaball2');
+        console.log('Switched to metaball 2 mode (filled)');
+    });
+    
+    document.getElementById('modeMetaball3').addEventListener('click', () => {
+        window.visualizationMode = 'metaball3';
+        setActiveMode('modeMetaball3');
+        console.log('Switched to metaball 3 mode (colored strokes)');
+    });
+    
+    document.getElementById('modeOutline').addEventListener('click', () => {
+        window.visualizationMode = 'outline';
+        setActiveMode('modeOutline');
+        console.log('Switched to outline mode');
+    });
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="../../script.js" defer></script>
+
+<script>
+    // Generate QR code for mobile controller
+    window.addEventListener('DOMContentLoaded', () => {
+        const mobileUrl = `http://${window.location.hostname}:3000/client/pages/mobile.html`;
+        document.getElementById('mobileUrl').textContent = mobileUrl;
+        
+        new QRCode(document.getElementById('qrcode'), {
+            text: mobileUrl,
+            width: 200,
+            height: 200,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.H
+        });
+    });
+</script>
 </body>
 </html>
