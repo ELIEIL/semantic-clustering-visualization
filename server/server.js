@@ -5,6 +5,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode'); // For generating QR code images
 const os = require('os');
 const CONFIG = require('./config.js');
 const ConceptNetClient = require('./api/conceptnet-client.js');
@@ -15,6 +16,10 @@ const HTTP_PORT = 3000;
 const RATE_LIMIT_WINDOW = 60000;
 const MAX_POSTS_PER_WINDOW = 3;
 const MAX_POST_LENGTH = 500;
+
+// Store generated QR code
+let qrCodeDataURL = null;
+let mobileControllerUrl = null;
 
 const profanityList = [
     'fuck', 'shit', 'bitch', 'asshole', 'damn', 'cunt', 'dick', 'pussy',
@@ -182,6 +187,25 @@ wss.on('connection', (ws) => {
                 return;
             }
             
+            if (data.type === 'update_clusters') {
+                // Broadcast cluster data to all clients (especially mobile)
+                const clusterMessage = {
+                    type: 'clusters',
+                    clusters: data.clusters,
+                    uncategorizedPosts: data.uncategorizedPosts || []
+                };
+                
+                // Send to all connected clients
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify(clusterMessage));
+                    }
+                });
+                
+                console.log('Broadcasted cluster update:', data.clusters.length, 'clusters,', data.uncategorizedPosts?.length || 0, 'uncategorized');
+                return;
+            }
+            
             if (data.type === 'post') {
                 const clientId = ws._socket.remoteAddress;
                 
@@ -330,6 +354,32 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     
+    // QR Code endpoint - serves the generated QR code image
+    if (req.url === '/api/qr-code') {
+        if (qrCodeDataURL) {
+            // Extract base64 data from data URL
+            const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, '');
+            const imgBuffer = Buffer.from(base64Data, 'base64');
+            
+            res.writeHead(200, { 
+                'Content-Type': 'image/png',
+                'Content-Length': imgBuffer.length
+            });
+            res.end(imgBuffer);
+        } else {
+            res.writeHead(503, { 'Content-Type': 'text/plain' });
+            res.end('QR code not yet generated');
+        }
+        return;
+    }
+    
+    // Mobile URL endpoint - serves the mobile controller URL as JSON
+    if (req.url === '/api/mobile-url') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ url: mobileControllerUrl || 'Not yet available' }));
+        return;
+    }
+    
     // ConceptNet API endpoint
     if (req.url.startsWith('/api/conceptnet/relatedness')) {
         const url = new URL(req.url, `http://localhost:${HTTP_PORT}`);
@@ -453,7 +503,7 @@ const server = http.createServer(async (req, res) => {
     });
 });
 
-server.listen(HTTP_PORT, () => {
+server.listen(HTTP_PORT, async () => {
     const networkInterfaces = os.networkInterfaces();
     let localIP = 'localhost';
     
@@ -466,21 +516,40 @@ server.listen(HTTP_PORT, () => {
         }
     }
     
-    const mobileUrl = `http://${localIP}:${HTTP_PORT}`;
+    const mobileUrl = `http://${localIP}:${HTTP_PORT}/client/pages/mobile.html`;
+    mobileControllerUrl = mobileUrl;
+    
+    // Generate QR code as data URL
+    try {
+        qrCodeDataURL = await QRCode.toDataURL(mobileUrl, {
+            width: 300,
+            margin: 2,
+            color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+            },
+            errorCorrectionLevel: 'H'
+        });
+        console.log('QR code generated successfully');
+    } catch (err) {
+        console.error('Failed to generate QR code:', err);
+    }
     
     console.log('\n=================================');
     console.log('Server running!');
     console.log('=================================');
     console.log(`WebSocket server: ws://localhost:${PORT}`);
     console.log(`HTTP server: http://localhost:${HTTP_PORT}`);
+    console.log(`Network IP: ${localIP}`);
     console.log(`\nMobile controller URL: ${mobileUrl}`);
+    console.log(`QR code endpoint: http://localhost:${HTTP_PORT}/api/qr-code`);
     console.log('\nScan this QR code with your phone:');
     console.log('=================================\n');
     
     qrcode.generate(mobileUrl, { small: true });
     
     console.log('\n=================================');
-    console.log('Open index.html in your browser for the main display');
+    console.log('Open http://localhost:${HTTP_PORT}/client/pages/index.html');
     console.log('=================================\n');
 });
 

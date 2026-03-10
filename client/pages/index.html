@@ -31,8 +31,10 @@
         <div style="margin-bottom: 10px; color: #888; font-size: 10px;">
             Scan to connect your phone as a controller
         </div>
-        <div id="qrcode" style="display: inline-block; padding: 10px; background: white; border-radius: 8px;"></div>
-        <div id="mobileUrl" style="margin-top: 10px; font-size: 10px; color: #4CAF50; word-break: break-all;"></div>
+        <div style="display: inline-block; padding: 10px; background: white; border-radius: 8px;">
+            <img id="qrCodeImage" src="/api/qr-code" alt="Mobile Controller QR Code" style="display: block; width: 300px; height: 300px;">
+        </div>
+        <div id="mobileUrl" style="margin-top: 10px; font-size: 10px; color: #4CAF50; word-break: break-all;">Loading...</div>
     </div>
     
     <!-- Visualization Control Panel -->
@@ -50,18 +52,36 @@
             <div style="padding: 12px; background: rgba(233, 30, 99, 0.1); border-radius: 8px;">
                 <div style="font-size: 12px; color: #E91E63; font-weight: bold; margin-bottom: 10px;">Rendering Mode</div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px;">
-                    <button id="modeMetaball" class="viz-mode-btn active" style="padding: 10px; background: #E91E63; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+                    <button id="modeMetaball" class="viz-mode-btn" style="padding: 8px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
                         Metaball
                     </button>
-                    <button id="modeMetaball2" class="viz-mode-btn" style="padding: 10px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                    <button id="modeMetaball2" class="viz-mode-btn" style="padding: 8px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
                         Metaball 2
                     </button>
-                    <button id="modeMetaball3" class="viz-mode-btn" style="padding: 10px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                    <button id="modeMetaball3" class="viz-mode-btn" style="padding: 8px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
                         Metaball 3
                     </button>
-                    <button id="modeOutline" class="viz-mode-btn" style="padding: 10px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                    <button id="modeHybrid" class="viz-mode-btn" style="padding: 8px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                        Hybrid
+                    </button>
+                    <button id="modeNodes" class="viz-mode-btn active" style="padding: 8px; background: #E91E63; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                        Nodes
+                    </button>
+                    <button id="modeBubbles" class="viz-mode-btn" style="padding: 8px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                        Bubbles
+                    </button>
+                    <button id="modeOutline" class="viz-mode-btn" style="padding: 8px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
                         Outline
+                    </button>
+                    <button id="modeText" class="viz-mode-btn" style="padding: 8px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                        Text
+                    </button>
+                    <button id="modeCode" class="viz-mode-btn" style="padding: 8px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                        Code
+                    </button>
+                    <button id="modeASCII" class="viz-mode-btn" style="padding: 8px; background: rgba(233, 30, 99, 0.2); color: #E91E63; border: 2px solid #E91E63; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; font-family: 'Courier New', monospace; transition: all 0.2s;">
+                        ASCII
                     </button>
                 </div>
             </div>
@@ -213,6 +233,36 @@
     
     <!-- Remove old separate panels -->
     <!-- Removed: Old API Monitor panel - now part of unified dashboard -->
+    
+    <!-- Social Media Algorithm Parameters -->
+    <div style="margin-bottom: 20px; padding: 15px; background: rgba(33, 150, 243, 0.1); border-radius: 8px;">
+        <div style="font-size: 13px; font-weight: bold; color: white; margin-bottom: 12px;">🔬 Social Media Parameters</div>
+        
+        <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer; font-size: 12px; color: white;">
+            <input type="checkbox" id="toggleVisualProminence" style="margin-right: 8px;" checked>
+            <span>Visual Prominence (size by cluster)</span>
+        </label>
+        
+        <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer; font-size: 12px; color: white;">
+            <input type="checkbox" id="toggleControversy" style="margin-right: 8px;" checked>
+            <span>Controversy Highlighting (opposing views)</span>
+        </label>
+        
+        <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer; font-size: 12px; color: white;">
+            <input type="checkbox" id="toggleTrending" style="margin-right: 8px;" checked>
+            <span>Trending Indicators (pulsing clusters)</span>
+        </label>
+        
+        <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer; font-size: 12px; color: white;">
+            <input type="checkbox" id="toggleBridgeDetection" style="margin-right: 8px;" checked>
+            <span>Bridge Detection (connecting posts)</span>
+        </label>
+        
+        <label style="display: flex; align-items: center; cursor: pointer; font-size: 12px; color: white;">
+            <input type="checkbox" id="toggleRealtimeClustering" style="margin-right: 8px;">
+            <span>Real-time Clustering (instant)</span>
+        </label>
+    </div>
     
     <!-- Database Selector (Inside Panel) -->
     <div id="databaseSelector" style="font-family: 'Open Sans', sans-serif; margin-bottom: 20px;">
@@ -504,31 +554,89 @@
         console.log('Switched to metaball 3 mode (colored strokes)');
     });
     
+    document.getElementById('modeHybrid').addEventListener('click', () => {
+        window.visualizationMode = 'hybrid';
+        setActiveMode('modeHybrid');
+        console.log('Switched to hybrid mode');
+    });
+    
+    document.getElementById('modeNodes').addEventListener('click', () => {
+        window.visualizationMode = 'nodes';
+        setActiveMode('modeNodes');
+        console.log('Switched to nodes mode');
+    });
+    
+    document.getElementById('modeBubbles').addEventListener('click', () => {
+        window.visualizationMode = 'bubbles';
+        setActiveMode('modeBubbles');
+        console.log('Switched to bubbles mode');
+    });
+    
     document.getElementById('modeOutline').addEventListener('click', () => {
         window.visualizationMode = 'outline';
         setActiveMode('modeOutline');
         console.log('Switched to outline mode');
     });
+    
+    document.getElementById('modeText').addEventListener('click', () => {
+        window.visualizationMode = 'text';
+        setActiveMode('modeText');
+        console.log('Switched to text mode');
+    });
+    
+    document.getElementById('modeCode').addEventListener('click', () => {
+        window.visualizationMode = 'code';
+        setActiveMode('modeCode');
+        console.log('Switched to code mode');
+    });
+    
+    document.getElementById('modeASCII').addEventListener('click', () => {
+        window.visualizationMode = 'ascii';
+        setActiveMode('modeASCII');
+        console.log('Switched to ASCII mode');
+    });
+    
+    // Social Media Parameter Toggles
+    document.getElementById('toggleVisualProminence').addEventListener('change', (e) => {
+        window.enableVisualProminence = e.target.checked;
+        console.log('Visual Prominence:', e.target.checked);
+    });
+    
+    document.getElementById('toggleControversy').addEventListener('change', (e) => {
+        window.enableControversy = e.target.checked;
+        console.log('Controversy Highlighting:', e.target.checked);
+    });
+    
+    document.getElementById('toggleTrending').addEventListener('change', (e) => {
+        window.enableTrending = e.target.checked;
+        console.log('Trending Indicators:', e.target.checked);
+    });
+    
+    document.getElementById('toggleBridgeDetection').addEventListener('change', (e) => {
+        window.enableBridgeDetection = e.target.checked;
+        console.log('Bridge Detection:', e.target.checked);
+    });
+    
+    document.getElementById('toggleRealtimeClustering').addEventListener('change', (e) => {
+        window.enableRealtimeClustering = e.target.checked;
+        console.log('Real-time Clustering:', e.target.checked);
+    });
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="../../script.js" defer></script>
 
 <script>
-    // Generate QR code for mobile controller
-    window.addEventListener('DOMContentLoaded', () => {
-        const mobileUrl = `http://${window.location.hostname}:3000/client/pages/mobile.html`;
-        document.getElementById('mobileUrl').textContent = mobileUrl;
-        
-        new QRCode(document.getElementById('qrcode'), {
-            text: mobileUrl,
-            width: 200,
-            height: 200,
-            colorDark: '#000000',
-            colorLight: '#ffffff',
-            correctLevel: QRCode.CorrectLevel.H
-        });
+    // Fetch mobile URL from server
+    window.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const response = await fetch('/api/mobile-url');
+            const data = await response.json();
+            document.getElementById('mobileUrl').textContent = data.url;
+        } catch (err) {
+            console.error('Failed to fetch mobile URL:', err);
+            document.getElementById('mobileUrl').textContent = 'Error loading URL';
+        }
     });
 </script>
 </body>
