@@ -113,7 +113,32 @@ function connect() {
 function handleSubmit() {
     const value = textInput.value.trim();
     
-    if (!value || !isConnected) {
+    console.log('Submit clicked - Connected:', isConnected, 'Value:', value);
+    
+    if (!value) {
+        console.warn('Submit blocked: empty value');
+        textInput.placeholder = '✗ Please enter some text';
+        setTimeout(() => {
+            textInput.placeholder = 'Whats your opinion?';
+        }, 2000);
+        return;
+    }
+    
+    if (!isConnected) {
+        console.warn('Submit blocked: not connected');
+        textInput.placeholder = '✗ Not connected to server';
+        setTimeout(() => {
+            textInput.placeholder = 'Whats your opinion?';
+        }, 2000);
+        return;
+    }
+    
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.error('Submit blocked: WebSocket not open', ws?.readyState);
+        textInput.placeholder = '✗ Connection lost, reconnecting...';
+        isConnected = false;
+        submitBtn.disabled = true;
+        connect();
         return;
     }
     
@@ -127,18 +152,27 @@ function handleSubmit() {
         timestamp: new Date().toISOString()
     };
     
-    ws.send(JSON.stringify(post));
-    
-    // Track this as user's own post
-    userPosts.push({
-        content: value,
-        timestamp: post.timestamp
-    });
-    
-    // Update display immediately
-    renderYourPosts();
-    
-    console.log('Sent post:', value);
+    try {
+        ws.send(JSON.stringify(post));
+        console.log('✅ Post sent successfully:', value);
+        
+        // Track this as user's own post
+        userPosts.push({
+            content: value,
+            timestamp: post.timestamp
+        });
+        
+        // Update display immediately
+        renderYourPosts();
+    } catch (error) {
+        console.error('❌ Failed to send post:', error);
+        textInput.placeholder = '✗ Failed to send. Try again.';
+        submitBtn.textContent = 'Submit';
+        submitBtn.disabled = false;
+        setTimeout(() => {
+            textInput.placeholder = 'Whats your opinion?';
+        }, 2000);
+    }
 }
 
 function updateConnectionStatus(connected) {

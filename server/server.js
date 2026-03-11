@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode'); // For generating QR code images
+const ngrok = require('ngrok');
 const os = require('os');
 const CONFIG = require('./config.js');
 const ConceptNetClient = require('./api/conceptnet-client.js');
@@ -516,6 +517,15 @@ server.listen(HTTP_PORT, async () => {
         }
     }
     
+    console.log('\n=================================');
+    console.log('Server running!');
+    console.log('=================================');
+    console.log(`WebSocket server: ws://localhost:${PORT}`);
+    console.log(`HTTP server: http://localhost:${HTTP_PORT}`);
+    console.log(`Network IP: ${localIP}`);
+    
+    // ngrok disabled - use local network IP or mobile hotspot
+    // For multi-device access: Use mobile hotspot on your phone
     const mobileUrl = `http://${localIP}:${HTTP_PORT}/client/pages/mobile.html`;
     mobileControllerUrl = mobileUrl;
     
@@ -530,26 +540,27 @@ server.listen(HTTP_PORT, async () => {
             },
             errorCorrectionLevel: 'H'
         });
-        console.log('QR code generated successfully');
+        console.log('✅ QR code generated successfully');
     } catch (err) {
-        console.error('Failed to generate QR code:', err);
+        console.error('❌ Failed to generate QR code:', err);
     }
     
     console.log('\n=================================');
-    console.log('Server running!');
+    console.log('📱 MOBILE CONTROLLER ACCESS');
     console.log('=================================');
-    console.log(`WebSocket server: ws://localhost:${PORT}`);
-    console.log(`HTTP server: http://localhost:${HTTP_PORT}`);
-    console.log(`Network IP: ${localIP}`);
-    console.log(`\nMobile controller URL: ${mobileUrl}`);
-    console.log(`QR code endpoint: http://localhost:${HTTP_PORT}/api/qr-code`);
-    console.log('\nScan this QR code with your phone:');
+    console.log(`📍 Mobile URL: ${mobileUrl}`);
+    console.log(`� QR code endpoint: http://localhost:${HTTP_PORT}/api/qr-code`);
+    console.log('\n� For multi-device access:');
+    console.log('   Use mobile hotspot on your phone');
+    console.log('   Connect all devices to the same hotspot');
+    console.log('\n=================================');
+    console.log('Scan this QR code with your phone:');
     console.log('=================================\n');
     
     qrcode.generate(mobileUrl, { small: true });
     
     console.log('\n=================================');
-    console.log('Open http://localhost:${HTTP_PORT}/client/pages/index.html');
+    console.log(`💻 Main display: http://localhost:${HTTP_PORT}/client/pages/index.html`);
     console.log('=================================\n');
 });
 
