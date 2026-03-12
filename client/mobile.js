@@ -1,12 +1,16 @@
 // Onboarding configuration - SET TO false TO DISABLE ONBOARDING
 window.ENABLE_ONBOARDING = false;
 
-const textInput = document.getElementById('textInput');
-const submitBtn = document.getElementById('submitBtn');
+// UI elements
 const mobileHeadline = document.getElementById('mobileHeadline');
 const mobileTimestamp = document.getElementById('mobileTimestamp');
-const charCounter = document.getElementById('charCounter');
 const statusDot = document.getElementById('statusDot');
+const textInput = document.getElementById('textInput');
+const submitBtn = document.getElementById('submitBtn');
+const charCounter = document.getElementById('charCounter');
+const matchResult = document.getElementById('matchResult');
+const matchText = document.getElementById('matchText');
+const matchSimilarity = document.getElementById('matchSimilarity');
 
 let ws;
 let isConnected = false;
@@ -22,7 +26,6 @@ function connect() {
     ws.onopen = () => {
         console.log('Connected to server');
         isConnected = true;
-        submitBtn.disabled = false;
         
         // Update connection status
         statusDot.classList.remove('disconnected');
@@ -34,6 +37,46 @@ function connect() {
     
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        
+        if (data.type === 'reddit_posts') {
+            // Handle Reddit posts - show connections
+            console.log('📡 Received Reddit posts:', data);
+            if (mobileHeadline) {
+                mobileHeadline.textContent = `Reddit: ${data.topic.charAt(0).toUpperCase() + data.topic.slice(1)}`;
+            }
+            if (mobileTimestamp) {
+                mobileTimestamp.textContent = `${data.totalPosts} posts from ${data.clusters.length} opposing subreddits`;
+            }
+        }
+        
+        if (data.type === 'echo_chamber_match') {
+            // Handle echo chamber match result
+            console.log('🎯 Echo chamber match:', data);
+            
+            // Reset submit button
+            submitBtn.textContent = 'Submit';
+            submitBtn.disabled = false;
+            
+            // Clear input
+            textInput.value = '';
+            charCounter.textContent = '0/500';
+            
+            // Show match result
+            if (data.match) {
+                matchResult.style.display = 'block';
+                matchText.textContent = `Your opinion matches the "${data.match.clusterLabel}" community!`;
+                matchSimilarity.textContent = `${Math.round(data.match.similarity * 100)}% similar to: "${data.match.content.substring(0, 100)}..."`;
+            } else {
+                matchResult.style.display = 'block';
+                matchText.textContent = 'No strong match found - your opinion is unique!';
+                matchSimilarity.textContent = 'Try a different topic or viewpoint.';
+            }
+            
+            // Hide match result after 5 seconds
+            setTimeout(() => {
+                matchResult.style.display = 'none';
+            }, 5000);
+        }
         
         if (data.type === 'headline') {
             // Update headline display
@@ -58,44 +101,13 @@ function connect() {
             }
         }
         
-        if (data.type === 'clusters') {
-            // Update cluster list display
-            console.log('📊 Received clusters:', data);
-            updateClusterList(data);
-        }
-        
-        if (data.type === 'success') {
-            // Show success checkmark
-            submitBtn.textContent = '✓';
-            submitBtn.style.color = '#4caf50';
-            
-            setTimeout(() => {
-                // Reset button
-                submitBtn.textContent = 'Submit';
-                submitBtn.style.color = '#666';
-                submitBtn.disabled = false;
-                
-                // Clear input and refocus for next post
-                textInput.value = '';
-                charCounter.textContent = '0/500';
-                charCounter.classList.remove('warning', 'danger');
-                textInput.focus();
-            }, 800);
-        }
-        
-        if (data.type === 'error') {
-            textInput.placeholder = '✗ ' + data.message;
-            setTimeout(() => {
-                textInput.placeholder = 'Whats your opinion?';
-            }, 3000);
-            submitBtn.disabled = false;
-        }
+        // Removed: clusters handler - only using reddit_posts now
+        // Removed: error handler - no longer needed
     };
     
     ws.onclose = () => {
         console.log('Disconnected from server');
         isConnected = false;
-        submitBtn.disabled = true;
         
         // Update connection status
         statusDot.classList.remove('connected');
@@ -113,65 +125,39 @@ function connect() {
 function handleSubmit() {
     const value = textInput.value.trim();
     
-    console.log('Submit clicked - Connected:', isConnected, 'Value:', value);
-    
     if (!value) {
-        console.warn('Submit blocked: empty value');
         textInput.placeholder = '✗ Please enter some text';
         setTimeout(() => {
-            textInput.placeholder = 'Whats your opinion?';
+            textInput.placeholder = "What's your opinion?";
         }, 2000);
         return;
     }
     
-    if (!isConnected) {
-        console.warn('Submit blocked: not connected');
+    if (!isConnected || !ws || ws.readyState !== WebSocket.OPEN) {
         textInput.placeholder = '✗ Not connected to server';
         setTimeout(() => {
-            textInput.placeholder = 'Whats your opinion?';
+            textInput.placeholder = "What's your opinion?";
         }, 2000);
         return;
     }
     
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-        console.error('Submit blocked: WebSocket not open', ws?.readyState);
-        textInput.placeholder = '✗ Connection lost, reconnecting...';
-        isConnected = false;
-        submitBtn.disabled = true;
-        connect();
-        return;
-    }
-    
-    // Show loading spinner
+    // Show loading
     submitBtn.textContent = '⟳';
     submitBtn.disabled = true;
     
     const post = {
-        type: 'post',
+        type: 'user_post',
         content: value,
         timestamp: new Date().toISOString()
     };
     
     try {
         ws.send(JSON.stringify(post));
-        console.log('✅ Post sent successfully:', value);
-        
-        // Track this as user's own post
-        userPosts.push({
-            content: value,
-            timestamp: post.timestamp
-        });
-        
-        // Update display immediately
-        renderYourPosts();
+        console.log('✅ Post sent for echo chamber matching:', value);
     } catch (error) {
         console.error('❌ Failed to send post:', error);
-        textInput.placeholder = '✗ Failed to send. Try again.';
         submitBtn.textContent = 'Submit';
         submitBtn.disabled = false;
-        setTimeout(() => {
-            textInput.placeholder = 'Whats your opinion?';
-        }, 2000);
     }
 }
 
@@ -372,43 +358,121 @@ function showClusterDetail(cluster) {
 }
 
 // Back button handler
-document.addEventListener('DOMContentLoaded', () => {
-    const backButton = document.getElementById('backButton');
-    if (backButton) {
-        backButton.addEventListener('click', () => {
-            document.getElementById('clusterDetailView').style.display = 'none';
-            document.getElementById('clusterSection').style.display = 'block';
-        });
-    }
-});
+// Removed: DOMContentLoaded event listener for back button
+// Cluster detail view no longer exists in simplified Reddit connections view
 
 // Character counter
-textInput.addEventListener('input', () => {
-    const count = textInput.value.length;
-    charCounter.textContent = `${count}/500`;
+if (textInput && charCounter) {
+    textInput.addEventListener('input', () => {
+        const count = textInput.value.length;
+        charCounter.textContent = `${count}/500`;
+    });
+}
+
+// Submit button
+if (submitBtn) {
+    submitBtn.addEventListener('click', handleSubmit);
+}
+
+// Enter key to submit
+if (textInput) {
+    textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSubmit();
+        }
+    });
+}
+
+// Function to display connections in mobile controller
+function displayConnections(data) {
+    const connectionsList = document.getElementById('connectionsList');
+    if (!connectionsList) return;
     
-    // Update color based on count
-    charCounter.classList.remove('warning', 'danger');
-    if (count > 450) {
-        charCounter.classList.add('warning');
+    // Extract all posts from clusters
+    const allPosts = [];
+    data.clusters.forEach(cluster => {
+        cluster.posts.forEach(post => {
+            allPosts.push({
+                ...post,
+                clusterLabel: cluster.label,
+                clusterId: cluster.id
+            });
+        });
+    });
+    
+    // Calculate connections between posts (simplified - just show some examples)
+    const connections = [];
+    
+    // For demo: show connections between posts from different clusters
+    for (let i = 0; i < Math.min(allPosts.length, 20); i++) {
+        for (let j = i + 1; j < Math.min(allPosts.length, 20); j++) {
+            const post1 = allPosts[i];
+            const post2 = allPosts[j];
+            
+            // Calculate simple similarity based on shared words
+            const words1 = new Set(post1.content.toLowerCase().split(/\s+/));
+            const words2 = new Set(post2.content.toLowerCase().split(/\s+/));
+            const intersection = new Set([...words1].filter(x => words2.has(x)));
+            const similarity = intersection.size / Math.max(words1.size, words2.size);
+            
+            if (similarity > 0.15) {
+                const isControversy = post1.clusterId !== post2.clusterId;
+                connections.push({
+                    post1,
+                    post2,
+                    similarity,
+                    isControversy
+                });
+            }
+        }
     }
-    if (count > 490) {
-        charCounter.classList.add('danger');
+    
+    // Sort by similarity (highest first)
+    connections.sort((a, b) => b.similarity - a.similarity);
+    
+    // Display connections
+    if (connections.length === 0) {
+        connectionsList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No connections found</div>';
+        return;
     }
-});
-
-submitBtn.addEventListener('click', handleSubmit);
-
-textInput.addEventListener('keydown', (e) => {
-    // Enter/Return key to submit
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        handleSubmit();
-    }
-});
-
-// Character counter
-// No character counter in new design
+    
+    let html = '';
+    connections.slice(0, 30).forEach(conn => {
+        const similarityPercent = Math.round(conn.similarity * 100);
+        let typeClass = 'normal';
+        let typeLabel = 'Similar';
+        
+        if (conn.isControversy) {
+            typeClass = 'controversy';
+            typeLabel = 'Bridge';
+        } else if (conn.similarity > 0.6) {
+            typeClass = 'strong';
+            typeLabel = 'Strong';
+        }
+        
+        html += `
+            <div class="connection-item">
+                <div class="connection-header">
+                    <span class="connection-type ${typeClass}">${typeLabel}</span>
+                    <span class="connection-similarity">${similarityPercent}% similar</span>
+                </div>
+                <div class="connection-posts">
+                    <div class="connection-post">
+                        <div class="connection-post-label">${conn.post1.clusterLabel}</div>
+                        ${conn.post1.content.substring(0, 100)}${conn.post1.content.length > 100 ? '...' : ''}
+                    </div>
+                    <div class="connection-arrow">↕</div>
+                    <div class="connection-post">
+                        <div class="connection-post-label">${conn.post2.clusterLabel}</div>
+                        ${conn.post2.content.substring(0, 100)}${conn.post2.content.length > 100 ? '...' : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    connectionsList.innerHTML = html;
+}
 
 connect();
-textInput.focus();

@@ -11,6 +11,7 @@ const os = require('os');
 const CONFIG = require('./config.js');
 const ConceptNetClient = require('./api/conceptnet-client.js');
 const NewsAPIClient = require('./api/news-api.js');
+const RedditClient = require('./api/reddit-client.js');
 
 const PORT = 8080;
 const HTTP_PORT = 3000;
@@ -43,6 +44,13 @@ console.log('ConceptNet client initialized');
 const NEWSAPI_KEY = process.env.NEWSAPI_KEY || 'YOUR_API_KEY_HERE';
 const newsAPI = new NewsAPIClient(NEWSAPI_KEY);
 let currentHeadline = 'What are your thoughts on current events?';
+
+// Initialize Reddit API client
+const redditClient = new RedditClient();
+console.log('Reddit client initialized');
+
+// Import topic detector
+const { detectTopicFromContent } = require('./topic-detector.js');
 
 // Fetch initial headline
 (async () => {
@@ -143,6 +151,81 @@ wss.on('connection', (ws) => {
                 approvedPosts.forEach(post => {
                     ws.send(JSON.stringify(post));
                 });
+                return;
+            }
+            
+            if (data.type === 'fetch_reddit') {
+                // Fetch Reddit posts for specified topic
+                const topic = data.topic || 'politics';
+                console.log(`📡 Reddit fetch requested for topic: ${topic}`);
+                
+                const { fetchAndBroadcastRedditPosts } = require('./routes/reddit.js');
+                fetchAndBroadcastRedditPosts(topic, wss).catch(error => {
+                    console.error('Failed to fetch Reddit posts:', error);
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        message: 'Failed to fetch Reddit posts'
+                    }));
+                });
+                return;
+            }
+            
+            if (data.type === 'user_post') {
+                // User submitted a post - automatically fetch and match Reddit posts
+                console.log(`✍️ User post received: ${data.content}`);
+                
+                // Add user post to visualization
+                const userPost = {
+                    content: data.content,
+                    timestamp: data.timestamp,
+                    isUserPost: true
+                };
+                
+                // Broadcast user post to all displays
+                console.log('📤 Broadcasting user post to displays...');
+                broadcastToDisplays({
+                    type: 'post',
+                    ...userPost
+                });
+                
+                // Detect topic from user's post keywords
+                const topic = detectTopicFromContent(data.content);
+                console.log(`🔍 Detected topic: ${topic}`);
+                
+                // Automatically fetch Reddit posts for this topic
+                const { fetchAndBroadcastRedditPosts, findMatchingRedditPost } = require('./routes/reddit.js');
+                
+                (async () => {
+                    try {
+                        console.log(`📡 Auto-fetching Reddit posts for topic: ${topic}`);
+                        await fetchAndBroadcastRedditPosts(topic, wss);
+                        
+                        // Now find matching Reddit post
+                        const match = findMatchingRedditPost(data.content);
+                        
+                        // Send match result back to user
+                        console.log('📱 Sending match result to mobile:', match ? 'MATCH FOUND' : 'NO MATCH');
+                        ws.send(JSON.stringify({
+                            type: 'echo_chamber_match',
+                            match: match
+                        }));
+                        
+                        // If match found, highlight it on display
+                        if (match) {
+                            console.log(`🎯 Highlighting Reddit post: ${match.id} (${match.clusterLabel})`);
+                            broadcastToDisplays({
+                                type: 'highlight_match',
+                                matchedPostId: match.id,
+                                userContent: data.content
+                            });
+                        } else {
+                            console.log('⚠️ No match to highlight');
+                        }
+                    } catch (error) {
+                        console.error('❌ Error auto-fetching Reddit posts:', error);
+                    }
+                })();
+                
                 return;
             }
             

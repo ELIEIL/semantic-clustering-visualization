@@ -5,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mobile Controller</title>
     <link rel="stylesheet" href="../styles/mobile.css">
+    <link rel="stylesheet" href="../styles/connections.css">
     <link rel="stylesheet" href="../styles/onboarding.css">
 </head>
 <body>
-    <!-- Header with Submit Button -->
+    <!-- Header -->
     <header class="mobile-header">
         <div class="connection-status">
             <span class="status-dot" id="statusDot"></span>
+            <span style="margin-left: 8px; font-size: 14px; color: white;">Reddit Echo Chambers</span>
         </div>
-        <button id="submitBtn" class="submit-btn-header">Submit</button>
     </header>
     
     <!-- Main Content Container -->
@@ -21,61 +22,33 @@
         
         <!-- Headline Section -->
         <div class="headline-section">
-            <h2 id="mobileHeadline" class="mobile-headline">News headline</h2>
-            <p id="mobileTimestamp" class="mobile-timestamp">Updated 5:38 AM EST, Fri March 6, 2026</p>
+            <h2 id="mobileHeadline" class="mobile-headline">Reddit Topic</h2>
+            <p id="mobileTimestamp" class="mobile-timestamp">Viewing connections between opposing viewpoints</p>
         </div>
         
-        <!-- Cluster Overview Section -->
-        <div class="cluster-section" id="clusterSection">
+        <!-- Post Your Opinion Section -->
+        <div class="post-section" style="background: #000; color: #fff; padding: 20px; border: 2px solid #fff; border-radius: 8px; margin: 20px;">
+            <h3 style="color: #fff; margin-bottom: 10px;">Write your opinion</h3>
+            <p style="color: #ccc; font-size: 14px; margin-bottom: 16px;">Write your opinion and see which online links your opinion matches</p>
             
-            <!-- Your Posts -->
-            <div class="posts-group">
-                <h3 class="section-title">Your posts</h3>
-                <div id="yourPosts" class="post-list">
-                    <!-- Your posts will appear here -->
-                </div>
-            </div>
-            
-            <!-- Uncategorized Posts -->
-            <div class="posts-group">
-                <h3 class="section-title">Uncategorized posts</h3>
-                <div id="uncategorizedPosts" class="post-list">
-                    <!-- Uncategorized posts will appear here -->
-                </div>
-            </div>
-            
-            <!-- Clusters -->
-            <div class="clusters-group">
-                <h3 class="section-title">Clusters</h3>
-                <div id="clusterCircles" class="cluster-circles">
-                    <!-- Cluster circles will appear here -->
-                </div>
-            </div>
-            
-        </div>
-        
-        <!-- Cluster Detail View (hidden by default) -->
-        <div class="cluster-detail-view" id="clusterDetailView" style="display: none;">
-            <div class="detail-header">
-                <button class="back-button" id="backButton">← Back</button>
-                <h2 class="cluster-name" id="detailClusterName">Cluster Name</h2>
-            </div>
-            <div class="detail-subtitle">Post inside cluster</div>
-            <div id="clusterPosts" class="post-list">
-                <!-- Posts in selected cluster will appear here -->
-            </div>
-        </div>
-        
-        <!-- Input Section -->
-        <div class="input-section">
             <textarea 
                 id="textInput" 
-                class="opinion-input" 
-                placeholder="Whats your opinion?"
+                placeholder="What's your opinion?"
                 maxlength="500"
                 autocomplete="off"
+                style="width: 100%; min-height: 100px; padding: 12px; background: #000; color: #fff; border: 2px solid #fff; border-radius: 4px; font-size: 14px; font-family: inherit; resize: vertical;"
             ></textarea>
-            <div class="char-counter" id="charCounter">0/500</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                <span id="charCounter" style="color: #888; font-size: 12px;">0/500</span>
+                <button id="submitBtn" style="background: #fff; color: #000; border: 2px solid #fff; padding: 10px 24px; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer;">Submit</button>
+            </div>
+        </div>
+        
+        <!-- Match Result Section -->
+        <div id="matchResult" style="display: none; background: #000; color: #fff; padding: 20px; margin: 20px; border: 2px solid #fff; border-radius: 8px;">
+            <h3 style="color: #fff; margin-bottom: 8px;">Data</h3>
+            <p id="matchText" style="color: #fff; font-size: 14px; margin-bottom: 8px;"></p>
+            <p id="matchSimilarity" style="color: #ccc; font-size: 12px;"></p>
         </div>
         
     </div>

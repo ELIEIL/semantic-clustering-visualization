@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en" style="background: black;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Panel</title>
+    <style>
+        body {
+            background: black;
+            color: white;
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            margin: 0;
+        }
+        
+        .control-section {
+            background: #000;
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-bottom: 20px;
+            border: 2px solid #fff;
+        }
+        
+        .section-header {
+            margin-bottom: 15px;
+            border-bottom: 2px solid #fff;
+            padding-bottom: 10px;
+        }
+        
+        .section-title {
+            font-size: 16px;
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        .info-box {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: #000;
+            border-radius: 8px;
+            border: 1px solid #fff;
+        }
+        
+        .info-label {
+            font-size: 12px;
+            color: #fff;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        select {
+            width: 100%;
+            padding: 6px;
+            background: #000;
+            color: white;
+            border: 2px solid #fff;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 10px;
+        }
+        
+        button {
+            background: #fff;
+            color: #000;
+            border: 2px solid #fff;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 11px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #ddd;
+        }
+        
+        .button-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .qr-section {
+            background: rgba(76, 175, 80, 0.15);
+            border: 2px solid #4CAF50;
+            text-align: center;
+        }
+        
+        .qr-section .section-title {
+            color: #4CAF50;
+        }
+        
+        .qr-section .section-header {
+            border-bottom-color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="color: #fff; margin-bottom: 30px; font-size: 24px;">🎛️ Display Control Panel</h1>
+    
+    <!-- Mobile Controller QR Code -->
+    <div class="control-section qr-section">
+        <div class="section-header">
+            <div class="section-title">📱 Mobile Controller</div>
+        </div>
+        <div style="margin-bottom: 10px; color: #888; font-size: 10px;">
+            Scan to connect your phone as a controller
+        </div>
+        <div style="display: inline-block; padding: 10px; background: white; border-radius: 8px;">
+            <img id="qrCodeImage" src="/api/qr-code" alt="Mobile Controller QR Code" style="display: block; width: 300px; height: 300px;">
+        </div>
+        <div id="mobileUrl" style="margin-top: 10px; font-size: 10px; color: #4CAF50; word-break: break-all;">Loading...</div>
+    </div>
+    
+    <!-- NewsAPI Control Panel -->
+    <div class="control-section">
+        <div class="section-header">
+            <div class="section-title">📰 NewsAPI Control Panel</div>
+        </div>
+        
+        <!-- Current Headline Display -->
+        <div class="info-box" style="border-left: 3px solid #fff;">
+            <div class="info-label">Current Headline</div>
+            <div id="apiCurrentHeadline" style="font-size: 11px; color: #fff; line-height: 1.4; font-style: italic;">Loading...</div>
+            <div id="apiHeadlineTime" style="font-size: 9px; color: #888; margin-top: 5px;">Fetched: --</div>
+        </div>
+        
+        <!-- API Usage Stats -->
+        <div class="info-box">
+            <div class="info-label">📊 API Usage</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10px;">
+                <div>
+                    <span style="color: #888;">Requests Today:</span>
+                    <span id="apiRequestsToday" style="color: #fff; font-weight: bold;">0</span>
+                </div>
+                <div>
+                    <span style="color: #888;">Daily Limit:</span>
+                    <span style="color: #888;">100</span>
+                </div>
+                <div>
+                    <span style="color: #888;">Cache Status:</span>
+                    <span id="apiCacheStatus" style="color: #4CAF50;">Active</span>
+                </div>
+                <div>
+                    <span style="color: #888;">Cache Expires:</span>
+                    <span id="apiCacheExpiry" style="color: #888;">--</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Category & Country Selection -->
+        <div class="info-box">
+            <div class="info-label">⚙️ Settings</div>
+            
+            <label style="display: block; font-size: 10px; color: #888; margin-bottom: 4px;">Category:</label>
+            <select id="newsCategory">
+                <option value="general">General</option>
+                <option value="business">Business</option>
+                <option value="entertainment">Entertainment</option>
+                <option value="health">Health</option>
+                <option value="science">Science</option>
+                <option value="sports">Sports</option>
+                <option value="technology">Technology</option>
+            </select>
+            
+            <label style="display: block; font-size: 10px; color: #888; margin-bottom: 4px;">Country:</label>
+            <select id="newsCountry">
+                <option value="us">United States</option>
+                <option value="gb">United Kingdom</option>
+                <option value="ca">Canada</option>
+                <option value="au">Australia</option>
+                <option value="de">Germany</option>
+                <option value="fr">France</option>
+                <option value="it">Italy</option>
+                <option value="jp">Japan</option>
+            </select>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="button-grid">
+            <button id="refreshHeadlineBtn">🔄 Refresh Headline</button>
+            <button id="clearCacheBtn">🗑️ Clear Cache</button>
+        </div>
+        
+        <div style="margin-top: 10px; font-size: 9px; color: #888; text-align: center; font-style: italic;">
+            Questions only • 1hr cache • 100 req/day limit
+        </div>
+    </div>
+    
+    <!-- Reddit Echo Chamber Demo -->
+    <div class="control-section">
+        <div class="section-header">
+            <div class="section-title">🔴 Reddit Echo Chambers</div>
+        </div>
+        <div style="font-size: 10px; color: #ccc; margin-bottom: 10px;">Fetch real posts from opposing subreddits to demonstrate filter bubbles</div>
+        
+        <label style="display: block; font-size: 10px; color: #888; margin-bottom: 4px;">Topic:</label>
+        <select id="redditTopic">
+            <option value="politics">Politics (Conservative vs Liberal)</option>
+            <option value="climate">Climate (Action vs Skeptics)</option>
+            <option value="technology">Technology (Tech vs Privacy)</option>
+            <option value="economy">Economy (Economics vs Anti-Capitalism)</option>
+        </select>
+        
+        <button id="fetchRedditBtn" style="width: 100%;">📡 Fetch Reddit Posts</button>
+    </div>
+
+    <script>
+        // WebSocket connection
+        let ws = null;
+        let apiRequestCount = 0;
+        let headlineFetchTime = null;
+        
+        function connectWebSocket() {
+            ws = new WebSocket(`ws://localhost:8080`);
+            
+            ws.onopen = () => {
+                console.log('Control panel connected to server');
+                // Register as display to receive updates
+                ws.send(JSON.stringify({ type: 'register_display' }));
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                // Update headline display
+                if (data.type === 'headline') {
+                    const apiCurrentHeadline = document.getElementById('apiCurrentHeadline');
+                    const apiHeadlineTime = document.getElementById('apiHeadlineTime');
+                    
+                    if (apiCurrentHeadline) {
+                        apiCurrentHeadline.textContent = data.headline;
+                    }
+                    
+                    if (apiHeadlineTime && data.timestamp) {
+                        const date = new Date(data.timestamp);
+                        const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                        apiHeadlineTime.textContent = `Fetched: ${timeStr}`;
+                        headlineFetchTime = data.timestamp;
+                    }
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('Control panel disconnected from server');
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        // Connect on load
+        connectWebSocket();
+        
+        // Fetch Reddit Posts Button
+        document.getElementById('fetchRedditBtn').addEventListener('click', () => {
+            const topic = document.getElementById('redditTopic').value;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'fetch_reddit', topic: topic }));
+                document.getElementById('fetchRedditBtn').textContent = '⏳ Fetching...';
+                setTimeout(() => {
+                    document.getElementById('fetchRedditBtn').textContent = '📡 Fetch Reddit Posts';
+                }, 3000);
+            }
+        });
+        
+        // Refresh Headline Button
+        document.getElementById('refreshHeadlineBtn').addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'refresh_headline' }));
+                apiRequestCount++;
+                document.getElementById('apiRequestsToday').textContent = apiRequestCount;
+                document.getElementById('refreshHeadlineBtn').textContent = '⏳ Fetching...';
+                setTimeout(() => {
+                    document.getElementById('refreshHeadlineBtn').textContent = '🔄 Refresh Headline';
+                }, 2000);
+            }
+        });
+        
+        // Clear Cache Button
+        document.getElementById('clearCacheBtn').addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'clear_cache' }));
+                document.getElementById('apiCacheStatus').textContent = 'Cleared';
+                document.getElementById('apiCacheStatus').style.color = '#FF9800';
+                setTimeout(() => {
+                    document.getElementById('apiCacheStatus').textContent = 'Active';
+                    document.getElementById('apiCacheStatus').style.color = '#4CAF50';
+                }, 2000);
+            }
+        });
+        
+        // Category/Country change handlers
+        document.getElementById('newsCategory').addEventListener('change', (e) => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ 
+                    type: 'update_news_settings',
+                    category: e.target.value,
+                    country: document.getElementById('newsCountry').value
+                }));
+            }
+        });
+        
+        document.getElementById('newsCountry').addEventListener('change', (e) => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ 
+                    type: 'update_news_settings',
+                    category: document.getElementById('newsCategory').value,
+                    country: e.target.value
+                }));
+            }
+        });
+        
+        // Update cache expiry timer
+        function updateCacheExpiry() {
+            if (headlineFetchTime) {
+                const now = Date.now();
+                const elapsed = now - headlineFetchTime;
+                const remaining = 3600000 - elapsed; // 1 hour in ms
+                
+                if (remaining > 0) {
+                    const minutes = Math.floor(remaining / 60000);
+                    document.getElementById('apiCacheExpiry').textContent = `${minutes}m`;
+                } else {
+                    document.getElementById('apiCacheExpiry').textContent = 'Expired';
+                }
+            }
+        }
+        
+        setInterval(updateCacheExpiry, 10000); // Update every 10 seconds
+        
+        // Fetch mobile URL from server
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/mobile-url');
+                const data = await response.json();
+                document.getElementById('mobileUrl').textContent = data.url;
+            } catch (err) {
+                console.error('Failed to fetch mobile URL:', err);
+                document.getElementById('mobileUrl').textContent = 'Error loading URL';
+            }
+        });
+    </script>
+</body>
+</html>

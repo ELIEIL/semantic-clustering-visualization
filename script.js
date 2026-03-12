@@ -178,114 +178,10 @@ class NLPEngine {
 
 const nlp = new NLPEngine();
 
-// Global Cluster Registry - Persistent clusters that represent opinion echo chambers
-const clusterRegistry = {
-    clusters: [],
-    nextId: 0,
-    
-    // Create a new cluster with a topic-based identity
-    createCluster(keywords, firstNode) {
-        const topicHash = this.hashKeywords(keywords);
-        const color = this.getColorFromHash(topicHash);
-        
-        // Copy embedding or create default if not available
-        const centroid = firstNode.embedding && Array.isArray(firstNode.embedding) 
-            ? [...firstNode.embedding] 
-            : [];
-        
-        const cluster = {
-            id: this.nextId++,
-            keywords: keywords,
-            topicHash: topicHash,
-            color: color,
-            nodes: [firstNode],
-            centroid: centroid,
-            strength: 1 // Echo chamber strength
-        };
-        
-        this.clusters.push(cluster);
-        logActivity(`🆕 New opinion cluster formed: "${keywords.slice(0, 3).join(', ')}"`, 'cluster');
-        return cluster;
-    },
-    
-    // Find best matching cluster for a new post
-    findBestCluster(node, similarityThreshold = 0.3) {
-        if (this.clusters.length === 0) return null;
-        
-        let bestCluster = null;
-        let bestSimilarity = 0;
-        
-        this.clusters.forEach(cluster => {
-            const similarity = this.calculateSimilarity(node.embedding, cluster.centroid);
-            if (similarity > bestSimilarity && similarity > similarityThreshold) {
-                bestSimilarity = similarity;
-                bestCluster = cluster;
-            }
-        });
-        
-        return { cluster: bestCluster, similarity: bestSimilarity };
-    },
-    
-    // Add node to existing cluster (reinforcement)
-    addToCluster(cluster, node) {
-        cluster.nodes.push(node);
-        cluster.strength += 0.5; // Echo chamber gets stronger
-        
-        // Update centroid (cluster identity shifts slightly)
-        const alpha = 0.1; // Small shift to maintain stability
-        cluster.centroid = cluster.centroid.map((val, i) => 
-            val * (1 - alpha) + node.embedding[i] * alpha
-        );
-        
-        logActivity(`📈 Opinion reinforced in cluster: "${cluster.keywords.slice(0, 2).join(', ')}"`, 'cluster');
-    },
-    
-    // Calculate cosine similarity between embeddings
-    calculateSimilarity(emb1, emb2) {
-        if (!emb1 || !emb2 || emb1.length !== emb2.length) return 0;
-        
-        let dotProduct = 0;
-        let norm1 = 0;
-        let norm2 = 0;
-        
-        for (let i = 0; i < emb1.length; i++) {
-            dotProduct += emb1[i] * emb2[i];
-            norm1 += emb1[i] * emb1[i];
-            norm2 += emb2[i] * emb2[i];
-        }
-        
-        if (norm1 === 0 || norm2 === 0) return 0;
-        return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
-    },
-    
-    // Hash keywords to generate consistent color
-    hashKeywords(keywords) {
-        const str = keywords.slice(0, 5).join('').toLowerCase();
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            hash = ((hash << 5) - hash) + str.charCodeAt(i);
-            hash = hash & hash;
-        }
-        return Math.abs(hash);
-    },
-    
-    // Generate color from topic hash (stable colors for same topics)
-    getColorFromHash(hash) {
-        const hue = hash % 360;
-        return {
-            h: hue,
-            s: 70,
-            b: 80
-        };
-    },
-    
-    // Clean up empty clusters
-    pruneEmptyClusters() {
-        this.clusters = this.clusters.filter(c => c.nodes.length > 0);
-    }
-};
+// Simple cluster storage for Reddit posts
+let redditClusters = [];
 
-// K-means Clustering
+// K-means Clustering (will be removed - not needed for Reddit API)
 class KMeansClustering {
     constructor(k = 3) {
         this.k = k;
@@ -666,53 +562,8 @@ async function recalculateSimilarities() {
         // INCREMENTAL OPINION CLUSTERING - Demonstrates filter bubble formation
         // New posts either join existing echo chambers or create new ones
         
-        if (nodes.length >= 1) {
-            logActivity(`🎨 Running incremental opinion clustering`, 'cluster');
-            
-            // First, sync cluster registry with current nodes
-            clusterRegistry.clusters.forEach(cluster => {
-                cluster.nodes = [];
-            });
-            
-            // Process each node - assign to cluster or create new one
-            nodes.forEach((node, i) => {
-                // Extract keywords for this post
-                const keywords = node.keywords || nlp.extractKeywords(node.content, 5);
-                node.keywords = keywords;
-                
-                // Try to find existing cluster (echo chamber) for this opinion
-                const match = clusterRegistry.findBestCluster(node, 0.3);
-                
-                if (match && match.cluster) {
-                    // Join existing echo chamber (reinforcement)
-                    clusterRegistry.addToCluster(match.cluster, node);
-                    node.cluster = match.cluster.id;
-                    node.clusterColor = match.cluster.color;
-                } else {
-                    // Create new opinion cluster
-                    const newCluster = clusterRegistry.createCluster(keywords, node);
-                    node.cluster = newCluster.id;
-                    node.clusterColor = newCluster.color;
-                }
-            });
-            
-            // Clean up empty clusters
-            clusterRegistry.pruneEmptyClusters();
-            
-            // Generate cluster labels based on keywords
-            generateClusterLabels();
-            
-            // Update cluster list UI
-            updateClusterListUI();
-            
-            // Log cluster distribution
-            const clusterCounts = {};
-            clusterRegistry.clusters.forEach(c => {
-                clusterCounts[c.id] = c.nodes.length;
-            });
-            logActivity(`📊 Opinion clusters: ${Object.entries(clusterCounts).map(([k,v]) => `C${k}:${v}`).join(', ')}`, 'cluster');
-            logActivity(`💪 Echo chamber strengths: ${clusterRegistry.clusters.map(c => c.strength.toFixed(1)).join(', ')}`, 'cluster');
-        }
+        // Removed: incremental clustering - not needed for Reddit API version
+        // Reddit posts already come pre-clustered by subreddit
     } catch (error) {
         console.error('Error recalculating similarities:', error);
     } finally {
@@ -1134,27 +985,26 @@ function drawMetaball3() {
 }
 
 function drawOutlineMode() {
-    // Draw each post as a rounded rectangle with stroke outline
+    // Draw each post as a rounded rectangle with stroke outline that hugs the text
     nodes.forEach(node => {
         node.update();
         
-        // Calculate text dimensions for rounded rectangle
-        const maxWidth = 320;
-        const padding = 20;
-        const lineHeight = 24;
+        // Text styling
+        const padding = 16;
+        const lineHeight = 22;
+        const maxWidth = 400; // Max width for text wrapping
         
-        // Truncate long text
-        let displayContent = node.content;
-        if (displayContent.length > 150) {
-            displayContent = displayContent.substring(0, 150) + '...';
-        }
+        // Use full content without truncation
+        const displayContent = node.content;
         
-        // Split text into lines
+        // Split text into lines based on maxWidth
         const words = displayContent.split(' ');
         const lines = [];
         let currentLine = '';
         
-        textSize(18);
+        textSize(16);
+        textFont('MD Primer Trial');
+        
         words.forEach(word => {
             const testLine = currentLine + (currentLine ? ' ' : '') + word;
             if (textWidth(testLine) > maxWidth - padding * 2) {
@@ -1166,32 +1016,51 @@ function drawOutlineMode() {
         });
         if (currentLine) lines.push(currentLine);
         
-        const boxWidth = maxWidth;
+        // Calculate actual width needed for the longest line
+        let actualWidth = 0;
+        lines.forEach(line => {
+            const lineWidth = textWidth(line);
+            if (lineWidth > actualWidth) {
+                actualWidth = lineWidth;
+            }
+        });
+        
+        // Box dimensions that hug the text
+        const boxWidth = actualWidth + padding * 2;
         const boxHeight = lines.length * lineHeight + padding * 2;
-        const cornerRadius = 20;
+        const cornerRadius = 12;
         
         // Draw rounded rectangle with stroke outline
         push();
         translate(node.x, node.y);
         
-        // No fill, only stroke
-        noFill();
-        stroke(255); // White stroke
-        strokeWeight(2);
+        // Black fill
+        fill(0); // Black background
+        
+        // Orange outline for matched Reddit posts, white for others
+        if (node.isMatched) {
+            stroke(255, 152, 0); // Orange stroke for matches
+            strokeWeight(4); // Thicker stroke for emphasis
+        } else {
+            stroke(255); // White stroke
+            strokeWeight(2);
+        }
         
         // Draw rounded rectangle
         rectMode(CENTER);
         rect(0, 0, boxWidth, boxHeight, cornerRadius);
         
-        // Draw text inside
+        // Draw text inside, left-justified
         fill(255);
         noStroke();
-        textAlign(LEFT, CENTER);
-        textSize(18);
+        textAlign(LEFT, TOP);
+        textSize(16);
         textFont('MD Primer Trial');
         
-        const startY = -(lines.length - 1) * lineHeight / 2;
-        const startX = -maxWidth / 2 + padding; // Left align with padding
+        // Start position for text (top-left corner with padding)
+        const startX = -boxWidth / 2 + padding;
+        const startY = -boxHeight / 2 + padding;
+        
         lines.forEach((line, i) => {
             text(line, startX, startY + i * lineHeight);
         });
@@ -1655,6 +1524,48 @@ function connectWebSocket() {
     
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        
+        if (data.type === 'reddit_posts') {
+            // Handle Reddit posts - clear existing and add Reddit data
+            console.log('📡 Received Reddit posts:', data);
+            clearAllPosts();
+            
+            // Add each Reddit post from clusters with ID tracking
+            data.clusters.forEach(cluster => {
+                cluster.posts.forEach(post => {
+                    const node = addPost(post.content || post.fullContent, post.timestamp);
+                    // Store Reddit post ID for matching
+                    if (node) {
+                        node.redditId = post.id;
+                        node.isRedditPost = true;
+                    }
+                });
+            });
+            
+            // Update headline to show Reddit topic
+            const headlineText = document.getElementById('headlineText');
+            if (headlineText) {
+                headlineText.textContent = `Reddit Echo Chambers: ${data.topic.charAt(0).toUpperCase() + data.topic.slice(1)}`;
+            }
+            
+            logActivity(`📡 Loaded ${data.totalPosts} Reddit posts from ${data.clusters.length} opposing subreddits`, 'info');
+        }
+        
+        if (data.type === 'highlight_match') {
+            // Highlight matching Reddit post with orange outline
+            console.log('🎯 Highlighting match:', data.matchedPostId);
+            console.log('📊 Total nodes:', nodes.length);
+            console.log('📊 Reddit nodes:', nodes.filter(n => n.redditId).map(n => n.redditId));
+            
+            // Find the matching Reddit post node
+            const matchedNode = nodes.find(n => n.redditId === data.matchedPostId);
+            if (matchedNode) {
+                matchedNode.isMatched = true;
+                console.log('✅ Marked Reddit post for orange outline:', matchedNode.content.substring(0, 50));
+            } else {
+                console.log('❌ Could not find node with redditId:', data.matchedPostId);
+            }
+        }
         
         if (data.type === 'post') {
             addPost(data.content, data.timestamp);
@@ -2127,29 +2038,8 @@ function draw() {
             return;
         }
         
-        // Render based on visualization mode
-        const mode = window.visualizationMode || visualizationMode;
-        if (mode === 'outline') {
-            drawOutlineMode();
-        } else if (mode === 'metaball2') {
-            drawMetaballFilled();
-        } else if (mode === 'metaball3') {
-            drawMetaball3();
-        } else if (mode === 'hybrid') {
-            drawHybridMode();
-        } else if (mode === 'nodes') {
-            drawMetaballNodes();
-        } else if (mode === 'bubbles') {
-            drawSpeechBubbles();
-        } else if (mode === 'text') {
-            drawTextMode();
-        } else if (mode === 'code') {
-            drawCodeMode();
-        } else if (mode === 'ascii') {
-            drawASCIIMode();
-        } else {
-            drawClusterMetaballs();
-        }
+        // Render using outline mode only (simplified for Reddit API)
+        drawOutlineMode();
         
         // Draw animated dashed connection circles (uplink effect)
         connectionCache.forEach((similarity, key) => {
@@ -2172,8 +2062,8 @@ function draw() {
                 // Strong links: Red
                 linkColor = '#D62828';
             } else {
-                // Normal links: Blue
-                linkColor = '#0000FE';
+                // Normal links: Bright Blue (better visibility on black)
+                linkColor = '#4D9FFF';
             }
             
             // Calculate distance and angle between nodes
