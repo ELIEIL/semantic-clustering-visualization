@@ -8,6 +8,7 @@ const countdownElement = document.getElementById('countdown');
 let ws;
 let isConnected = false;
 let postHistoryData = [];
+let clientId = null; // Unique client ID assigned by server
 
 // Countdown timer variables
 let countdownTime = 180; // 3 minutes in seconds
@@ -24,6 +25,9 @@ function connect() {
         console.log('Connected to server');
         isConnected = true;
         submitBtn.disabled = false;
+        
+        // Register as mobile client and get unique ID
+        ws.send(JSON.stringify({ type: 'register_mobile' }));
     };
     
     ws.onmessage = (event) => {
@@ -101,11 +105,24 @@ function connect() {
             // Reset mobile view back to input section
             const inputSection = document.getElementById('inputSection');
             const clusterSection = document.getElementById('clusterSection');
+            const revealSection = document.getElementById('topicRevealSection');
             
             if (inputSection && clusterSection) {
                 inputSection.style.display = 'flex';
                 clusterSection.style.display = 'none';
             }
+            
+            if (revealSection) {
+                revealSection.style.display = 'none';
+            }
+            
+            // Reset voting timer
+            if (votingTimerInterval) {
+                clearInterval(votingTimerInterval);
+                votingTimerInterval = null;
+            }
+            votingTimeRemaining = 60;
+            currentClusters = [];
             
             // Re-enable input
             textInput.disabled = false;
@@ -119,6 +136,24 @@ function connect() {
         if (data.type === 'cluster_vote_update') {
             // Update vote count for specific cluster
             updateClusterVotes(data.clusterId);
+        }
+        
+        if (data.type === 'skip_to_reveal') {
+            // Skip directly to topic reveal with placeholder data
+            console.log('⏭️ Skipping to topic reveal');
+            showTopicReveal(data.cluster);
+        }
+        
+        if (data.type === 'client_id') {
+            // Store assigned client ID
+            clientId = data.clientId;
+            console.log(`📱 Assigned client ID: ${clientId}`);
+        }
+        
+        if (data.type === 'role_assignment') {
+            // Display role screen based on assignment
+            console.log(`🎭 Role assigned: ${data.role}`);
+            showRoleScreen(data.role);
         }
     };
     
@@ -539,6 +574,9 @@ function showClusterView() {
         inputSection.style.display = 'none';
         clusterSection.style.display = 'block';
         console.log('📊 Switched to cluster view');
+        
+        // Start voting timer
+        startVotingTimer();
     }
 }
 
@@ -546,6 +584,9 @@ function showClusterView() {
 function displayClusters(clusters) {
     const clusterList = document.getElementById('clusterList');
     if (!clusterList) return;
+    
+    // Store clusters for winner determination
+    currentClusters = clusters;
     
     clusterList.innerHTML = '';
     
@@ -633,6 +674,181 @@ function updateClusterVotes(clusterId) {
             newDot.className = 'vote-dot';
             voteDotsEl.appendChild(newDot);
         }
+        
+        // Update stored cluster data
+        const cluster = currentClusters.find(c => c.id === clusterId);
+        if (cluster) {
+            cluster.votes = newVotes;
+        }
+    }
+}
+
+// Voting timer variables
+let votingTimeRemaining = 60; // 1 minute in seconds
+let votingTimerInterval = null;
+let currentClusters = []; // Store clusters for winner determination
+
+// Start voting timer
+function startVotingTimer() {
+    const votingTimerEl = document.getElementById('votingTimer');
+    if (!votingTimerEl) return;
+    
+    votingTimeRemaining = 60; // Reset to 1 minute
+    
+    if (votingTimerInterval) {
+        clearInterval(votingTimerInterval);
+    }
+    
+    votingTimerInterval = setInterval(() => {
+        if (votingTimeRemaining <= 0) {
+            clearInterval(votingTimerInterval);
+            votingTimerEl.textContent = '00:00';
+            onVotingComplete();
+            return;
+        }
+        
+        const minutes = Math.floor(votingTimeRemaining / 60);
+        const seconds = votingTimeRemaining % 60;
+        votingTimerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        
+        votingTimeRemaining--;
+    }, 1000);
+    
+    console.log('⏱️ Voting timer started (1 minute)');
+}
+
+// Determine winning cluster and show topic reveal
+function onVotingComplete() {
+    console.log('🏁 Voting time completed!');
+    
+    // Disable voting
+    document.querySelectorAll('.cluster-item').forEach(item => {
+        item.style.pointerEvents = 'none';
+        item.style.opacity = '0.6';
+    });
+    
+    // Find cluster with most votes
+    const winningCluster = findWinningCluster();
+    
+    if (winningCluster) {
+        console.log('🏆 Winning cluster:', winningCluster.label, 'with', winningCluster.votes, 'votes');
+        
+        // Send winning cluster to server to trigger main display animation
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'skip_to_reveal',
+                cluster: winningCluster
+            }));
+            console.log('📤 Sent winning cluster to server for main display animation');
+        }
+        
+        // Show topic reveal transition on mobile
+        setTimeout(() => {
+            showTopicReveal(winningCluster);
+        }, 1000);
+    }
+}
+
+// Find cluster with most votes
+function findWinningCluster() {
+    if (currentClusters.length === 0) return null;
+    
+    let maxVotes = -1;
+    let winner = null;
+    
+    currentClusters.forEach(cluster => {
+        const votes = cluster.votes || 0;
+        if (votes > maxVotes) {
+            maxVotes = votes;
+            winner = cluster;
+        }
+    });
+    
+    return winner;
+}
+
+// Show topic reveal with 3-screen animation
+function showTopicReveal(cluster) {
+    const clusterSection = document.getElementById('clusterSection');
+    const revealSection = document.getElementById('topicRevealSection');
+    const revealBlob = document.getElementById('revealBlob');
+    const revealTopicName = document.getElementById('revealTopicName');
+    const revealTitle = document.querySelector('.reveal-title');
+    const revealSubtitle = document.querySelector('.reveal-subtitle');
+    
+    if (!revealSection || !revealBlob || !revealTopicName) return;
+    
+    // Convert cluster color to RGB
+    const rgb = hsbToRgb(cluster.color.h, cluster.color.s, cluster.color.b);
+    const colorString = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+    
+    // Set blob color
+    revealBlob.style.background = colorString;
+    
+    // Set topic name
+    revealTopicName.textContent = cluster.label || 'Cluster ' + cluster.id;
+    
+    // Add fade-out to cluster section
+    clusterSection.classList.add('fade-out-view');
+    
+    // Wait for fade out, then switch views
+    setTimeout(() => {
+        clusterSection.style.display = 'none';
+        clusterSection.classList.remove('fade-out-view');
+        
+        revealSection.style.display = 'flex';
+        revealSection.classList.add('fade-in');
+        
+        // Show topic announcement (3.5 seconds)
+        console.log('📺 Topic announcement');
+        
+        // Start continuous growth animation after delay
+        setTimeout(() => {
+            console.log('📺 Starting continuous growth animation');
+            
+            // Fade out text
+            revealTitle.classList.add('fade-out');
+            revealSubtitle.classList.add('fade-out');
+            revealTopicName.classList.add('fade-out');
+            
+            // Start smooth growth to full screen (one continuous animation)
+            setTimeout(() => {
+                revealBlob.classList.add('grow-full');
+            }, 1000);
+            
+            // Trigger role assignment after animation completes
+            setTimeout(() => {
+                console.log('🎯 Requesting role assignment');
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'assign_roles' }));
+                }
+            }, 4000);
+            
+        }, 3500);
+        
+    }, 800); // Wait for fade-out animation
+}
+
+// Show role assignment screen
+function showRoleScreen(role) {
+    const revealSection = document.getElementById('topicRevealSection');
+    const debaterSection = document.getElementById('debaterSection');
+    const listenerSection = document.getElementById('listenerSection');
+    
+    // Hide reveal section
+    if (revealSection) {
+        revealSection.style.display = 'none';
+    }
+    
+    // Show appropriate role screen
+    if (role === 'debater') {
+        debaterSection.style.display = 'flex';
+        listenerSection.style.display = 'none';
+        console.log('🎤 Displaying debater screen');
+    } else if (role === 'listener') {
+        debaterSection.style.display = 'none';
+        listenerSection.style.display = 'flex';
+        console.log('👂 Displaying listener screen');
     }
 }
 

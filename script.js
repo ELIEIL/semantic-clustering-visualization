@@ -21,6 +21,18 @@ let enableRealtimeClustering = false; // Keep this off for now
 let clusteringEnabled = false; // Clustering happens only when timer reaches 00:00
 let timerCompleted = false;
 
+// Topic reveal animation state
+let revealAnimationActive = false;
+let revealBlobSize = 0;
+let revealClusterColor = null;
+let revealPhase = 'idle'; // 'idle', 'growing', 'full', 'border'
+let revealBlobX = 0; // Starting X position of winning cluster
+let revealBlobY = 0; // Starting Y position of winning cluster
+
+// Voting phase state
+let votingPhaseActive = false;
+let votingCountdownTime = 0; // Countdown time in seconds
+
 // Tracking for trending detection
 let clusterSizeHistory = new Map(); // Track cluster sizes over time
 let lastClusterUpdate = Date.now();
@@ -1868,6 +1880,135 @@ window.resetExperience = function() {
     }
 };
 
+// Global function to skip to topic reveal screen (for testing)
+window.skipToReveal = function() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        // Create placeholder cluster data
+        const placeholderCluster = {
+            id: 0,
+            label: 'Topic Title',
+            color: {
+                h: Math.random() * 360, // Random hue
+                s: 70,
+                b: 80
+            },
+            votes: 5,
+            nodes: []
+        };
+        
+        // Send skip command to mobile clients
+        ws.send(JSON.stringify({
+            type: 'skip_to_reveal',
+            cluster: placeholderCluster
+        }));
+        
+        console.log('⏭️ Skip to reveal requested with placeholder data');
+    } else {
+        console.error('WebSocket not connected');
+    }
+};
+
+// Topic reveal animation for main display
+function startTopicRevealAnimation(cluster) {
+    revealAnimationActive = true;
+    revealClusterColor = cluster.color;
+    revealBlobSize = 80; // Start with initial metaball size
+    revealPhase = 'growing';
+    
+    // Find the winning cluster's position on the display
+    // Calculate center position of all nodes in this cluster
+    const clusterNodes = nodes.filter(node => node.cluster === cluster.id);
+    
+    if (clusterNodes.length > 0) {
+        // Calculate average position (center of cluster)
+        let sumX = 0, sumY = 0;
+        clusterNodes.forEach(node => {
+            sumX += node.x;
+            sumY += node.y;
+        });
+        revealBlobX = sumX / clusterNodes.length;
+        revealBlobY = sumY / clusterNodes.length;
+        console.log(`🎯 Winning cluster position: (${revealBlobX.toFixed(0)}, ${revealBlobY.toFixed(0)})`);
+    } else {
+        // Fallback to center if cluster not found
+        revealBlobX = width / 2;
+        revealBlobY = height / 2;
+        console.log('⚠️ Cluster nodes not found, using center position');
+    }
+    
+    console.log('🎬 Topic reveal animation started from cluster position');
+    
+    // Phase 1: Wait 3.5s (matching mobile announcement time)
+    setTimeout(() => {
+        console.log('📺 Phase 1: Growing blob');
+        // Start blob growth animation (will be handled in draw loop)
+        animateRevealGrowth();
+    }, 3500);
+}
+
+// Animate blob growth to full screen
+function animateRevealGrowth() {
+    const startTime = Date.now();
+    const duration = 3000; // 3 seconds to match mobile
+    const startSize = 80; // Initial metaball size
+    const maxSize = Math.sqrt(width * width + height * height) * 1.2; // Diagonal coverage
+    
+    function animate() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Ease-in-out cubic
+        const eased = progress < 0.5 
+            ? 4 * progress * progress * progress 
+            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+        
+        // Interpolate from start size to max size
+        revealBlobSize = startSize + (eased * (maxSize - startSize));
+        
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            // Phase 2: Full coverage reached
+            console.log('📺 Phase 2: Full coverage');
+            revealPhase = 'full';
+            revealBlobSize = maxSize; // Ensure it's at max
+            
+            // Phase 3: Start border animation immediately
+            console.log('📺 Phase 3: Fading to border');
+            animateToBorder();
+        }
+    }
+    
+    animate();
+}
+
+// Animate smooth transition from full color to border
+function animateToBorder() {
+    const startTime = Date.now();
+    const duration = 1000; // 1 second fade
+    
+    function animate() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        if (progress < 1) {
+            // Still fading - keep in transition phase
+            revealPhase = 'fading';
+            window.borderFadeProgress = progress; // Store for draw loop
+            requestAnimationFrame(animate);
+        } else {
+            // Fade complete - reset to idle to resume normal rendering
+            console.log('📺 Dissolve complete - resuming normal rendering');
+            revealPhase = 'idle';
+            window.borderFadeProgress = 1;
+            revealAnimationActive = false;
+            revealClusterColor = null;
+        }
+    }
+    
+    animate();
+}
+
 function connectWebSocket() {
     ws = new WebSocket('ws://localhost:8080');
     window.ws = ws; // Make accessible to control panel
@@ -1915,6 +2056,20 @@ function connectWebSocket() {
         if (data.type === 'headline') {
             // Headline display disabled for pedagogical experience branch
             console.log('Headline received (not displayed):', data.headline);
+        }
+        
+        if (data.type === 'clusters') {
+            // Voting phase started - clusters sent to mobile
+            votingPhaseActive = true;
+            votingCountdownTime = 60; // 1 minute voting timer
+            console.log('🗳️ Voting phase started');
+        }
+        
+        if (data.type === 'skip_to_reveal') {
+            // Trigger synchronized topic reveal animation on main display
+            console.log('🎬 Starting topic reveal animation on main display');
+            votingPhaseActive = false; // Hide voting text when animation starts
+            startTopicRevealAnimation(data.cluster);
         }
         
         if (data.type === 'countdown_update') {
@@ -2354,6 +2509,109 @@ function setup() {
 function draw() {
     try {
         background(0);
+        
+        // Handle topic reveal animation
+        if (revealPhase === 'growing' || revealPhase === 'full') {
+            // Draw growing blob during animation
+            if (revealBlobSize > 0 && revealClusterColor) {
+                push();
+                
+                // Convert HSB to RGB
+                const h = revealClusterColor.h;
+                const s = revealClusterColor.s;
+                const b = revealClusterColor.b;
+                
+                colorMode(HSB, 360, 100, 100);
+                const c = color(h, s, b);
+                colorMode(RGB, 255);
+                
+                fill(c);
+                noStroke();
+                
+                // Draw morphing blob from cluster's actual position
+                const time = frameCount * 0.05;
+                const morphX = sin(time) * 20;
+                const morphY = cos(time * 1.3) * 20;
+                
+                ellipse(revealBlobX + morphX, revealBlobY + morphY, revealBlobSize, revealBlobSize);
+                
+                // Debug: Log once per second
+                if (frameCount % 60 === 0) {
+                    console.log(`🎨 Drawing blob: size=${revealBlobSize.toFixed(0)}, pos=(${revealBlobX.toFixed(0)},${revealBlobY.toFixed(0)}), phase=${revealPhase}`);
+                }
+                
+                pop();
+            }
+            return; // Skip normal rendering during animation
+        }
+        
+        if (revealPhase === 'fading' || revealPhase === 'border') {
+            // Draw transition from full color to border
+            background(0);
+            
+            if (revealClusterColor) {
+                push();
+                
+                // Convert HSB to RGB
+                const h = revealClusterColor.h;
+                const s = revealClusterColor.s;
+                const b = revealClusterColor.b;
+                
+                colorMode(HSB, 360, 100, 100);
+                const c = color(h, s, b);
+                colorMode(RGB, 255);
+                
+                // Simple dissolve effect - blob fades out, black background fades in
+                if (revealPhase === 'fading' || revealPhase === 'border') {
+                    const fadeProgress = window.borderFadeProgress || 0;
+                    const maxSize = Math.sqrt(width * width + height * height) * 1.2;
+                    
+                    // Fill opacity decreases
+                    const fillAlpha = (1 - fadeProgress) * 255;
+                    
+                    // Draw blob fading out
+                    fill(red(c), green(c), blue(c), fillAlpha);
+                    noStroke();
+                    ellipse(width / 2, height / 2, maxSize, maxSize);
+                    
+                    // Fill background with black as blob becomes transparent
+                    if (fadeProgress > 0) {
+                        push();
+                        fill(0, fadeProgress * 255);
+                        noStroke();
+                        rect(0, 0, width, height);
+                        pop();
+                    }
+                    
+                    pop();
+                    return;
+                }
+                
+                pop();
+            }
+            return; // Skip normal rendering during border phase
+        }
+        
+        // Update HTML elements for voting phase
+        if (votingPhaseActive && nodes.length > 0) {
+            const headlineText = document.getElementById('headlineText');
+            const displayCountdown = document.getElementById('displayCountdown');
+            
+            if (headlineText) {
+                headlineText.textContent = "Vote on a topic you'd like to discuss";
+            }
+            
+            if (displayCountdown && votingCountdownTime > 0) {
+                const minutes = Math.floor(votingCountdownTime / 60);
+                const seconds = votingCountdownTime % 60;
+                displayCountdown.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                
+                // Decrement timer (runs at 60fps, so decrement every 60 frames)
+                if (frameCount % 60 === 0 && votingCountdownTime > 0) {
+                    votingCountdownTime--;
+                }
+            }
+        }
         
         if (nodes.length === 0) {
             return;
