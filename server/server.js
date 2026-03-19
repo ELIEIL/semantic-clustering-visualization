@@ -40,6 +40,10 @@ const postVotes = new Map(); // postId -> { upvotes: 0, downvotes: 0, voters: Se
 const userVotes = new Map(); // userId -> [{ postId, vote, timestamp }]
 const userPreferences = new Map(); // userId -> { topics, bias, keywords, sources }
 
+// Synchronized countdown timer (2 minutes)
+let countdownTime = 120; // seconds
+let countdownInterval = null;
+
 // Initialize ConceptNet client for semantic understanding
 const conceptNet = new ConceptNetClient();
 console.log('ConceptNet client initialized');
@@ -106,6 +110,47 @@ function broadcastToModerators(message) {
     });
 }
 
+function broadcastToAll(message) {
+    wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(message));
+        }
+    });
+}
+
+// Countdown timer functions
+function startCountdownTimer() {
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+    
+    countdownTime = 120; // Reset to 2 minutes
+    
+    countdownInterval = setInterval(() => {
+        if (countdownTime <= 0) {
+            clearInterval(countdownInterval);
+            countdownTime = 0;
+        }
+        
+        // Broadcast current time to all clients
+        broadcastToAll({
+            type: 'countdown_update',
+            time: countdownTime
+        });
+        
+        if (countdownTime > 0) {
+            countdownTime--;
+        }
+    }, 1000);
+    
+    console.log('Countdown timer started (2 minutes)');
+}
+
+function resetCountdownTimer() {
+    startCountdownTimer();
+    console.log('Countdown timer reset');
+}
+
 wss.on('connection', (ws) => {
     console.log('New client connected');
     
@@ -145,6 +190,12 @@ wss.on('connection', (ws) => {
                     headline: currentHeadline.text,
                     imageUrl: currentHeadline.imageUrl,
                     timestamp: Date.now()
+                }));
+                
+                // Send current countdown time
+                ws.send(JSON.stringify({
+                    type: 'countdown_update',
+                    time: countdownTime
                 }));
                 
                 approvedPosts.forEach(post => {
@@ -195,6 +246,45 @@ wss.on('connection', (ws) => {
                         timestamp: Date.now()
                     });
                 })();
+                return;
+            }
+            
+            if (data.type === 'reset_timer') {
+                // Reset countdown timer to 3 minutes
+                resetCountdownTimer();
+                console.log('Timer reset manually');
+                return;
+            }
+            
+            if (data.type === 'clear_all_posts') {
+                // Clear all posts from server
+                approvedPosts = [];
+                console.log('All posts cleared');
+                
+                // Broadcast clear command to all clients
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({ type: 'clear_all_posts' }));
+                    }
+                });
+                return;
+            }
+            
+            if (data.type === 'vote_cluster') {
+                // Track cluster votes
+                const clusterId = data.clusterId;
+                
+                // Broadcast vote to all clients
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'cluster_vote_update',
+                            clusterId: clusterId
+                        }));
+                    }
+                });
+                
+                console.log(`Vote recorded for cluster ${clusterId}`);
                 return;
             }
             
@@ -487,13 +577,13 @@ const server = http.createServer(async (req, res) => {
                 const newMobileUrl = `${tunnelUrl}/client/pages/mobile.html`;
                 mobileControllerUrl = newMobileUrl;
                 
-                // Regenerate QR code with tunnel URL
+                // Regenerate QR code with tunnel URL (inverted colors)
                 qrCodeDataURL = await QRCode.toDataURL(newMobileUrl, {
                     width: 300,
                     margin: 2,
                     color: {
-                        dark: '#000000',
-                        light: '#FFFFFF'
+                        dark: '#FFFFFF',  // White QR code
+                        light: '#00000000'  // Transparent background
                     },
                     errorCorrectionLevel: 'H'
                 });
@@ -670,18 +760,18 @@ server.listen(HTTP_PORT, async () => {
     const mobileUrl = `http://${localIP}:${HTTP_PORT}/client/pages/mobile.html`;
     mobileControllerUrl = mobileUrl;
     
-    // Generate QR code as data URL
+    // Generate QR code as data URL with inverted colors (white on transparent)
     try {
         qrCodeDataURL = await QRCode.toDataURL(mobileUrl, {
             width: 300,
             margin: 2,
             color: {
-                dark: '#000000',
-                light: '#FFFFFF'
+                dark: '#FFFFFF',  // White QR code
+                light: '#00000000'  // Transparent background
             },
             errorCorrectionLevel: 'H'
         });
-        console.log('✅ QR code generated successfully');
+        console.log('✅ QR code generated successfully (inverted colors)');
     } catch (err) {
         console.error('❌ Failed to generate QR code:', err);
     }
@@ -703,6 +793,9 @@ server.listen(HTTP_PORT, async () => {
     console.log('\n=================================');
     console.log(`💻 Main display: http://localhost:${HTTP_PORT}/client/pages/index.html`);
     console.log('=================================\n');
+    
+    // Start synchronized countdown timer
+    startCountdownTimer();
 });
 
 console.log(`WebSocket server running on ws://localhost:${PORT}`);

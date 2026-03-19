@@ -100,6 +100,128 @@ body {
     overflow: hidden;
 }
 
+/* Cluster Results Section */
+.cluster-section {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    padding-bottom: 40px;
+}
+
+.cluster-header {
+    margin-bottom: 40px;
+    background: transparent;
+}
+
+.cluster-header h1 {
+    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 36px;
+    font-weight: 400;
+    margin: 0 0 5px 0;
+    color: #000;
+    background: transparent;
+}
+
+.cluster-subtitle {
+    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 16px;
+    color: #999;
+    margin: 0;
+    font-weight: 300;
+    background: transparent;
+}
+
+.cluster-list {
+    display: flex;
+    flex-direction: column;
+    gap: 60px;
+}
+
+.cluster-item {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cluster-item:active {
+    transform: scale(0.98);
+}
+
+.cluster-top {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+}
+
+.cluster-circle {
+    width: 140px;
+    height: 140px;
+    flex-shrink: 0;
+    border-radius: 60% 40% 50% 60% / 50% 60% 40% 50%;
+    animation: morphBlob 8s ease-in-out infinite;
+}
+
+@keyframes morphBlob {
+    0% {
+        border-radius: 60% 40% 50% 60% / 50% 60% 40% 50%;
+    }
+    25% {
+        border-radius: 40% 60% 60% 40% / 60% 40% 50% 60%;
+    }
+    50% {
+        border-radius: 50% 50% 40% 60% / 40% 60% 60% 40%;
+    }
+    75% {
+        border-radius: 60% 40% 60% 50% / 50% 50% 60% 40%;
+    }
+    100% {
+        border-radius: 60% 40% 50% 60% / 50% 60% 40% 50%;
+    }
+}
+
+.cluster-votes-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.cluster-votes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-width: 200px;
+}
+
+.vote-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #000;
+}
+
+.vote-count {
+    font-size: 16px;
+    color: #000;
+    font-weight: 400;
+}
+
+.cluster-name {
+    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 24px;
+    font-weight: 400;
+    color: #000;
+    margin: 0;
+    padding: 0;
+    line-height: 1.3;
+    background: none !important;
+    background-color: transparent !important;
+    border: none;
+    box-shadow: none;
+}
+
 /* Headline Section */
 .headline-section {
     margin-bottom: 60px;
@@ -242,17 +364,7 @@ body {
     font-weight: 600;
 }
 
-.cluster-name {
-    font-size: 24px;
-    font-weight: 700;
-    color: white;
-    background: #E91E63;
-    padding: 12px 24px;
-    border-radius: 12px;
-    margin: 0;
-    flex: 1;
-    text-align: center;
-}
+/* Removed duplicate cluster-name style with pink background */
 
 .detail-subtitle {
     font-size: 14px;

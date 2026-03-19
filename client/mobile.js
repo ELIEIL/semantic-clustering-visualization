@@ -53,8 +53,6 @@ function connect() {
                 
                 // Clear input and refocus for next post
                 textInput.value = '';
-                charCounter.textContent = '0/500';
-                charCounter.classList.remove('warning', 'danger');
                 textInput.focus();
             }, 800);
         }
@@ -82,6 +80,45 @@ function connect() {
         if (data.type === 'vote_update') {
             // Update vote counts on display
             updatePostVoteDisplay(data.postId, data.upvotes, data.downvotes);
+        }
+        
+        if (data.type === 'countdown_update') {
+            // Sync countdown timer with server
+            updateCountdownFromServer(data.time);
+            
+            // Switch to cluster view when timer ends
+            if (data.time === 0) {
+                showClusterView();
+            }
+        }
+        
+        if (data.type === 'clusters') {
+            // Display cluster results
+            displayClusters(data.clusters || []);
+        }
+        
+        if (data.type === 'clear_all_posts') {
+            // Reset mobile view back to input section
+            const inputSection = document.getElementById('inputSection');
+            const clusterSection = document.getElementById('clusterSection');
+            
+            if (inputSection && clusterSection) {
+                inputSection.style.display = 'flex';
+                clusterSection.style.display = 'none';
+            }
+            
+            // Re-enable input
+            textInput.disabled = false;
+            submitBtn.disabled = false;
+            textInput.placeholder = 'Whats your opinion?';
+            textInput.value = '';
+            
+            console.log('🔄 Mobile view reset to input section');
+        }
+        
+        if (data.type === 'cluster_vote_update') {
+            // Update vote count for specific cluster
+            updateClusterVotes(data.clusterId);
         }
     };
     
@@ -474,40 +511,130 @@ function updatePostVoteDisplay(postId, upvotes, downvotes) {
 // Make castVote globally accessible
 window.castVote = castVote;
 
-// Countdown timer functions
+// Countdown timer functions (synced with server)
 function formatTime(seconds) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
-function updateCountdown() {
-    if (countdownTime <= 0) {
-        clearInterval(countdownInterval);
-        countdownElement.textContent = '00:00';
+function updateCountdownFromServer(time) {
+    countdownTime = time;
+    countdownElement.textContent = formatTime(time);
+    
+    // Disable input when time is up
+    if (time <= 0) {
         textInput.disabled = true;
         submitBtn.disabled = true;
         textInput.placeholder = 'Time is up!';
-        return;
     }
-    
-    countdownElement.textContent = formatTime(countdownTime);
-    countdownTime--;
 }
 
-function startCountdown() {
-    countdownTime = 180; // Reset to 3 minutes
-    countdownElement.textContent = formatTime(countdownTime);
+// Switch from input view to cluster results view
+function showClusterView() {
+    const inputSection = document.getElementById('inputSection');
+    const clusterSection = document.getElementById('clusterSection');
     
-    if (countdownInterval) {
-        clearInterval(countdownInterval);
+    if (inputSection && clusterSection) {
+        inputSection.style.display = 'none';
+        clusterSection.style.display = 'block';
+        console.log('📊 Switched to cluster view');
     }
-    
-    countdownInterval = setInterval(updateCountdown, 1000);
 }
 
-// Start countdown when page loads
-startCountdown();
+// Display clusters with colored circles and vote counts
+function displayClusters(clusters) {
+    const clusterList = document.getElementById('clusterList');
+    if (!clusterList) return;
+    
+    clusterList.innerHTML = '';
+    
+    clusters.forEach((cluster, index) => {
+        const clusterItem = document.createElement('div');
+        clusterItem.className = 'cluster-item';
+        clusterItem.dataset.clusterId = cluster.id;
+        
+        // Convert HSB color to RGB for CSS
+        const rgb = hsbToRgb(cluster.color.h, cluster.color.s, cluster.color.b);
+        
+        // Create vote dots
+        const voteCount = cluster.votes || 0;
+        const voteDots = Array(Math.min(voteCount, 10)).fill(0).map(() => 
+            '<div class="vote-dot"></div>'
+        ).join('');
+        
+        clusterItem.innerHTML = `
+            <div class="cluster-top">
+                <div class="cluster-circle" style="background: rgb(${rgb.r}, ${rgb.g}, ${rgb.b});"></div>
+                <div class="cluster-votes-container">
+                    <div class="cluster-votes">
+                        ${voteDots}
+                    </div>
+                    <div class="vote-count">${voteCount} ${voteCount === 1 ? 'vote' : 'votes'}</div>
+                </div>
+            </div>
+            <h2 class="cluster-name">${cluster.label || 'Cluster ' + cluster.id}</h2>
+        `;
+        
+        // Add click handler for voting
+        clusterItem.addEventListener('click', () => {
+            voteForCluster(cluster.id);
+        });
+        
+        clusterList.appendChild(clusterItem);
+    });
+    
+    console.log(`📊 Displayed ${clusters.length} clusters`);
+}
+
+// Vote for a cluster
+function voteForCluster(clusterId) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'vote_cluster',
+            clusterId: clusterId
+        }));
+        console.log(`✅ Voted for cluster ${clusterId}`);
+    }
+}
+
+// Convert HSB to RGB for CSS
+function hsbToRgb(h, s, b) {
+    s = s / 100;
+    b = b / 100;
+    const k = (n) => (n + h / 60) % 6;
+    const f = (n) => b * (1 - s * Math.max(0, Math.min(k(n), 4 - k(n), 1)));
+    return {
+        r: Math.round(255 * f(5)),
+        g: Math.round(255 * f(3)),
+        b: Math.round(255 * f(1))
+    };
+}
+
+// Update vote display for a cluster
+function updateClusterVotes(clusterId) {
+    const clusterItem = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+    if (!clusterItem) return;
+    
+    const voteCountEl = clusterItem.querySelector('.vote-count');
+    const voteDotsEl = clusterItem.querySelector('.cluster-votes');
+    
+    if (voteCountEl && voteDotsEl) {
+        // Parse current vote count
+        const currentVotes = parseInt(voteCountEl.textContent) || 0;
+        const newVotes = currentVotes + 1;
+        
+        // Update count
+        voteCountEl.textContent = `${newVotes} ${newVotes === 1 ? 'vote' : 'votes'}`;
+        
+        // Add new vote dot (max 10 visible)
+        if (newVotes <= 10) {
+            const newDot = document.createElement('div');
+            newDot.className = 'vote-dot';
+            voteDotsEl.appendChild(newDot);
+        }
+    }
+}
 
 connect();
 textInput.focus();

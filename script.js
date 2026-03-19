@@ -3,7 +3,7 @@ const posts = [];
 const nodes = [];
 const connections = [];
 let clusters = [];
-let numClusters = 7; // More clusters = more color variety for different topics (increased for better separation)
+let numClusters = 4; // Fewer clusters = broader thematic topics (reduced for pedagogical experience)
 let connectionCache = new Map(); // Cache for similarity calculations
 
 // Visualization mode
@@ -16,6 +16,10 @@ let enableControversy = true;
 let enableTrending = true;
 let enableBridgeDetection = true;
 let enableRealtimeClustering = false; // Keep this off for now
+
+// Clustering control - for pedagogical experience
+let clusteringEnabled = false; // Clustering happens only when timer reaches 00:00
+let timerCompleted = false;
 
 // Tracking for trending detection
 let clusterSizeHistory = new Map(); // Track cluster sizes over time
@@ -209,7 +213,7 @@ const clusterRegistry = {
     },
     
     // Find best matching cluster for a new post
-    findBestCluster(node, similarityThreshold = 0.3) {
+    findBestCluster(node, similarityThreshold = 0.5) {
         if (this.clusters.length === 0) return null;
         
         let bestCluster = null;
@@ -593,19 +597,36 @@ function generateClusterLabels() {
     
     // Use cluster registry for labels
     clusterRegistry.clusters.forEach(cluster => {
-        // Use the cluster's stored keywords for the label
-        const topKeywords = cluster.keywords.slice(0, 2);
+        // Collect all keywords from all nodes in cluster for better topic understanding
+        const allKeywords = new Map();
+        cluster.nodes.forEach(node => {
+            if (node.keywords) {
+                node.keywords.forEach(keyword => {
+                    allKeywords.set(keyword, (allKeywords.get(keyword) || 0) + 1);
+                });
+            }
+        });
         
-        // Generate label
-        if (topKeywords.length === 0) {
-            clusterLabels[cluster.id] = 'Cluster ' + cluster.id;
+        // Sort by frequency and get top keywords
+        const sortedKeywords = Array.from(allKeywords.entries())
+            .sort((a, b) => b[1] - a[1])
+            .map(([word]) => word);
+        
+        // Generate broader topic label
+        if (sortedKeywords.length === 0) {
+            clusterLabels[cluster.id] = 'General Discussion';
         } else {
-            const label = topKeywords.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ');
+            // Use top 2-3 most common keywords to create broader theme
+            const topKeywords = sortedKeywords.slice(0, 2);
+            const label = generateBroaderTopicName(topKeywords);
             clusterLabels[cluster.id] = label;
         }
     });
     
     console.log('🏷️ Cluster labels generated:', clusterLabels);
+    
+    // Merge clusters with duplicate labels to prevent overlapping themes
+    mergeDuplicateClusters();
     
     // Log cluster labels
     clusterRegistry.clusters.forEach(cluster => {
@@ -614,6 +635,142 @@ function generateClusterLabels() {
             logActivity(`🏷️ Cluster ${cluster.id}: "${label}" (${cluster.nodes.length} posts, strength: ${cluster.strength.toFixed(1)})`, 'cluster');
         }
     });
+}
+
+// Merge clusters that have the same label to prevent duplicate topics
+function mergeDuplicateClusters() {
+    const labelToCluster = new Map();
+    const clustersToRemove = new Set();
+    
+    // Group clusters by their labels
+    clusterRegistry.clusters.forEach(cluster => {
+        const label = clusterLabels[cluster.id];
+        if (!label) return;
+        
+        if (labelToCluster.has(label)) {
+            // Found duplicate - merge into existing cluster
+            const existingCluster = labelToCluster.get(label);
+            
+            // Transfer all nodes to existing cluster
+            cluster.nodes.forEach(node => {
+                existingCluster.nodes.push(node);
+                node.cluster = existingCluster.id;
+                node.clusterColor = existingCluster.color;
+            });
+            
+            // Update centroid (average of embeddings)
+            if (cluster.centroid && cluster.centroid.length > 0) {
+                if (!existingCluster.centroid || existingCluster.centroid.length === 0) {
+                    existingCluster.centroid = [...cluster.centroid];
+                } else {
+                    // Average the centroids
+                    existingCluster.centroid = existingCluster.centroid.map((val, i) => 
+                        (val + (cluster.centroid[i] || 0)) / 2
+                    );
+                }
+            }
+            
+            // Increase strength
+            existingCluster.strength += cluster.strength;
+            
+            // Mark for removal
+            clustersToRemove.add(cluster.id);
+            
+            logActivity(`🔀 Merged duplicate cluster "${label}" (${cluster.nodes.length} posts merged)`, 'cluster');
+        } else {
+            // First cluster with this label
+            labelToCluster.set(label, cluster);
+        }
+    });
+    
+    // Remove merged clusters
+    if (clustersToRemove.size > 0) {
+        clusterRegistry.clusters = clusterRegistry.clusters.filter(c => !clustersToRemove.has(c.id));
+        console.log(`✅ Removed ${clustersToRemove.size} duplicate clusters`);
+    }
+}
+
+// Generate broader, more general topic names from keywords
+function generateBroaderTopicName(keywords) {
+    // Topic abstraction map - maps specific keywords to broader themes
+    const topicMap = {
+        // Environment & Climate
+        'climate': 'Climate Change and Environment',
+        'environment': 'Climate Change and Environment',
+        'renewable': 'Climate Change and Environment',
+        'carbon': 'Climate Change and Environment',
+        'pollution': 'Climate Change and Environment',
+        'sustainability': 'Climate Change and Environment',
+        'energy': 'Energy and Sustainability',
+        'green': 'Climate Change and Environment',
+        
+        // Politics & Governance
+        'politics': 'Politics and Governance',
+        'government': 'Politics and Governance',
+        'policy': 'Politics and Governance',
+        'election': 'Politics and Governance',
+        'democracy': 'Politics and Governance',
+        'law': 'Politics and Governance',
+        'rights': 'Politics and Governance',
+        
+        // Technology & Innovation
+        'technology': 'Technology and Innovation',
+        'ai': 'Technology and Innovation',
+        'artificial': 'Technology and Innovation',
+        'digital': 'Technology and Innovation',
+        'internet': 'Technology and Innovation',
+        'data': 'Technology and Innovation',
+        'privacy': 'Technology and Privacy',
+        'cyber': 'Technology and Privacy',
+        
+        // Economy & Business
+        'economy': 'Economy and Business',
+        'business': 'Economy and Business',
+        'trade': 'Economy and Business',
+        'market': 'Economy and Business',
+        'finance': 'Economy and Business',
+        'jobs': 'Economy and Business',
+        'work': 'Work and Employment',
+        
+        // Society & Culture
+        'education': 'Education and Learning',
+        'health': 'Health and Wellbeing',
+        'healthcare': 'Health and Wellbeing',
+        'culture': 'Society and Culture',
+        'social': 'Society and Culture',
+        'community': 'Society and Culture',
+        'immigration': 'Immigration and Society',
+        'equality': 'Social Justice and Equality',
+        'justice': 'Social Justice and Equality',
+        
+        // International
+        'international': 'International Relations',
+        'global': 'International Relations',
+        'war': 'International Relations',
+        'peace': 'International Relations',
+        'conflict': 'International Relations'
+    };
+    
+    // Try to find broader topic from keywords
+    for (const keyword of keywords) {
+        const lowerKeyword = keyword.toLowerCase();
+        for (const [key, topic] of Object.entries(topicMap)) {
+            if (lowerKeyword.includes(key) || key.includes(lowerKeyword)) {
+                return topic;
+            }
+        }
+    }
+    
+    // Fallback: capitalize and join keywords
+    const capitalized = keywords.map(w => 
+        w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+    );
+    
+    if (capitalized.length === 1) {
+        return capitalized[0] + ' Discussion';
+    } else {
+        return capitalized.join(' and ');
+    }
 }
 
 // Recalculate similarities using selected database
@@ -663,10 +820,10 @@ async function recalculateSimilarities() {
             nodes[i].avgSimilarity = connCount > 0 ? totalSim / connCount : 0;
         }
         
-        // INCREMENTAL OPINION CLUSTERING - Demonstrates filter bubble formation
+        // INCREMENTAL OPINION CLUSTERING - Only runs when timer completes
         // New posts either join existing echo chambers or create new ones
         
-        if (nodes.length >= 1) {
+        if (clusteringEnabled && nodes.length >= 1) {
             logActivity(`🎨 Running incremental opinion clustering`, 'cluster');
             
             // First, sync cluster registry with current nodes
@@ -681,7 +838,7 @@ async function recalculateSimilarities() {
                 node.keywords = keywords;
                 
                 // Try to find existing cluster (echo chamber) for this opinion
-                const match = clusterRegistry.findBestCluster(node, 0.3);
+                const match = clusterRegistry.findBestCluster(node, 0.5);
                 
                 if (match && match.cluster) {
                     // Join existing echo chamber (reinforcement)
@@ -712,6 +869,26 @@ async function recalculateSimilarities() {
             });
             logActivity(`📊 Opinion clusters: ${Object.entries(clusterCounts).map(([k,v]) => `C${k}:${v}`).join(', ')}`, 'cluster');
             logActivity(`💪 Echo chamber strengths: ${clusterRegistry.clusters.map(c => c.strength.toFixed(1)).join(', ')}`, 'cluster');
+            
+            // Broadcast cluster data to mobile clients
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const clusterData = clusterRegistry.clusters.map(c => ({
+                    id: c.id,
+                    label: clusterLabels[c.id] || c.keywords.slice(0, 3).join(', '),
+                    color: c.color,
+                    nodes: c.nodes.map(n => n.content),
+                    count: c.nodes.length
+                }));
+                
+                ws.send(JSON.stringify({
+                    type: 'clusters',
+                    clusters: clusterData
+                }));
+                
+                console.log('📱 Sent cluster data to mobile clients:', clusterData);
+            }
+        } else if (!clusteringEnabled && nodes.length >= 1) {
+            logActivity(`⏳ Clustering delayed - waiting for timer completion`, 'info');
         }
     } catch (error) {
         console.error('Error recalculating similarities:', error);
@@ -1633,6 +1810,64 @@ function windowResized() {
 // WebSocket is declared at top of file (line 1)
 window.ws = null; // Expose WebSocket globally for control panel
 
+// Global function to reset timer (call from console: resetTimer())
+window.resetTimer = function() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'reset_timer' }));
+        console.log('🔄 Timer reset requested');
+        
+        // Reset local clustering flags
+        clusteringEnabled = false;
+        timerCompleted = false;
+        
+        // Clear existing clusters
+        clusterRegistry.clusters = [];
+        clusterRegistry.nextId = 0;
+        nodes.forEach(node => {
+            node.cluster = undefined;
+            node.clusterColor = null;
+        });
+        
+        logActivity('🔄 Timer and clustering reset', 'info');
+    } else {
+        console.error('WebSocket not connected');
+    }
+};
+
+// Global function to reset entire experience (timer + all posts)
+window.resetExperience = function() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        // Send reset commands to server
+        ws.send(JSON.stringify({ type: 'reset_timer' }));
+        ws.send(JSON.stringify({ type: 'clear_all_posts' }));
+        
+        console.log('🔄 Full experience reset requested');
+        
+        // Reset local state
+        clusteringEnabled = false;
+        timerCompleted = false;
+        
+        // Clear all posts and nodes
+        posts.length = 0;
+        nodes.length = 0;
+        connectionCache.clear();
+        
+        // Clear clusters
+        clusterRegistry.clusters = [];
+        clusterRegistry.nextId = 0;
+        clusterLabels = [];
+        
+        // Clear visualization
+        if (window.metaballRenderer) {
+            window.metaballRenderer = null;
+        }
+        
+        logActivity('🔄 Full experience reset - all posts and timer cleared', 'info');
+    } else {
+        console.error('WebSocket not connected');
+    }
+};
+
 function connectWebSocket() {
     ws = new WebSocket('ws://localhost:8080');
     window.ws = ws; // Make accessible to control panel
@@ -1664,58 +1899,42 @@ function connectWebSocket() {
             clearAllPosts();
         }
         
+        if (data.type === 'clear_all_posts') {
+            // Clear everything when reset button is pressed
+            posts.length = 0;
+            nodes.length = 0;
+            connectionCache.clear();
+            clusterRegistry.clusters = [];
+            clusterRegistry.nextId = 0;
+            clusterLabels = [];
+            clusteringEnabled = false;
+            timerCompleted = false;
+            console.log('🔄 All posts cleared from display');
+        }
+        
         if (data.type === 'headline') {
-            // Update centered headline display
-            const headlineText = document.getElementById('headlineText');
-            const headlineTimestamp = document.getElementById('headlineTimestamp');
-            const headlineDisplay = document.getElementById('headlineDisplay');
-            
-            if (headlineText) {
-                headlineText.textContent = data.headline;
+            // Headline display disabled for pedagogical experience branch
+            console.log('Headline received (not displayed):', data.headline);
+        }
+        
+        if (data.type === 'countdown_update') {
+            // Update countdown timer display
+            if (window.updateCountdownDisplay) {
+                window.updateCountdownDisplay(data.time);
             }
             
-            if (headlineTimestamp && data.timestamp) {
-                const date = new Date(data.timestamp);
-                const options = { 
-                    hour: 'numeric', 
-                    minute: '2-digit',
-                    hour12: true,
-                    timeZoneName: 'short',
-                    weekday: 'short',
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric'
-                };
-                const formattedDate = date.toLocaleString('en-US', options);
-                headlineTimestamp.textContent = `Updated ${formattedDate}`;
-            }
-            
-            // Apply article image as background if available
-            if (headlineDisplay && data.imageUrl) {
-                headlineDisplay.style.backgroundImage = `linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25)), url('${data.imageUrl}')`;
-                headlineDisplay.style.backgroundSize = 'cover';
-                headlineDisplay.style.backgroundPosition = 'center';
-                headlineDisplay.style.backgroundRepeat = 'no-repeat';
-                headlineDisplay.style.backgroundColor = 'transparent';
-            } else if (headlineDisplay) {
-                // Reset to solid black background if no image
-                headlineDisplay.style.backgroundImage = 'none';
-                headlineDisplay.style.backgroundColor = 'black';
-            }
-            
-            // Update API control panel
-            const apiCurrentHeadline = document.getElementById('apiCurrentHeadline');
-            const apiHeadlineTime = document.getElementById('apiHeadlineTime');
-            
-            if (apiCurrentHeadline) {
-                apiCurrentHeadline.textContent = data.headline;
-            }
-            
-            if (apiHeadlineTime && data.timestamp) {
-                const date = new Date(data.timestamp);
-                const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                apiHeadlineTime.textContent = `Fetched: ${timeStr}`;
-                window.headlineFetchTime = data.timestamp;
+            // Trigger clustering when timer reaches 00:00
+            if (data.time === 0 && !timerCompleted) {
+                timerCompleted = true;
+                clusteringEnabled = true;
+                
+                console.log('⏰ Timer completed! Triggering clustering...');
+                logActivity('⏰ Timer completed - clustering all posts now!', 'cluster');
+                
+                // Run clustering on all existing posts
+                recalculateSimilarities().then(() => {
+                    logActivity('✅ All posts clustered successfully!', 'cluster');
+                });
             }
         }
     };
@@ -1737,10 +1956,10 @@ function addPost(content, timestamp) {
     posts.push({ content, timestamp });
     console.log('Total nodes:', nodes.length);
     
-    // Trigger recalculation with new post
+    // Calculate similarities to show connection lines, but don't cluster yet
     recalculateSimilarities().then(() => {
-        // After clustering, send cluster info back to mobile
-        if (ws && ws.readyState === WebSocket.OPEN && node.cluster !== undefined) {
+        // Only send cluster info if clustering is enabled (timer completed)
+        if (clusteringEnabled && ws && ws.readyState === WebSocket.OPEN && node.cluster !== undefined) {
             const clusterInfo = {
                 type: 'cluster_info',
                 content: content,
@@ -1754,7 +1973,6 @@ function addPost(content, timestamp) {
             };
             
             // Broadcast cluster info to all mobile clients
-            // (Server will handle routing to correct client)
             ws.send(JSON.stringify(clusterInfo));
         }
     });

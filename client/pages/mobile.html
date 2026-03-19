@@ -15,7 +15,7 @@
     <div class="mobile-container">
         
         <!-- Input Section -->
-        <div class="input-section">
+        <div id="inputSection" class="input-section">
             <textarea 
                 id="textInput" 
                 class="opinion-input" 
@@ -26,6 +26,18 @@
             <div class="bottom-controls">
                 <div id="countdown" class="countdown-timer">03:00</div>
                 <button id="submitBtn" class="submit-btn">Submit</button>
+            </div>
+        </div>
+        
+        <!-- Cluster Results Section (shown after timer ends) -->
+        <div id="clusterSection" class="cluster-section" style="display: none;">
+            <div class="cluster-header">
+                <h1>Generated Topics</h1>
+                <p class="cluster-subtitle">Vote on a topic you'd like to discuss</p>
+            </div>
+            
+            <div id="clusterList" class="cluster-list">
+                <!-- Clusters will be dynamically inserted here -->
             </div>
         </div>
         
