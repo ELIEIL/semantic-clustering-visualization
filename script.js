@@ -1668,6 +1668,7 @@ function connectWebSocket() {
             // Update centered headline display
             const headlineText = document.getElementById('headlineText');
             const headlineTimestamp = document.getElementById('headlineTimestamp');
+            const headlineDisplay = document.getElementById('headlineDisplay');
             
             if (headlineText) {
                 headlineText.textContent = data.headline;
@@ -1687,6 +1688,19 @@ function connectWebSocket() {
                 };
                 const formattedDate = date.toLocaleString('en-US', options);
                 headlineTimestamp.textContent = `Updated ${formattedDate}`;
+            }
+            
+            // Apply article image as background if available
+            if (headlineDisplay && data.imageUrl) {
+                headlineDisplay.style.backgroundImage = `linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25)), url('${data.imageUrl}')`;
+                headlineDisplay.style.backgroundSize = 'cover';
+                headlineDisplay.style.backgroundPosition = 'center';
+                headlineDisplay.style.backgroundRepeat = 'no-repeat';
+                headlineDisplay.style.backgroundColor = 'transparent';
+            } else if (headlineDisplay) {
+                // Reset to solid black background if no image
+                headlineDisplay.style.backgroundImage = 'none';
+                headlineDisplay.style.backgroundColor = 'black';
             }
             
             // Update API control panel

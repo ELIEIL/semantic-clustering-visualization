@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const WebSocket = require('ws');
 const http = require('http');
@@ -35,6 +35,11 @@ const pendingPosts = [];
 const approvedPosts = [];
 const rateLimitMap = new Map();
 
+// Voting system data structures
+const postVotes = new Map(); // postId -> { upvotes: 0, downvotes: 0, voters: Set() }
+const userVotes = new Map(); // userId -> [{ postId, vote, timestamp }]
+const userPreferences = new Map(); // userId -> { topics, bias, keywords, sources }
+
 // Initialize ConceptNet client for semantic understanding
 const conceptNet = new ConceptNetClient();
 console.log('ConceptNet client initialized');
@@ -42,12 +47,13 @@ console.log('ConceptNet client initialized');
 // Initialize NewsAPI client
 const NEWSAPI_KEY = process.env.NEWSAPI_KEY || 'YOUR_API_KEY_HERE';
 const newsAPI = new NewsAPIClient(NEWSAPI_KEY);
-let currentHeadline = 'What are your thoughts on current events?';
+let currentHeadline = { text: 'What are your thoughts on current events?', imageUrl: null };
 
 // Fetch initial headline
 (async () => {
     currentHeadline = await newsAPI.getTopHeadline('general', 'us');
-    console.log('Current headline:', currentHeadline);
+    console.log('Current headline:', currentHeadline.text);
+    console.log('Article image:', currentHeadline.imageUrl);
 })();
 
 // Initialize Sentence Transformer (dynamic import for ES module)
@@ -136,7 +142,8 @@ wss.on('connection', (ws) => {
                 // Send current headline to display
                 ws.send(JSON.stringify({
                     type: 'headline',
-                    headline: currentHeadline,
+                    headline: currentHeadline.text,
+                    imageUrl: currentHeadline.imageUrl,
                     timestamp: Date.now()
                 }));
                 
@@ -149,7 +156,8 @@ wss.on('connection', (ws) => {
             if (data.type === 'request_headline') {
                 ws.send(JSON.stringify({
                     type: 'headline',
-                    headline: currentHeadline,
+                    headline: currentHeadline.text,
+                    imageUrl: currentHeadline.imageUrl,
                     timestamp: Date.now()
                 }));
                 return;
@@ -161,7 +169,8 @@ wss.on('connection', (ws) => {
                     currentHeadline = await newsAPI.getTopHeadline('general', 'us');
                     broadcastToDisplays({
                         type: 'headline',
-                        headline: currentHeadline,
+                        headline: currentHeadline.text,
+                        imageUrl: currentHeadline.imageUrl,
                         timestamp: Date.now()
                     });
                 })();
@@ -181,7 +190,8 @@ wss.on('connection', (ws) => {
                     currentHeadline = await newsAPI.getTopHeadline(data.category || 'general', data.country || 'us');
                     broadcastToDisplays({
                         type: 'headline',
-                        headline: currentHeadline,
+                        headline: currentHeadline.text,
+                        imageUrl: currentHeadline.imageUrl,
                         timestamp: Date.now()
                     });
                 })();
@@ -326,6 +336,85 @@ wss.on('connection', (ws) => {
                 return;
             }
             
+            // Vote handling
+            if (data.type === 'vote') {
+                const { postId, vote, userId } = data;
+                
+                if (!postId || !vote || !userId) {
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        message: 'Missing vote data'
+                    }));
+                    return;
+                }
+                
+                // Initialize vote tracking for this post if needed
+                if (!postVotes.has(postId)) {
+                    postVotes.set(postId, {
+                        upvotes: 0,
+                        downvotes: 0,
+                        voters: new Set()
+                    });
+                }
+                
+                const voteData = postVotes.get(postId);
+                
+                // Check if user already voted on this post
+                if (voteData.voters.has(userId)) {
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        message: 'You already voted on this post'
+                    }));
+                    return;
+                }
+                
+                // Record the vote
+                if (vote === 'up') {
+                    voteData.upvotes++;
+                } else if (vote === 'down') {
+                    voteData.downvotes++;
+                }
+                voteData.voters.add(userId);
+                
+                // Track user's voting history
+                if (!userVotes.has(userId)) {
+                    userVotes.set(userId, []);
+                }
+                userVotes.get(userId).push({
+                    postId,
+                    vote,
+                    timestamp: Date.now()
+                });
+                
+                console.log(`📊 Vote recorded: User ${userId} voted ${vote} on post ${postId}`);
+                console.log(`   Post votes: ${voteData.upvotes} up, ${voteData.downvotes} down`);
+                
+                // Send vote confirmation
+                ws.send(JSON.stringify({
+                    type: 'vote_recorded',
+                    postId,
+                    vote,
+                    totalVotes: userVotes.get(userId).length
+                }));
+                
+                // Broadcast updated vote count to displays
+                broadcastToDisplays({
+                    type: 'vote_update',
+                    postId,
+                    upvotes: voteData.upvotes,
+                    downvotes: voteData.downvotes
+                });
+                
+                // Check if user has voted enough times to generate personalized feed
+                const userVoteCount = userVotes.get(userId).length;
+                if (userVoteCount >= 5) {
+                    console.log(`🎯 User ${userId} has ${userVoteCount} votes - ready for personalized feed`);
+                    // TODO: Trigger feed generation in Phase 2
+                }
+                
+                return;
+            }
+            
         } catch (error) {
             console.error('Error processing message:', error);
         }
@@ -378,6 +467,50 @@ const server = http.createServer(async (req, res) => {
     if (req.url === '/api/mobile-url') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ url: mobileControllerUrl || 'Not yet available' }));
+        return;
+    }
+    
+    // Update tunnel URL endpoint - allows updating QR code with tunnel URL
+    if (req.url === '/api/update-tunnel-url' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const { tunnelUrl } = JSON.parse(body);
+                if (!tunnelUrl) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'tunnelUrl is required' }));
+                    return;
+                }
+                
+                // Update mobile controller URL to tunnel URL
+                const newMobileUrl = `${tunnelUrl}/client/pages/mobile.html`;
+                mobileControllerUrl = newMobileUrl;
+                
+                // Regenerate QR code with tunnel URL
+                qrCodeDataURL = await QRCode.toDataURL(newMobileUrl, {
+                    width: 300,
+                    margin: 2,
+                    color: {
+                        dark: '#000000',
+                        light: '#FFFFFF'
+                    },
+                    errorCorrectionLevel: 'H'
+                });
+                
+                console.log('✅ QR code updated with tunnel URL:', newMobileUrl);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    success: true, 
+                    url: newMobileUrl,
+                    message: 'QR code updated successfully'
+                }));
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: error.message }));
+            }
+        });
         return;
     }
     
@@ -474,9 +607,10 @@ const server = http.createServer(async (req, res) => {
     }
     
     // Regular file serving
-    let filePath = '.' + req.url;
-    if (filePath === './') {
-        filePath = './mobile.html';
+    // Resolve file path relative to project root (one level up from server directory)
+    let filePath = path.join(__dirname, '..', req.url);
+    if (req.url === '/') {
+        filePath = path.join(__dirname, '..', 'client', 'pages', 'mobile.html');
     }
     
     const extname = String(path.extname(filePath)).toLowerCase();
@@ -484,6 +618,13 @@ const server = http.createServer(async (req, res) => {
         '.html': 'text/html',
         '.js': 'text/javascript',
         '.css': 'text/css',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.json': 'application/json',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2',
     };
     
     const contentType = mimeTypes[extname] || 'application/octet-stream';

@@ -43,13 +43,18 @@ class NewsAPIClient {
                 if (articles.length > 0) {
                     // Pick a random headline from top 10
                     const randomIndex = Math.floor(Math.random() * Math.min(articles.length, 10));
-                    const headline = articles[randomIndex].title;
+                    const article = articles[randomIndex];
+                    const headline = {
+                        text: article.title,
+                        imageUrl: article.urlToImage || null
+                    };
                     
                     // Cache the headline
                     this.cachedHeadline = headline;
                     this.cacheTimestamp = Date.now();
                     
-                    console.log('Fetched new headline:', headline);
+                    console.log('Fetched new headline:', headline.text);
+                    console.log('Article image:', headline.imageUrl);
                     return headline;
                 }
                 
@@ -65,10 +70,10 @@ class NewsAPIClient {
                 }
             }
 
-            return 'What are your thoughts on current events?';
+            return { text: 'What are your thoughts on current events?', imageUrl: null };
         } catch (error) {
             console.error('NewsAPI error:', error.message);
-            return 'What are your thoughts on current events?';
+            return { text: 'What are your thoughts on current events?', imageUrl: null };
         }
     }
 
@@ -118,10 +123,13 @@ class NewsAPIClient {
                         debateKeywords.forEach(keyword => {
                             if (title.includes(keyword)) score += 1;
                         });
-                        return { title: article.title, score };
+                        return { 
+                            text: article.title, 
+                            imageUrl: article.urlToImage || null,
+                            score 
+                        };
                     })
-                    .sort((a, b) => b.score - a.score) // Prioritize high-scoring questions
-                    .map(item => item.title);
+                    .sort((a, b) => b.score - a.score); // Prioritize high-scoring questions
                 
                 return questions;
             }

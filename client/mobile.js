@@ -3,14 +3,15 @@ window.ENABLE_ONBOARDING = false;
 
 const textInput = document.getElementById('textInput');
 const submitBtn = document.getElementById('submitBtn');
-const mobileHeadline = document.getElementById('mobileHeadline');
-const mobileTimestamp = document.getElementById('mobileTimestamp');
-const charCounter = document.getElementById('charCounter');
-const statusDot = document.getElementById('statusDot');
+const countdownElement = document.getElementById('countdown');
 
 let ws;
 let isConnected = false;
 let postHistoryData = [];
+
+// Countdown timer variables
+let countdownTime = 180; // 3 minutes in seconds
+let countdownInterval = null;
 
 function connect() {
     // Use the actual hostname from the browser, not localhost
@@ -23,39 +24,14 @@ function connect() {
         console.log('Connected to server');
         isConnected = true;
         submitBtn.disabled = false;
-        
-        // Update connection status
-        statusDot.classList.remove('disconnected');
-        statusDot.classList.add('connected');
-        
-        // Request current headline
-        ws.send(JSON.stringify({ type: 'request_headline' }));
     };
     
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         
         if (data.type === 'headline') {
-            // Update headline display
-            if (mobileHeadline) {
-                mobileHeadline.textContent = data.headline;
-            }
-            
-            if (mobileTimestamp && data.timestamp) {
-                const date = new Date(data.timestamp);
-                const options = { 
-                    hour: 'numeric', 
-                    minute: '2-digit',
-                    hour12: true,
-                    timeZoneName: 'short',
-                    weekday: 'short',
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric'
-                };
-                const formattedDate = date.toLocaleString('en-US', options);
-                mobileTimestamp.textContent = `Updated ${formattedDate}`;
-            }
+            // Headline received but not displayed on this simplified controller
+            console.log('Headline received:', data.headline);
         }
         
         if (data.type === 'clusters') {
@@ -90,16 +66,29 @@ function connect() {
             }, 3000);
             submitBtn.disabled = false;
         }
+        
+        // Voting system handlers
+        if (data.type === 'post') {
+            // New post appeared on display - add to voting list
+            addPostForVoting(data);
+        }
+        
+        if (data.type === 'vote_recorded') {
+            console.log('✅ Vote recorded:', data);
+            updateVoteCount(data.totalVotes);
+            markPostAsVoted(data.postId);
+        }
+        
+        if (data.type === 'vote_update') {
+            // Update vote counts on display
+            updatePostVoteDisplay(data.postId, data.upvotes, data.downvotes);
+        }
     };
     
     ws.onclose = () => {
         console.log('Disconnected from server');
         isConnected = false;
         submitBtn.disabled = true;
-        
-        // Update connection status
-        statusDot.classList.remove('connected');
-        statusDot.classList.add('disconnected');
         
         setTimeout(connect, 3000);
     };
@@ -382,21 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Character counter
-textInput.addEventListener('input', () => {
-    const count = textInput.value.length;
-    charCounter.textContent = `${count}/500`;
-    
-    // Update color based on count
-    charCounter.classList.remove('warning', 'danger');
-    if (count > 450) {
-        charCounter.classList.add('warning');
-    }
-    if (count > 490) {
-        charCounter.classList.add('danger');
-    }
-});
-
 submitBtn.addEventListener('click', handleSubmit);
 
 textInput.addEventListener('keydown', (e) => {
@@ -409,6 +383,131 @@ textInput.addEventListener('keydown', (e) => {
 
 // Character counter
 // No character counter in new design
+
+// Voting system variables
+let userId = 'user_' + Math.random().toString(36).substr(2, 9);
+let votedPosts = new Set();
+let voteCount = 0;
+
+// Voting helper functions
+function addPostForVoting(postData) {
+    const votingSection = document.getElementById('votingSection');
+    const votingPosts = document.getElementById('votingPosts');
+    
+    // Show voting section
+    votingSection.style.display = 'block';
+    
+    // Create post card with voting buttons
+    const postCard = document.createElement('div');
+    postCard.className = 'voting-post-card';
+    postCard.id = `vote-post-${postData.timestamp}`;
+    postCard.innerHTML = `
+        <div class="post-content">${postData.content}</div>
+        <div class="vote-buttons">
+            <button class="vote-btn vote-up" onclick="castVote('${postData.timestamp}', 'up')">
+                👍 Agree
+            </button>
+            <button class="vote-btn vote-down" onclick="castVote('${postData.timestamp}', 'down')">
+                👎 Disagree
+            </button>
+        </div>
+        <div class="vote-stats" id="stats-${postData.timestamp}">
+            <span class="upvotes">0 👍</span>
+            <span class="downvotes">0 👎</span>
+        </div>
+    `;
+    
+    votingPosts.appendChild(postCard);
+}
+
+function castVote(postId, vote) {
+    if (votedPosts.has(postId)) {
+        alert('You already voted on this post');
+        return;
+    }
+    
+    if (!isConnected) {
+        alert('Not connected to server');
+        return;
+    }
+    
+    // Send vote to server
+    ws.send(JSON.stringify({
+        type: 'vote',
+        postId: postId,
+        vote: vote,
+        userId: userId
+    }));
+}
+
+function updateVoteCount(count) {
+    voteCount = count;
+    const voteCountElement = document.getElementById('voteCount');
+    if (voteCountElement) {
+        voteCountElement.textContent = count;
+    }
+}
+
+function markPostAsVoted(postId) {
+    votedPosts.add(postId);
+    const postCard = document.getElementById(`vote-post-${postId}`);
+    if (postCard) {
+        const buttons = postCard.querySelectorAll('.vote-btn');
+        buttons.forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+        });
+        postCard.classList.add('voted');
+    }
+}
+
+function updatePostVoteDisplay(postId, upvotes, downvotes) {
+    const statsElement = document.getElementById(`stats-${postId}`);
+    if (statsElement) {
+        statsElement.innerHTML = `
+            <span class="upvotes">${upvotes} 👍</span>
+            <span class="downvotes">${downvotes} 👎</span>
+        `;
+    }
+}
+
+// Make castVote globally accessible
+window.castVote = castVote;
+
+// Countdown timer functions
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+function updateCountdown() {
+    if (countdownTime <= 0) {
+        clearInterval(countdownInterval);
+        countdownElement.textContent = '00:00';
+        textInput.disabled = true;
+        submitBtn.disabled = true;
+        textInput.placeholder = 'Time is up!';
+        return;
+    }
+    
+    countdownElement.textContent = formatTime(countdownTime);
+    countdownTime--;
+}
+
+function startCountdown() {
+    countdownTime = 180; // Reset to 3 minutes
+    countdownElement.textContent = formatTime(countdownTime);
+    
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+    
+    countdownInterval = setInterval(updateCountdown, 1000);
+}
+
+// Start countdown when page loads
+startCountdown();
 
 connect();
 textInput.focus();

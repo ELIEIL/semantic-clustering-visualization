@@ -4,67 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mobile Controller</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.cdnfonts.com/css/ds-digital" rel="stylesheet">
     <link rel="stylesheet" href="../styles/mobile.css">
     <link rel="stylesheet" href="../styles/onboarding.css">
 </head>
 <body>
-    <!-- Header with Submit Button -->
-    <header class="mobile-header">
-        <div class="connection-status">
-            <span class="status-dot" id="statusDot"></span>
-        </div>
-        <button id="submitBtn" class="submit-btn-header">Submit</button>
-    </header>
-    
     <!-- Main Content Container -->
     <div class="mobile-container">
-        
-        <!-- Headline Section -->
-        <div class="headline-section">
-            <h2 id="mobileHeadline" class="mobile-headline">News headline</h2>
-            <p id="mobileTimestamp" class="mobile-timestamp">Updated 5:38 AM EST, Fri March 6, 2026</p>
-        </div>
-        
-        <!-- Cluster Overview Section -->
-        <div class="cluster-section" id="clusterSection">
-            
-            <!-- Your Posts -->
-            <div class="posts-group">
-                <h3 class="section-title">Your posts</h3>
-                <div id="yourPosts" class="post-list">
-                    <!-- Your posts will appear here -->
-                </div>
-            </div>
-            
-            <!-- Uncategorized Posts -->
-            <div class="posts-group">
-                <h3 class="section-title">Uncategorized posts</h3>
-                <div id="uncategorizedPosts" class="post-list">
-                    <!-- Uncategorized posts will appear here -->
-                </div>
-            </div>
-            
-            <!-- Clusters -->
-            <div class="clusters-group">
-                <h3 class="section-title">Clusters</h3>
-                <div id="clusterCircles" class="cluster-circles">
-                    <!-- Cluster circles will appear here -->
-                </div>
-            </div>
-            
-        </div>
-        
-        <!-- Cluster Detail View (hidden by default) -->
-        <div class="cluster-detail-view" id="clusterDetailView" style="display: none;">
-            <div class="detail-header">
-                <button class="back-button" id="backButton">← Back</button>
-                <h2 class="cluster-name" id="detailClusterName">Cluster Name</h2>
-            </div>
-            <div class="detail-subtitle">Post inside cluster</div>
-            <div id="clusterPosts" class="post-list">
-                <!-- Posts in selected cluster will appear here -->
-            </div>
-        </div>
         
         <!-- Input Section -->
         <div class="input-section">
@@ -75,70 +23,14 @@
                 maxlength="500"
                 autocomplete="off"
             ></textarea>
-            <div class="char-counter" id="charCounter">0/500</div>
+            <div class="bottom-controls">
+                <div id="countdown" class="countdown-timer">03:00</div>
+                <button id="submitBtn" class="submit-btn">Submit</button>
+            </div>
         </div>
         
     </div>
     
-    <!-- Onboarding Overlay -->
-    <div id="onboardingOverlay" class="onboarding-overlay" style="display: none;">
-        <div class="onboarding-content">
-            <!-- Step 0: Algorithm Test -->
-            <div class="onboarding-step" data-step="0">
-                <h2>Algorithm Test</h2>
-                <p>How to use the installation</p>
-            </div>
-            
-            <!-- Step 1: Write Response -->
-            <div class="onboarding-step" data-step="1" style="display: none;">
-                <h2>1. Mechanic</h2>
-                <p>Write a response to the projected news headline</p>
-            </div>
-            
-            <!-- Step 2: Observe Floor -->
-            <div class="onboarding-step" data-step="2" style="display: none;">
-                <h2>2. Mechanic</h2>
-                <p>Observe and view your post on the projected floor</p>
-            </div>
-            
-            <!-- Step 3: Vote -->
-            <div class="onboarding-step" data-step="3" style="display: none;">
-                <h2>3. Mechanic</h2>
-                <p>Vote for your viewpoint that you agree with</p>
-            </div>
-            
-            <!-- Step 4: Discuss -->
-            <div class="onboarding-step" data-step="4" style="display: none;">
-                <h2>4. Mechanic</h2>
-                <p>Discuss - Listen - Reflect</p>
-            </div>
-            
-            <!-- Breadcrumb Navigation -->
-            <div class="breadcrumbs">
-                <span class="breadcrumb active" data-step="0"></span>
-                <span class="breadcrumb" data-step="1"></span>
-                <span class="breadcrumb" data-step="2"></span>
-                <span class="breadcrumb" data-step="3"></span>
-                <span class="breadcrumb" data-step="4"></span>
-            </div>
-            
-            <!-- Progress Timer Bar -->
-            <div class="progress-timer-container">
-                <div class="progress-timer-bar" id="progressTimerBar"></div>
-            </div>
-            
-            <!-- Navigation Buttons -->
-            <div class="onboarding-nav">
-                <button id="skipOnboarding" class="btn-skip">Skip</button>
-                <div class="nav-buttons">
-                    <button id="prevStep" class="btn-nav" style="display: none;">Previous</button>
-                    <button id="nextStep" class="btn-nav">Next</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
     <script src="../mobile.js"></script>
-    <script src="../scripts/onboarding.js"></script>
 </body>
 </html>
