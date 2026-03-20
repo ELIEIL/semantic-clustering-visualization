@@ -309,6 +309,37 @@ wss.on('connection', (ws) => {
                 return;
             }
             
+            if (data.type === 'debate_vote') {
+                // Broadcast debate vote to all clients (including main display)
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'debate_vote',
+                            color: data.color
+                        }));
+                    }
+                });
+                
+                console.log(`🎤 Debate vote: ${data.color}`);
+                return;
+            }
+            
+            if (data.type === 'start_debate_voting') {
+                // Broadcast start debate voting to all mobile clients
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'start_debate_voting',
+                            blueVotes: data.blueVotes,
+                            redVotes: data.redVotes
+                        }));
+                    }
+                });
+                
+                console.log('🎤 Broadcasting start debate voting');
+                return;
+            }
+            
             if (data.type === 'skip_to_reveal') {
                 // Broadcast skip command to mobile clients
                 wss.clients.forEach(client => {
@@ -320,7 +351,7 @@ wss.on('connection', (ws) => {
                     }
                 });
                 
-                console.log('⏭️ Skip to reveal broadcasted to mobile clients');
+                console.log('📺 Broadcasting skip to reveal');
                 return;
             }
             

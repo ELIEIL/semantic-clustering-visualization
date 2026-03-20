@@ -412,6 +412,69 @@ body {
     max-width: 600px;
 }
 
+/* Debate Voting Section */
+.debate-voting-section {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #F24822;
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+}
+
+.debate-title {
+    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 64px;
+    font-weight: 400;
+    color: #fff;
+    margin: 0 0 10px 0;
+}
+
+.debate-subtitle {
+    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 20px;
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0 0 80px 0;
+}
+
+.debate-buttons {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    align-items: center;
+}
+
+.vote-button {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.vote-button:active {
+    transform: scale(1.1);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+}
+
+.vote-blue {
+    background: #0000FE;
+}
+
+.vote-red {
+    background: #3CB371;
+}
+
 /* Headline Section */
 .headline-section {
     margin-bottom: 60px;

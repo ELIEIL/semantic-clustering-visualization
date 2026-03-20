@@ -33,6 +33,13 @@ let revealBlobY = 0; // Starting Y position of winning cluster
 let votingPhaseActive = false;
 let votingCountdownTime = 0; // Countdown time in seconds
 
+// Debate voting state (post-reveal interaction)
+let debateVotingActive = false;
+let blueVotes = 50;
+let redVotes = 50;
+let blueMetaball = null;
+let redMetaball = null;
+
 // Tracking for trending detection
 let clusterSizeHistory = new Map(); // Track cluster sizes over time
 let lastClusterUpdate = Date.now();
@@ -1976,11 +1983,9 @@ function animateToBorder() {
             revealClusterColor = null;
             
             // ========================================
-            // 🎯 INTEGRATION HOOK: Post-Reveal Interaction
+            // 🎯 Start Debate Voting Interaction
             // ========================================
-            // This is where the new post-reveal interaction feature will be triggered.
-            // After the topic reveal animation completes, call your new feature here:
-            // Example: startPostRevealInteraction();
+            startDebateVoting();
             // ========================================
         }
     }
@@ -2049,6 +2054,11 @@ function connectWebSocket() {
             console.log('🎬 Starting topic reveal animation on main display');
             votingPhaseActive = false; // Hide voting text when animation starts
             startTopicRevealAnimation(data.cluster);
+        }
+        
+        if (data.type === 'debate_vote') {
+            // Handle debate vote from mobile client
+            handleDebateVote(data.color);
         }
         
         if (data.type === 'countdown_update') {
@@ -2543,6 +2553,12 @@ function draw() {
                 pop();
             }
             return; // Skip normal rendering during border phase
+        }
+        
+        // Draw debate voting metaballs if active
+        if (debateVotingActive) {
+            drawDebateVotingMetaballs();
+            return; // Skip normal rendering during debate voting
         }
         
         // Update HTML elements for voting phase
@@ -3460,4 +3476,180 @@ function fillASCIIInterior(field, cols, rows, minX, minY, resolution, threshold,
     }
     
     pop();
+}
+
+// ========================================
+// Debate Voting System - Post-Reveal Interaction
+// ========================================
+
+// Start debate voting interaction
+function startDebateVoting() {
+    console.log('🎤 Starting debate voting interaction');
+    debateVotingActive = true;
+    
+    // Initialize votes (50/50 split)
+    blueVotes = 50;
+    redVotes = 50;
+    
+    // Create metaballs
+    const centerX = width / 2;
+    const centerY = height / 2;
+    
+    // Blue metaball (left side)
+    blueMetaball = {
+        x: centerX - 200,
+        y: centerY,
+        baseSize: 150,
+        currentSize: 150,
+        targetSize: 150,
+        votePercentage: 50,
+        morphOffset: 0,
+        floatOffset: 0
+    };
+    
+    // Red metaball (right side)
+    redMetaball = {
+        x: centerX + 200,
+        y: centerY,
+        baseSize: 150,
+        currentSize: 150,
+        targetSize: 150,
+        votePercentage: 50,
+        morphOffset: Math.PI,
+        floatOffset: Math.PI / 2
+    };
+    
+    // Notify mobile clients to show voting UI
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'start_debate_voting',
+            blueVotes: blueVotes,
+            redVotes: redVotes
+        }));
+    }
+}
+
+// Update metaball sizes based on votes
+function updateDebateMetaballs() {
+    if (!debateVotingActive || !blueMetaball || !redMetaball) return;
+    
+    // Calculate total votes
+    const totalVotes = blueVotes + redVotes;
+    if (totalVotes === 0) return;
+    
+    // Calculate percentages
+    const bluePercentage = (blueVotes / totalVotes) * 100;
+    const redPercentage = (redVotes / totalVotes) * 100;
+    
+    // Update target sizes (min 50px, max 400px)
+    const minSize = 50;
+    const maxSize = 400;
+    const sizeRange = maxSize - minSize;
+    
+    blueMetaball.votePercentage = bluePercentage;
+    blueMetaball.targetSize = minSize + (bluePercentage / 100) * sizeRange;
+    
+    redMetaball.votePercentage = redPercentage;
+    redMetaball.targetSize = minSize + (redPercentage / 100) * sizeRange;
+    
+    // Smooth size transition
+    blueMetaball.currentSize += (blueMetaball.targetSize - blueMetaball.currentSize) * 0.1;
+    redMetaball.currentSize += (redMetaball.targetSize - redMetaball.currentSize) * 0.1;
+}
+
+// Draw debate voting metaballs
+function drawDebateVotingMetaballs() {
+    if (!debateVotingActive || !blueMetaball || !redMetaball) return;
+    
+    // Update sizes
+    updateDebateMetaballs();
+    
+    // Update animation offsets
+    blueMetaball.morphOffset += 0.01;
+    blueMetaball.floatOffset += 0.02;
+    redMetaball.morphOffset += 0.012;
+    redMetaball.floatOffset += 0.018;
+    
+    // Draw blue metaball
+    drawAnimatedMetaball(blueMetaball, color(0, 0, 254));
+    
+    // Draw red metaball
+    drawAnimatedMetaball(redMetaball, color(242, 72, 34));
+}
+
+// Draw a single animated metaball
+function drawAnimatedMetaball(ball, ballColor) {
+    push();
+    
+    // Floating animation
+    const floatY = sin(ball.floatOffset) * 20;
+    
+    // Set color
+    fill(ballColor);
+    noStroke();
+    
+    // Draw organic blob shape
+    translate(ball.x, ball.y + floatY);
+    
+    beginShape();
+    const points = 8;
+    for (let i = 0; i < points; i++) {
+        const angle = (i / points) * TWO_PI;
+        
+        // Create organic morphing effect
+        const morphAmount = sin(ball.morphOffset + i) * 0.2;
+        const radius = ball.currentSize * (1 + morphAmount);
+        
+        const x = cos(angle) * radius;
+        const y = sin(angle) * radius;
+        
+        if (i === 0) {
+            vertex(x, y);
+        } else {
+            // Use quadratic curves for smooth organic shape
+            const prevAngle = ((i - 1) / points) * TWO_PI;
+            const prevMorph = sin(ball.morphOffset + (i - 1)) * 0.2;
+            const prevRadius = ball.currentSize * (1 + prevMorph);
+            
+            const cpAngle = (prevAngle + angle) / 2;
+            const cpMorph = sin(ball.morphOffset + i - 0.5) * 0.2;
+            const cpRadius = ball.currentSize * (1 + cpMorph) * 1.1;
+            
+            const cpX = cos(cpAngle) * cpRadius;
+            const cpY = sin(cpAngle) * cpRadius;
+            
+            quadraticVertex(cpX, cpY, x, y);
+        }
+    }
+    endShape(CLOSE);
+    
+    // Draw vote percentage text
+    fill(255);
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    text(Math.round(ball.votePercentage) + '%', 0, 0);
+    
+    pop();
+}
+
+// Handle vote from mobile client
+function handleDebateVote(voteColor) {
+    if (!debateVotingActive) return;
+    
+    if (voteColor === 'blue') {
+        blueVotes++;
+        console.log('🔵 Blue vote received. Total:', blueVotes);
+    } else if (voteColor === 'red') {
+        redVotes++;
+        console.log('🔴 Red vote received. Total:', redVotes);
+    }
+    
+    // Broadcast updated votes to all clients
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'debate_vote_update',
+            blueVotes: blueVotes,
+            redVotes: redVotes
+        }));
+    }
 }

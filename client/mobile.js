@@ -158,6 +158,12 @@ function connect() {
             console.log(`🎭 Role assigned: ${data.role}`);
             showRoleScreen(data.role);
         }
+        
+        if (data.type === 'start_debate_voting') {
+            // Show debate voting screen
+            console.log('🎤 Starting debate voting on mobile');
+            showDebateVoting();
+        }
     };
     
     ws.onclose = () => {
@@ -877,6 +883,64 @@ function showRoleScreen(role) {
         debaterSection.style.display = 'none';
         listenerSection.style.display = 'flex';
         console.log('👂 Displaying listener screen');
+    }
+}
+
+// ========================================
+// Debate Voting Handlers
+// ========================================
+
+// Get debate voting buttons
+const voteBlueBtn = document.getElementById('voteBlueBtn');
+const voteRedBtn = document.getElementById('voteRedBtn');
+const debateVotingSection = document.getElementById('debateVotingSection');
+
+// Handle blue vote
+if (voteBlueBtn) {
+    voteBlueBtn.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ 
+                type: 'debate_vote', 
+                color: 'blue' 
+            }));
+            console.log('🔵 Voted blue');
+        }
+    });
+}
+
+// Handle red vote
+if (voteRedBtn) {
+    voteRedBtn.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ 
+                type: 'debate_vote', 
+                color: 'red' 
+            }));
+            console.log('🔴 Voted red');
+        }
+    });
+}
+
+// Show debate voting screen
+function showDebateVoting() {
+    console.log('🎤 Showing debate voting screen');
+    
+    // Hide all other sections
+    const inputSection = document.getElementById('inputSection');
+    const clusterSection = document.getElementById('clusterSection');
+    const revealSection = document.getElementById('topicRevealSection');
+    const debaterSection = document.getElementById('debaterSection');
+    const listenerSection = document.getElementById('listenerSection');
+    
+    if (inputSection) inputSection.style.display = 'none';
+    if (clusterSection) clusterSection.style.display = 'none';
+    if (revealSection) revealSection.style.display = 'none';
+    if (debaterSection) debaterSection.style.display = 'none';
+    if (listenerSection) listenerSection.style.display = 'none';
+    
+    // Show debate voting section
+    if (debateVotingSection) {
+        debateVotingSection.style.display = 'flex';
     }
 }
 
