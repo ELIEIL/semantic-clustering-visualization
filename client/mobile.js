@@ -842,6 +842,14 @@ function showTopicReveal(cluster) {
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'assign_roles' }));
                 }
+                
+                // ========================================
+                // 🎯 INTEGRATION HOOK: Post-Reveal Interaction
+                // ========================================
+                // This is where the new post-reveal interaction feature will be triggered.
+                // After role assignment request, you can start your new interaction:
+                // Example: startProximityMatchmaking();
+                // ========================================
             }, 4000);
             
         }, 3500);

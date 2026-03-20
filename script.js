@@ -1974,6 +1974,14 @@ function animateToBorder() {
             window.borderFadeProgress = 1;
             revealAnimationActive = false;
             revealClusterColor = null;
+            
+            // ========================================
+            // 🎯 INTEGRATION HOOK: Post-Reveal Interaction
+            // ========================================
+            // This is where the new post-reveal interaction feature will be triggered.
+            // After the topic reveal animation completes, call your new feature here:
+            // Example: startPostRevealInteraction();
+            // ========================================
         }
     }
     
