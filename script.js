@@ -3505,9 +3505,9 @@ function startDebateVoting() {
     blueMetaball = {
         x: centerX - 200,
         y: centerY,
-        baseSize: 150,
-        currentSize: 150,
-        targetSize: 150,
+        baseSize: 100,
+        currentSize: 100,
+        targetSize: 100,
         votePercentage: 50,
         morphOffset: 0,
         floatOffset: 0
@@ -3517,9 +3517,9 @@ function startDebateVoting() {
     redMetaball = {
         x: centerX + 200,
         y: centerY,
-        baseSize: 150,
-        currentSize: 150,
-        targetSize: 150,
+        baseSize: 100,
+        currentSize: 100,
+        targetSize: 100,
         votePercentage: 50,
         morphOffset: Math.PI,
         floatOffset: Math.PI / 2
@@ -3547,9 +3547,9 @@ function updateDebateMetaballs() {
     const bluePercentage = (blueVotes / totalVotes) * 100;
     const redPercentage = (redVotes / totalVotes) * 100;
     
-    // Update target sizes (min 50px, max 400px)
-    const minSize = 50;
-    const maxSize = 400;
+    // Update target sizes (min 30px, max 500px for dramatic impact)
+    const minSize = 30;
+    const maxSize = 500;
     const sizeRange = maxSize - minSize;
     
     blueMetaball.votePercentage = bluePercentage;
@@ -3576,11 +3576,17 @@ function drawDebateVotingMetaballs() {
     redMetaball.morphOffset += 0.012;
     redMetaball.floatOffset += 0.018;
     
+    // Switch to RGB color mode for correct colors
+    colorMode(RGB, 255);
+    
     // Draw blue metaball
     drawAnimatedMetaball(blueMetaball, color(0, 0, 254));
     
     // Draw green metaball
     drawAnimatedMetaball(redMetaball, color(60, 179, 113));
+    
+    // Switch back to HSB for rest of sketch
+    colorMode(HSB);
 }
 
 // Draw a single animated metaball
