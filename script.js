@@ -3487,6 +3487,12 @@ function startDebateVoting() {
     console.log('🎤 Starting debate voting interaction');
     debateVotingActive = true;
     
+    // Hide voting phase text and timer
+    const headlineText = document.getElementById('headlineText');
+    const displayCountdown = document.getElementById('displayCountdown');
+    if (headlineText) headlineText.textContent = '';
+    if (displayCountdown) displayCountdown.textContent = '';
+    
     // Initialize votes (50/50 split)
     blueVotes = 50;
     redVotes = 50;
@@ -3573,8 +3579,8 @@ function drawDebateVotingMetaballs() {
     // Draw blue metaball
     drawAnimatedMetaball(blueMetaball, color(0, 0, 254));
     
-    // Draw red metaball
-    drawAnimatedMetaball(redMetaball, color(242, 72, 34));
+    // Draw green metaball
+    drawAnimatedMetaball(redMetaball, color(60, 179, 113));
 }
 
 // Draw a single animated metaball
