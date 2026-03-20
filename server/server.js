@@ -31,9 +31,14 @@ const profanityList = [
 const wss = new WebSocket.Server({ port: PORT });
 const displayClients = new Set();
 const moderatorClients = new Set();
+const mobileClients = new Map(); // clientId -> WebSocket connection
 const pendingPosts = [];
 const approvedPosts = [];
 const rateLimitMap = new Map();
+
+// Role assignment
+let nextClientId = 1;
+const clientRoles = new Map(); // clientId -> 'debater' | 'listener'
 
 // Voting system data structures
 const postVotes = new Map(); // postId -> { upvotes: 0, downvotes: 0, voters: Set() }
@@ -204,6 +209,22 @@ wss.on('connection', (ws) => {
                 return;
             }
             
+            if (data.type === 'register_mobile') {
+                // Assign unique client ID to mobile device
+                const clientId = nextClientId++;
+                ws.clientId = clientId;
+                mobileClients.set(clientId, ws);
+                
+                // Send client ID back to mobile
+                ws.send(JSON.stringify({
+                    type: 'client_id',
+                    clientId: clientId
+                }));
+                
+                console.log(`Mobile client registered with ID: ${clientId}`);
+                return;
+            }
+            
             if (data.type === 'request_headline') {
                 ws.send(JSON.stringify({
                     type: 'headline',
@@ -285,6 +306,54 @@ wss.on('connection', (ws) => {
                 });
                 
                 console.log(`Vote recorded for cluster ${clusterId}`);
+                return;
+            }
+            
+            if (data.type === 'skip_to_reveal') {
+                // Broadcast skip command to mobile clients
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'skip_to_reveal',
+                            cluster: data.cluster
+                        }));
+                    }
+                });
+                
+                console.log('⏭️ Skip to reveal broadcasted to mobile clients');
+                return;
+            }
+            
+            if (data.type === 'assign_roles') {
+                // Randomly select 2 debaters from all connected mobile clients
+                const clientIds = Array.from(mobileClients.keys());
+                
+                if (clientIds.length < 2) {
+                    console.log('⚠️ Not enough mobile clients for role assignment (need at least 2)');
+                    return;
+                }
+                
+                // Shuffle and pick first 2 as debaters
+                const shuffled = clientIds.sort(() => Math.random() - 0.5);
+                const debaterIds = shuffled.slice(0, 2);
+                
+                // Assign roles
+                clientRoles.clear();
+                clientIds.forEach(id => {
+                    const role = debaterIds.includes(id) ? 'debater' : 'listener';
+                    clientRoles.set(id, role);
+                    
+                    // Send role to client
+                    const client = mobileClients.get(id);
+                    if (client && client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'role_assignment',
+                            role: role
+                        }));
+                    }
+                });
+                
+                console.log(`🎭 Roles assigned: ${debaterIds.length} debaters, ${clientIds.length - debaterIds.length} listeners`);
                 return;
             }
             
@@ -579,7 +648,7 @@ const server = http.createServer(async (req, res) => {
                 
                 // Regenerate QR code with tunnel URL (inverted colors)
                 qrCodeDataURL = await QRCode.toDataURL(newMobileUrl, {
-                    width: 300,
+                    width: 400,
                     margin: 2,
                     color: {
                         dark: '#FFFFFF',  // White QR code
@@ -763,7 +832,7 @@ server.listen(HTTP_PORT, async () => {
     // Generate QR code as data URL with inverted colors (white on transparent)
     try {
         qrCodeDataURL = await QRCode.toDataURL(mobileUrl, {
-            width: 300,
+            width: 400,
             margin: 2,
             color: {
                 dark: '#FFFFFF',  // White QR code
@@ -788,7 +857,7 @@ server.listen(HTTP_PORT, async () => {
     console.log('Scan this QR code with your phone:');
     console.log('=================================\n');
     
-    qrcode.generate(mobileUrl, { small: true });
+    qrcode.generate(mobileUrl, { small: false });
     
     console.log('\n=================================');
     console.log(`💻 Main display: http://localhost:${HTTP_PORT}/client/pages/index.html`);

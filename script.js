@@ -37,45 +37,8 @@ let votingCountdownTime = 0; // Countdown time in seconds
 let clusterSizeHistory = new Map(); // Track cluster sizes over time
 let lastClusterUpdate = Date.now();
 
-// ConceptNet API monitoring
-let currentDatabase = 'transformer';
-let apiCallCount = 0;
-let cacheHitCount = 0;
-let apiResponseTimes = [];
-let apiCallLog = [];
-let similarityComparisons = [];
-
-// Update ConceptNet API Monitor Panel
-function updateConceptNetPanel() {
-    // Update current database display
-    const currentDbDisplay = document.getElementById('currentDbDisplay');
-    if (currentDbDisplay) {
-        const dbNames = {
-            'tfidf': 'TF-IDF',
-            'transformer': 'Transformer',
-            'conceptnet': 'ConceptNet',
-            'wordnet': 'WordNet',
-            'word2vec': 'Word2Vec'
-        };
-        currentDbDisplay.textContent = dbNames[currentDatabase] || 'Unknown';
-        currentDbDisplay.style.color = (currentDatabase === 'transformer' || currentDatabase === 'conceptnet') ? '#4CAF50' : '#FF9800';
-    }
-    
-    // Update API stats
-    const apiCallCountEl = document.getElementById('apiCallCount');
-    const cacheHitsEl = document.getElementById('cacheHits');
-    const avgResponseTimeEl = document.getElementById('avgResponseTime');
-    const postCountEl = document.getElementById('postCount');
-    
-    if (apiCallCountEl) apiCallCountEl.textContent = apiCallCount;
-    if (cacheHitsEl) cacheHitsEl.textContent = cacheHitCount;
-    if (postCountEl) postCountEl.textContent = nodes.length;
-    
-    const avgTime = apiResponseTimes.length > 0 
-        ? (apiResponseTimes.reduce((a, b) => a + b, 0) / apiResponseTimes.length).toFixed(0)
-        : 0;
-    if (avgResponseTimeEl) avgResponseTimeEl.textContent = avgTime + 'ms';
-}
+// Database selection for similarity calculation
+let currentDatabase = 'transformer'; // Using transformer model for local similarity calculations
 
 // Update API status indicator
 function updateAPIStatus(status) {
@@ -1181,6 +1144,11 @@ function drawMetaballFilled() {
                 fill(0, 255);
                 noStroke();
                 text(line, startX, startY + i * lineHeight);
+                
+                // Draw white text on top
+                noStroke();
+                fill(255, 255);
+                text(line, startX, startY + i * lineHeight);
             });
             
             pop();
@@ -1411,6 +1379,7 @@ function drawHybridMode() {
             
             const key = `${i}-${j}`;
             const similarity = connectionCache.get(key) || 0;
+            
             if (similarity > similarityThreshold) {
                 group.push(j);
                 processed.add(j);
@@ -1501,10 +1470,10 @@ function drawHybridMode() {
                     const x = minX + i * resolution;
                     const y = minY + j * resolution;
                     
-                    const tl = field[i][j] >= fieldThreshold ? 1 : 0;
-                    const tr = field[i + 1][j] >= fieldThreshold ? 1 : 0;
-                    const br = field[i + 1][j + 1] >= fieldThreshold ? 1 : 0;
-                    const bl = field[i][j + 1] >= fieldThreshold ? 1 : 0;
+                    const tl = field[i][j] >= fieldThreshold;
+                    const tr = field[i + 1][j] >= fieldThreshold;
+                    const br = field[i + 1][j + 1] >= fieldThreshold;
+                    const bl = field[i][j + 1] >= fieldThreshold;
                     
                     const cellValue = tl * 8 + tr * 4 + br * 2 + bl * 1;
                     
@@ -1517,15 +1486,17 @@ function drawHybridMode() {
             // Draw metaball outline
             if (contours.length > 0) {
                 push();
-                noFill();
-                stroke(255);
-                strokeWeight(2);
+                
+                // Fill with cluster color
+                fill(255);
+                noStroke();
                 
                 beginShape();
-                contours.forEach(c => {
-                    vertex(c.x + resolution / 2, c.y + resolution / 2);
-                });
+                const hull = convexHull(contours);
+                const smoothed = smoothHull(hull);
+                smoothed.forEach(p => vertex(p.x, p.y));
                 endShape(CLOSE);
+                
                 pop();
             }
             
@@ -2370,7 +2341,6 @@ class Node {
         
         try {
             const startTime = performance.now();
-            apiCallCount++;
             
             updateAPIStatus('fetching');
             console.log('📡 Fetching from API...');
@@ -2392,11 +2362,6 @@ class Node {
             
             console.log('📦 Full API Response:', JSON.stringify(data, null, 2));
             
-            apiResponseTimes.push(responseTime);
-            if (data.cacheStats) {
-                cacheHitCount = data.cacheStats.size;
-            }
-            
             const semanticSim = data.similarity || 0;
             console.log('🔢 TF-IDF Similarity:', tfidfSim);
             console.log('🔢 Semantic Similarity:', semanticSim);
@@ -2407,26 +2372,6 @@ class Node {
             const post1 = this.content.substring(0, 20);
             const post2 = otherNode.content.substring(0, 20);
             logActivity(`🔗 Similarity: "${post1}..." ↔ "${post2}..." = ${(combinedSim * 100).toFixed(0)}%`, 'similarity');
-            
-            apiCallLog.unshift({
-                time: new Date().toLocaleTimeString(),
-                keywords1: this.keywords.slice(0, 3).join(', '),
-                keywords2: otherNode.keywords.slice(0, 3).join(', '),
-                responseTime: responseTime.toFixed(0),
-                cached: data.cached || false
-            });
-            if (apiCallLog.length > 10) apiCallLog.pop();
-            
-            similarityComparisons.unshift({
-                post1: this.content.substring(0, 30),
-                post2: otherNode.content.substring(0, 30),
-                tfidf: (tfidfSim * 100).toFixed(0),
-                conceptnet: (semanticSim * 100).toFixed(0),
-                combined: (combinedSim * 100).toFixed(0)
-            });
-            if (similarityComparisons.length > 5) similarityComparisons.pop();
-            
-            updateConceptNetPanel();
             
             return combinedSim;
         } catch (error) {

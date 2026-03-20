@@ -124,6 +124,9 @@ function connect() {
             votingTimeRemaining = 60;
             currentClusters = [];
             
+            // Reset voting flag for new round
+            hasVoted = false;
+            
             // Re-enable input
             textInput.disabled = false;
             submitBtn.disabled = false;
@@ -628,14 +631,31 @@ function displayClusters(clusters) {
     console.log(`📊 Displayed ${clusters.length} clusters`);
 }
 
+// Track if user has already voted
+let hasVoted = false;
+
 // Vote for a cluster
 function voteForCluster(clusterId) {
+    // Prevent multiple votes
+    if (hasVoted) {
+        console.log('⚠️ You have already voted');
+        return;
+    }
+    
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
             type: 'vote_cluster',
-            clusterId: clusterId
+            clusterId: clusterId,
+            clientId: clientId // Include client ID for server-side tracking
         }));
+        hasVoted = true;
         console.log(`✅ Voted for cluster ${clusterId}`);
+        
+        // Disable all cluster items after voting
+        document.querySelectorAll('.cluster-item').forEach(item => {
+            item.style.pointerEvents = 'none';
+            item.style.opacity = '0.6';
+        });
     }
 }
 
