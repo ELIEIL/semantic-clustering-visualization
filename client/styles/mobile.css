@@ -131,6 +131,15 @@ body {
     background: transparent;
 }
 
+.voting-timer {
+    font-family: 'DS-Digital', 'Courier New', monospace;
+    font-size: 32px;
+    font-weight: 400;
+    color: #000;
+    margin-top: 20px;
+    text-align: center;
+}
+
 .cluster-list {
     display: flex;
     flex-direction: column;
@@ -220,6 +229,187 @@ body {
     background-color: transparent !important;
     border: none;
     box-shadow: none;
+}
+
+/* Topic Reveal Section */
+.topic-reveal-section {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+}
+
+.reveal-content {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.reveal-title {
+    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 32px;
+    font-weight: 400;
+    color: #000;
+    margin: 0 0 10px 0;
+    position: relative;
+    z-index: 10;
+}
+
+.reveal-subtitle {
+    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 16px;
+    color: #999;
+    margin: 0 0 60px 0;
+    font-weight: 300;
+    position: relative;
+    z-index: 10;
+}
+
+.reveal-blob {
+    width: 140px;
+    height: 140px;
+    border-radius: 60% 40% 50% 60% / 50% 60% 40% 50%;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: morphBlobReveal 8s ease-in-out infinite;
+    z-index: 1;
+}
+
+.reveal-blob.grow-full {
+    animation: growToFullScreen 3s cubic-bezier(0.4, 0, 0.2, 1) forwards, morphBlobReveal 8s ease-in-out infinite;
+}
+
+@keyframes growToFullScreen {
+    0% {
+        width: 140px;
+        height: 140px;
+    }
+    100% {
+        width: 200vw;
+        height: 200vh;
+    }
+}
+
+@keyframes morphBlobReveal {
+    0% {
+        border-radius: 60% 40% 50% 60% / 50% 60% 40% 50%;
+    }
+    25% {
+        border-radius: 40% 60% 60% 40% / 60% 40% 50% 60%;
+    }
+    50% {
+        border-radius: 50% 50% 40% 60% / 40% 60% 60% 40%;
+    }
+    75% {
+        border-radius: 60% 40% 60% 50% / 50% 50% 60% 40%;
+    }
+    100% {
+        border-radius: 60% 40% 50% 60% / 50% 60% 40% 50%;
+    }
+}
+
+.reveal-topic-name {
+    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 28px;
+    font-weight: 400;
+    color: #000;
+    margin: 0;
+    line-height: 1.3;
+    opacity: 1;
+    transition: opacity 1s ease;
+    position: relative;
+    z-index: 10;
+}
+
+.reveal-topic-name.fade-out {
+    opacity: 0;
+}
+
+.reveal-title.fade-out,
+.reveal-subtitle.fade-out {
+    opacity: 0;
+    transition: opacity 1s ease;
+}
+
+/* Fade transitions for view switching */
+.fade-in {
+    animation: fadeIn 0.8s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.fade-out-view {
+    animation: fadeOut 0.8s ease-out forwards;
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+/* Role Assignment Sections */
+.role-section {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    z-index: 2000;
+}
+
+.debater-role {
+    background: #0000FE;
+}
+
+.listener-role {
+    background: #F24822;
+}
+
+.role-title {
+    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 48px;
+    font-weight: 400;
+    color: #fff;
+    margin: 0 0 20px 0;
+    line-height: 1.2;
+}
+
+.role-subtitle {
+    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 24px;
+    font-weight: 300;
+    color: #fff;
+    margin: 0;
+    line-height: 1.4;
+    max-width: 600px;
 }
 
 /* Headline Section */

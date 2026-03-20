@@ -34,11 +34,34 @@
             <div class="cluster-header">
                 <h1>Generated Topics</h1>
                 <p class="cluster-subtitle">Vote on a topic you'd like to discuss</p>
+                <div id="votingTimer" class="voting-timer">01:00</div>
             </div>
             
             <div id="clusterList" class="cluster-list">
                 <!-- Clusters will be dynamically inserted here -->
             </div>
+        </div>
+        
+        <!-- Topic Reveal Section (shown after voting ends) -->
+        <div id="topicRevealSection" class="topic-reveal-section" style="display: none;">
+            <div class="reveal-content">
+                <h1 class="reveal-title">The topic of choice</h1>
+                <p class="reveal-subtitle">Get ready to discuss this topic</p>
+                <div id="revealBlob" class="reveal-blob"></div>
+                <h2 id="revealTopicName" class="reveal-topic-name"></h2>
+            </div>
+        </div>
+        
+        <!-- Debater Role Section -->
+        <div id="debaterSection" class="role-section debater-role" style="display: none;">
+            <h1 class="role-title">You are a debater</h1>
+            <p class="role-subtitle">Place yourselves in the circle and get ready</p>
+        </div>
+        
+        <!-- Listener Role Section -->
+        <div id="listenerSection" class="role-section listener-role" style="display: none;">
+            <h1 class="role-title">You are a listener</h1>
+            <p class="role-subtitle">Vote on which speaker you agree with most.</p>
         </div>
         
     </div>
