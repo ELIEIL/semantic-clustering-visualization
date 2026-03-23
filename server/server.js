@@ -815,6 +815,8 @@ const server = http.createServer(async (req, res) => {
         '.json': 'application/json',
         '.woff': 'font/woff',
         '.woff2': 'font/woff2',
+        '.otf': 'font/otf',
+        '.ttf': 'font/ttf',
     };
     
     const contentType = mimeTypes[extname] || 'application/octet-stream';

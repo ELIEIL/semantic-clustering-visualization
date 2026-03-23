@@ -7,7 +7,7 @@ let numClusters = 4; // Fewer clusters = broader thematic topics (reduced for pe
 let connectionCache = new Map(); // Cache for similarity calculations
 
 // Visualization mode
-let visualizationMode = 'nodes'; // 'metaball', 'metaball2', 'metaball3', 'hybrid', 'nodes', 'bubbles', or 'outline'
+let visualizationMode = 'bubbles'; // 'metaball', 'metaball2', 'metaball3', 'hybrid', 'nodes', 'bubbles', or 'outline'
 window.visualizationMode = visualizationMode; // Make globally accessible
 
 // Social Media Algorithm Parameters (toggleable) - enabled by default
@@ -20,6 +20,11 @@ let enableRealtimeClustering = false; // Keep this off for now
 // Clustering control - for pedagogical experience
 let clusteringEnabled = false; // Clustering happens only when timer reaches 00:00
 let timerCompleted = false;
+
+// Clustering animation state
+let clusteringAnimationActive = false;
+let clusteringProgress = 0;
+let clusteringAnimationStartTime = 0;
 
 // Topic reveal animation state
 let revealAnimationActive = false;
@@ -753,6 +758,53 @@ function generateBroaderTopicName(keywords) {
     } else {
         return capitalized.join(' and ');
     }
+}
+
+// Position nodes into spatial clusters
+function positionNodesInClusters() {
+    if (nodes.length === 0) return;
+    
+    // Group nodes by cluster
+    const clusterGroups = new Map();
+    nodes.forEach(node => {
+        const clusterId = node.cluster !== undefined ? node.cluster : 0;
+        if (!clusterGroups.has(clusterId)) {
+            clusterGroups.set(clusterId, []);
+        }
+        clusterGroups.get(clusterId).push(node);
+    });
+    
+    // Calculate cluster positions in a circle around the screen
+    const numClusters = clusterGroups.size;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const clusterRadius = Math.min(width, height) * 0.35; // Distance from center
+    
+    let clusterIndex = 0;
+    clusterGroups.forEach((clusterNodes, clusterId) => {
+        // Calculate cluster center position
+        const angle = (clusterIndex / numClusters) * TWO_PI;
+        const clusterCenterX = centerX + cos(angle) * clusterRadius;
+        const clusterCenterY = centerY + sin(angle) * clusterRadius;
+        
+        // Position nodes in a tight group around cluster center
+        const spreadRadius = 80; // How spread out nodes are within cluster
+        clusterNodes.forEach((node, i) => {
+            const nodeAngle = (i / clusterNodes.length) * TWO_PI;
+            const nodeRadius = random(20, spreadRadius);
+            
+            node.x = clusterCenterX + cos(nodeAngle) * nodeRadius;
+            node.y = clusterCenterY + sin(nodeAngle) * nodeRadius;
+            
+            // Reset velocities
+            node.vx = 0;
+            node.vy = 0;
+        });
+        
+        clusterIndex++;
+    });
+    
+    console.log(`📍 Positioned ${nodes.length} nodes into ${numClusters} spatial clusters`);
 }
 
 // Recalculate similarities using selected database
@@ -1604,8 +1656,10 @@ function drawMetaballNodes() {
         const groupNodes = group.map(i => nodes[i]);
         if (groupNodes.length === 0) return;
         
-        // Update physics for all nodes
-        groupNodes.forEach(node => node.update());
+        // Update physics for all nodes (only if clustering is enabled)
+        if (clusteringEnabled) {
+            groupNodes.forEach(node => node.update());
+        }
         
         // Visual Prominence: Calculate cluster size for this group
         const visualProminenceEnabled = window.enableVisualProminence || enableVisualProminence;
@@ -1708,89 +1762,94 @@ function drawMetaballNodes() {
 function drawSpeechBubbles() {
     if (nodes.length < 1) return;
     
-    // Keep black background
     background(0);
     
-    // Draw all nodes as iOS-style speech bubbles
+    // Update physics ONLY if clustering is enabled (after timer completes)
+    if (clusteringEnabled) {
+        nodes.forEach(node => node.update());
+    }
+    
+    // Draw posts as text (static positions during countdown, physics-based after clustering)
     nodes.forEach((node, index) => {
         push();
         
-        // All white bubbles with black text (iOS style)
-        const bgColor = color(0, 0, 100); // White
-        const textColor = color(0, 0, 0); // Black
+        // Initialize pointer animation properties
+        if (!node.pointerAngle) node.pointerAngle = 0;
+        if (!node.pointerTargetAngle) node.pointerTargetAngle = 0;
+        if (!node.pointerVelocity) node.pointerVelocity = 0;
+        if (!node.pointerOffset) node.pointerOffset = 0;
         
-        // Speech bubble dimensions based on node's text box
-        const padding = 12;
-        const bubbleWidth = node.boxWidth || 200;
-        const bubbleHeight = node.boxHeight || 100;
-        const cornerRadius = 18; // iOS uses 18px radius
+        colorMode(RGB, 255);
+        const textColor = color(255, 255, 255);
         
-        // Draw main bubble body (rounded rectangle)
-        fill(bgColor);
-        noStroke();
-        rect(node.x - bubbleWidth/2, node.y - bubbleHeight/2, 
-             bubbleWidth, bubbleHeight, cornerRadius);
+        // Use node's physics-based position
+        const postX = node.x;
+        const postY = node.y;
         
-        // iOS-style tail (curved tail on bottom-left or bottom-right)
-        // Alternate tail position left/right
-        const tailOnRight = index % 2 === 0;
-        const tailX = tailOnRight ? 
-            node.x + bubbleWidth/2 - 20 : 
-            node.x - bubbleWidth/2 + 20;
-        const tailY = node.y + bubbleHeight/2;
+        // Calculate angle to center for pointer direction
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const angleToCenter = atan2(centerY - postY, centerX - postX);
         
-        // Draw iOS-style curved tail using bezier curves
-        fill(bgColor);
-        noStroke();
+        // Spring physics for smooth pointer rotation
+        node.pointerTargetAngle = angleToCenter;
+        const springStrength = 0.08;
+        const damping = 0.85;
+        const angleDiff = node.pointerTargetAngle - node.pointerAngle;
+        node.pointerVelocity += angleDiff * springStrength;
+        node.pointerVelocity *= damping;
+        node.pointerAngle += node.pointerVelocity;
         
-        if (tailOnRight) {
-            // Tail pointing bottom-right
-            beginShape();
-            vertex(tailX, tailY);
-            bezierVertex(
-                tailX + 5, tailY + 5,
-                tailX + 10, tailY + 8,
-                tailX + 15, tailY + 10
-            );
-            bezierVertex(
-                tailX + 8, tailY + 5,
-                tailX + 3, tailY + 2,
-                tailX - 5, tailY
-            );
-            endShape(CLOSE);
-        } else {
-            // Tail pointing bottom-left
-            beginShape();
-            vertex(tailX, tailY);
-            bezierVertex(
-                tailX - 5, tailY + 5,
-                tailX - 10, tailY + 8,
-                tailX - 15, tailY + 10
-            );
-            bezierVertex(
-                tailX - 8, tailY + 5,
-                tailX - 3, tailY + 2,
-                tailX + 5, tailY
-            );
-            endShape(CLOSE);
+        // Subtle oscillation for floaty effect
+        node.pointerOffset += 0.05;
+        const floatyOffset = sin(node.pointerOffset) * 0.03;
+        const animatedAngle = node.pointerAngle + floatyOffset;
+        
+        // Calculate text dimensions
+        textSize(20);
+        if (customFontSemibold) {
+            textFont(customFontSemibold);
         }
         
-        // Draw text
+        const lineHeight = 26;
+        const letterSpacing = 20 * 0.25;
+        const padding = 12;
+        
+        // Measure text width with letter spacing
+        let maxWidth = 0;
+        node.lines.forEach(line => {
+            let lineWidth = 0;
+            for (let j = 0; j < line.length; j++) {
+                lineWidth += textWidth(line.charAt(j)) + letterSpacing;
+            }
+            if (lineWidth > maxWidth) maxWidth = lineWidth;
+        });
+        
+        const boxWidth = maxWidth + padding * 2;
+        const boxHeight = node.lines.length * lineHeight + padding * 2;
+        const boxX = postX - padding;
+        const boxY = postY - padding;
+        
+        // Draw text with MD Thermochrome Medium font and 25% letter spacing (no background)
         fill(textColor);
-        textAlign(CENTER, CENTER);
-        textSize(14);
-        textFont('Arial');
+        textAlign(LEFT, TOP);
+        const textX = postX;
+        const textY = postY;
         
-        // Draw each line of text
-        const lineHeight = 18;
-        const startY = node.y - (node.lines.length - 1) * lineHeight / 2;
-        
+        // Draw each line with letter spacing
         node.lines.forEach((line, i) => {
-            text(line, node.x, startY + i * lineHeight);
+            let xOffset = 0;
+            for (let j = 0; j < line.length; j++) {
+                const char = line.charAt(j);
+                text(char, textX + xOffset, textY + i * lineHeight);
+                xOffset += textWidth(char) + letterSpacing;
+            }
         });
         
         pop();
     });
+    
+    colorMode(HSB);
 }
 
 function windowResized() {
@@ -2067,13 +2126,15 @@ function connectWebSocket() {
                 window.updateCountdownDisplay(data.time);
             }
             
-            // Trigger clustering when timer reaches 00:00
+            // Trigger clustering animation when timer reaches 00:00
             if (data.time === 0 && !timerCompleted) {
                 timerCompleted = true;
-                clusteringEnabled = true;
+                clusteringAnimationActive = true;
+                clusteringAnimationStartTime = Date.now();
+                clusteringProgress = 0;
                 
-                console.log('⏰ Timer completed! Triggering clustering...');
-                logActivity('⏰ Timer completed - clustering all posts now!', 'cluster');
+                console.log('⏰ Timer completed! Starting clustering animation...');
+                logActivity('⏰ Timer completed - starting clustering animation!', 'cluster');
                 
                 // Run clustering on all existing posts
                 recalculateSimilarities().then(() => {
@@ -2449,6 +2510,16 @@ class Node {
 // p5.js setup and draw functions
 const kmeans = new KMeansClustering(numClusters);
 
+let customFont;
+let customFontMedium;
+let customFontSemibold;
+
+function preload() {
+    customFont = loadFont('/client/fonts/MDThermochrome0.4-Regular-Trial.otf');
+    customFontMedium = loadFont('/client/fonts/MDThermochrome0.4-Medium-Trial.otf');
+    customFontSemibold = loadFont('/client/fonts/MDThermochrome0.4-Semibold-Trial.otf');
+}
+
 function setup() {
     console.log('p5.js setup starting...');
     console.log('Window size:', windowWidth, 'x', windowHeight);
@@ -2472,6 +2543,108 @@ function setup() {
 function draw() {
     try {
         background(0);
+        
+        // Handle clustering animation
+        if (clusteringAnimationActive) {
+            const elapsed = Date.now() - clusteringAnimationStartTime;
+            const duration = 3000; // 3 seconds for clustering animation
+            clusteringProgress = min(elapsed / duration, 1);
+            
+            // Draw posts in background (static positions)
+            drawSpeechBubbles();
+            
+            // Draw clustering overlay
+            push();
+            
+            // "Clustering..." text at top
+            fill(255);
+            textAlign(CENTER, TOP);
+            textSize(48);
+            if (customFontSemibold) {
+                textFont(customFontSemibold);
+            }
+            text('Clustering...', width / 2, 100);
+            
+            // Progress bar
+            const barWidth = 400;
+            const barHeight = 20;
+            const barX = width / 2 - barWidth / 2;
+            const barY = 180;
+            
+            noFill();
+            stroke(255);
+            strokeWeight(2);
+            rect(barX, barY, barWidth, barHeight);
+            
+            noStroke();
+            fill(255);
+            rect(barX, barY, barWidth * clusteringProgress, barHeight);
+            
+            // Show cluster labels and outlines appearing progressively
+            if (clusteringProgress > 0.3) {
+                // Group nodes by cluster
+                const clusterGroups = new Map();
+                nodes.forEach(node => {
+                    const clusterId = node.cluster !== undefined ? node.cluster : 0;
+                    if (!clusterGroups.has(clusterId)) {
+                        clusterGroups.set(clusterId, []);
+                    }
+                    clusterGroups.get(clusterId).push(node);
+                });
+                
+                // Draw cluster labels and dashed outlines
+                clusterGroups.forEach((clusterNodes, clusterId) => {
+                    if (clusterNodes.length === 0) return;
+                    
+                    const fadeIn = map(clusteringProgress, 0.3, 1, 0, 255);
+                    
+                    // Calculate cluster bounds
+                    const xs = clusterNodes.map(n => n.x);
+                    const ys = clusterNodes.map(n => n.y);
+                    const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+                    const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+                    const radius = 150;
+                    
+                    // Draw dashed circle outline
+                    push();
+                    noFill();
+                    const clusterColor = clusterNodes[0].clusterColor || { h: 0, s: 70, b: 80 };
+                    colorMode(HSB);
+                    stroke(clusterColor.h, clusterColor.s, clusterColor.b, fadeIn);
+                    strokeWeight(3);
+                    drawingContext.setLineDash([10, 10]);
+                    circle(centerX, centerY, radius * 2);
+                    drawingContext.setLineDash([]);
+                    pop();
+                    
+                    // Draw cluster label
+                    colorMode(RGB);
+                    fill(255, fadeIn);
+                    textAlign(CENTER, CENTER);
+                    textSize(24);
+                    if (customFontSemibold) {
+                        textFont(customFontSemibold);
+                    }
+                    const label = clusterLabels[clusterId] || `Cluster ${clusterId}`;
+                    text(label, centerX, centerY - radius - 40);
+                });
+            }
+            
+            pop();
+            
+            // When animation completes, position posts into clusters and enable physics
+            if (clusteringProgress >= 1) {
+                clusteringAnimationActive = false;
+                
+                // Position posts into spatial clusters
+                positionNodesInClusters();
+                
+                clusteringEnabled = true;
+                console.log('✅ Clustering animation complete - posts positioned in clusters, enabling physics');
+            }
+            
+            return; // Skip normal rendering during clustering animation
+        }
         
         // Handle topic reveal animation
         if (revealPhase === 'growing' || revealPhase === 'full') {
@@ -3301,7 +3474,10 @@ function drawASCIIMode() {
         const groupNodes = group.map(i => nodes[i]);
         if (groupNodes.length === 0) return;
         
-        groupNodes.forEach(node => node.update());
+        // Update physics for all nodes (only if clustering is enabled)
+        if (clusteringEnabled) {
+            groupNodes.forEach(node => node.update());
+        }
         
         const color = groupNodes[0].clusterColor || {
             h: (groupIndex * 360 / groups.length) % 360,
