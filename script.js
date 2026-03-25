@@ -25,6 +25,9 @@ let timerCompleted = false;
 let clusteringAnimationActive = false;
 let clusteringProgress = 0;
 let clusteringAnimationStartTime = 0;
+let clusteringPhase1Done = false;
+let clusteringPhase2Done = false;
+let clusteringPhase3Done = false;
 
 // Topic reveal animation state
 let revealAnimationActive = false;
@@ -44,6 +47,11 @@ let blueVotes = 50;
 let redVotes = 50;
 let blueMetaball = null;
 let redMetaball = null;
+
+// Opposing headlines for debate
+let opposingHeadlines = null; // Stores { position1, position2 }
+let winningCluster = null; // Stores the winning cluster from voting
+let headlinesLoading = false; // Loading state
 
 // Tracking for trending detection
 let clusterSizeHistory = new Map(); // Track cluster sizes over time
@@ -273,6 +281,164 @@ const clusterRegistry = {
     // Clean up empty clusters
     pruneEmptyClusters() {
         this.clusters = this.clusters.filter(c => c.nodes.length > 0);
+    },
+    
+    // Advanced cluster quality evaluation - semantic-first approach
+    evaluateClusterQuality(cluster) {
+        let score = 0;
+        
+        // 1. Semantic strength (50% weight) - most important
+        const semanticScore = this.evaluateSemanticStrength(cluster) * 0.5;
+        score += semanticScore;
+        
+        // 2. Cluster size bonus (30% weight) - more posts = more confidence
+        const sizeScore = Math.min(cluster.nodes.length / 3, 1) * 0.3;
+        score += sizeScore;
+        
+        // 3. Keyword diversity (20% weight) - varied keywords = broader topic
+        const diversityScore = this.evaluateKeywordDiversity(cluster.keywords) * 0.2;
+        score += diversityScore;
+        
+        return score;
+    },
+    
+    // Evaluate semantic strength based on embedding quality
+    evaluateSemanticStrength(cluster) {
+        if (!cluster.centroid || cluster.centroid.length === 0) return 0.3;
+        
+        // Calculate centroid magnitude (semantic richness)
+        let magnitude = 0;
+        for (let i = 0; i < cluster.centroid.length; i++) {
+            magnitude += cluster.centroid[i] * cluster.centroid[i];
+        }
+        magnitude = Math.sqrt(magnitude);
+        
+        // Normalized magnitude indicates semantic strength
+        const strengthScore = Math.min(magnitude / 10, 1);
+        
+        // If multiple posts, also check coherence
+        if (cluster.nodes.length >= 2) {
+            const coherence = this.evaluateSemanticCoherence(cluster);
+            return (strengthScore + coherence) / 2;
+        }
+        
+        return strengthScore;
+    },
+    
+    // Evaluate keyword diversity
+    evaluateKeywordDiversity(keywords) {
+        if (!keywords || keywords.length === 0) return 0;
+        if (keywords.length === 1) return 0.5;
+        
+        const uniqueWords = new Set(keywords.map(k => k.toLowerCase().trim()));
+        const diversityRatio = uniqueWords.size / Math.max(keywords.length, 1);
+        return Math.min(diversityRatio * 1.2, 1);
+    },
+    
+    
+    // Evaluate semantic coherence of cluster
+    evaluateSemanticCoherence(cluster) {
+        if (cluster.nodes.length < 2) return 0.7; // Single posts get benefit of doubt
+        
+        // Calculate average similarity between all pairs of nodes
+        let totalSimilarity = 0;
+        let pairCount = 0;
+        
+        for (let i = 0; i < cluster.nodes.length; i++) {
+            for (let j = i + 1; j < cluster.nodes.length; j++) {
+                const sim = this.calculateSimilarity(
+                    cluster.nodes[i].embedding,
+                    cluster.nodes[j].embedding
+                );
+                totalSimilarity += sim;
+                pairCount++;
+            }
+        }
+        
+        return pairCount > 0 ? totalSimilarity / pairCount : 0.7;
+    },
+    
+    // Merge similar clusters (typos, related topics)
+    mergeSimilarClusters(similarityThreshold = 0.7) {
+        const beforeCount = this.clusters.length;
+        const merged = new Set();
+        this.mergePairs = []; // Store merge pairs for visualization
+        
+        for (let i = 0; i < this.clusters.length; i++) {
+            if (merged.has(i)) continue;
+            
+            for (let j = i + 1; j < this.clusters.length; j++) {
+                if (merged.has(j)) continue;
+                
+                const similarity = this.calculateSimilarity(
+                    this.clusters[i].centroid,
+                    this.clusters[j].centroid
+                );
+                
+                if (similarity > similarityThreshold) {
+                    console.log(`🔗 Merging similar clusters: "${this.clusters[i].keywords.slice(0, 2).join(', ')}" + "${this.clusters[j].keywords.slice(0, 2).join(', ')}" (similarity: ${(similarity * 100).toFixed(0)}%)`);
+                    
+                    // Store merge pair for visualization
+                    this.mergePairs.push({
+                        cluster1: this.clusters[i],
+                        cluster2: this.clusters[j],
+                        similarity: similarity
+                    });
+                    
+                    // Merge j into i
+                    this.clusters[i].nodes.push(...this.clusters[j].nodes);
+                    this.clusters[i].keywords = [...new Set([...this.clusters[i].keywords, ...this.clusters[j].keywords])];
+                    this.clusters[i].strength += this.clusters[j].strength;
+                    
+                    // Update centroid (weighted average)
+                    const weight1 = this.clusters[i].nodes.length;
+                    const weight2 = this.clusters[j].nodes.length;
+                    const totalWeight = weight1 + weight2;
+                    
+                    this.clusters[i].centroid = this.clusters[i].centroid.map((val, idx) => 
+                        (val * weight1 + this.clusters[j].centroid[idx] * weight2) / totalWeight
+                    );
+                    
+                    // Mark nodes from cluster j to move to cluster i's position
+                    this.clusters[j].nodes.forEach(node => {
+                        node.mergeTarget = this.clusters[i];
+                    });
+                    
+                    merged.add(j);
+                }
+            }
+        }
+        
+        // Remove merged clusters
+        this.clusters = this.clusters.filter((_, idx) => !merged.has(idx));
+        
+        const mergedCount = beforeCount - this.clusters.length;
+        if (mergedCount > 0) {
+            console.log(`🔗 Merged ${mergedCount} similar clusters`);
+        }
+    },
+    
+    // Filter clusters by quality threshold - more lenient
+    filterLowQualityClusters(qualityThreshold = 0.35) {
+        const beforeCount = this.clusters.length;
+        
+        this.clusters = this.clusters.filter(cluster => {
+            const quality = this.evaluateClusterQuality(cluster);
+            cluster.qualityScore = quality; // Store for visualization
+            
+            if (quality < qualityThreshold) {
+                console.log(`❌ Rejected weak cluster "${cluster.keywords.slice(0, 2).join(', ')}" (quality: ${(quality * 100).toFixed(0)}%, ${cluster.nodes.length} posts)`);
+                return false;
+            }
+            
+            console.log(`✅ Accepted cluster "${cluster.keywords.slice(0, 2).join(', ')}" (quality: ${(quality * 100).toFixed(0)}%, ${cluster.nodes.length} posts)`);
+            return true;
+        });
+        
+        const removedCount = beforeCount - this.clusters.length;
+        if (removedCount > 0) {
+            console.log(`🧹 Filtered out ${removedCount} weak clusters`);
+        }
     }
 };
 
@@ -890,6 +1056,12 @@ async function recalculateSimilarities() {
             // Clean up empty clusters
             clusterRegistry.pruneEmptyClusters();
             
+            // Merge similar clusters (handles typos and related topics automatically)
+            clusterRegistry.mergeSimilarClusters(0.7);
+            
+            // Filter out low-quality clusters - more lenient threshold
+            clusterRegistry.filterLowQualityClusters(0.35);
+            
             // Generate cluster labels based on keywords
             generateClusterLabels();
             
@@ -909,6 +1081,7 @@ async function recalculateSimilarities() {
                 const clusterData = clusterRegistry.clusters.map(c => ({
                     id: c.id,
                     label: clusterLabels[c.id] || c.keywords.slice(0, 3).join(', '),
+                    keywords: c.keywords, // Include keywords for headline fetching
                     color: c.color,
                     nodes: c.nodes.map(n => n.content),
                     count: c.nodes.length
@@ -1253,10 +1426,12 @@ function drawMetaballFilled() {
         }
     });
     
-    // Update node physics
-    nodes.forEach(node => {
-        node.update();
-    });
+    // Update node physics (only if clustering is enabled)
+    if (clusteringEnabled) {
+        nodes.forEach(node => {
+            node.update();
+        });
+    }
 }
 
 function drawMetaball3() {
@@ -1350,9 +1525,15 @@ function drawMetaball3() {
 }
 
 function drawOutlineMode() {
+    // Update physics (only if clustering is enabled)
+    if (clusteringEnabled) {
+        nodes.forEach(node => {
+            node.update();
+        });
+    }
+    
     // Draw each post as a rounded rectangle with stroke outline
     nodes.forEach(node => {
-        node.update();
         
         // Calculate text dimensions for rounded rectangle
         const maxWidth = 320;
@@ -1455,7 +1636,9 @@ function drawHybridMode() {
         if (groupNodes.length === 1) {
             // SINGLE POST: Draw tight rounded rectangle
             const node = groupNodes[0];
-            node.update();
+            if (clusteringEnabled) {
+                node.update();
+            }
             
             push();
             translate(node.x, node.y);
@@ -1764,13 +1947,13 @@ function drawSpeechBubbles() {
     
     background(0);
     
-    // Update physics ONLY if clustering is enabled (after timer completes)
-    if (clusteringEnabled) {
-        nodes.forEach(node => node.update());
-    }
+    // Update physics - gentle floating during countdown, full clustering after timer
+    nodes.forEach(node => node.update());
     
-    // Draw posts as text (static positions during countdown, physics-based after clustering)
-    nodes.forEach((node, index) => {
+    // During voting phase, don't draw individual posts - only show cluster circles with centered labels
+    if (!votingPhaseActive) {
+        // Draw posts as text (static positions during countdown, physics-based after clustering)
+        nodes.forEach((node, index) => {
         push();
         
         // Initialize pointer animation properties
@@ -1847,7 +2030,69 @@ function drawSpeechBubbles() {
         });
         
         pop();
-    });
+        });
+    }
+    
+    // Draw cluster outlines and labels if clustering is enabled
+    if (clusteringEnabled) {
+        push();
+        // Group nodes by cluster
+        const clusterGroups = new Map();
+        nodes.forEach(node => {
+            const clusterId = node.cluster !== undefined ? node.cluster : 0;
+            if (!clusterGroups.has(clusterId)) {
+                clusterGroups.set(clusterId, []);
+            }
+            clusterGroups.get(clusterId).push(node);
+        });
+        
+        // Draw cluster labels and dashed outlines
+        clusterGroups.forEach((clusterNodes, clusterId) => {
+            if (clusterNodes.length === 0) return;
+            
+            // Calculate cluster center based on current node positions
+            const xs = clusterNodes.map(n => n.x);
+            const ys = clusterNodes.map(n => n.y);
+            const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+            const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+            
+            // During voting phase, use fixed radius and centered labels (matching clustering end state)
+            // Otherwise, calculate radius based on spread
+            const radius = votingPhaseActive ? 150 : Math.max(100, Math.max(...clusterNodes.map(n => {
+                const dx = n.x - centerX;
+                const dy = n.y - centerY;
+                return Math.sqrt(dx * dx + dy * dy);
+            })) + 50);
+            
+            // Draw dashed circle outline
+            push();
+            noFill();
+            const clusterColor = clusterNodes[0].clusterColor || { h: 0, s: 70, b: 80 };
+            colorMode(HSB);
+            stroke(clusterColor.h, clusterColor.s, clusterColor.b, 255);
+            strokeWeight(3);
+            drawingContext.setLineDash([10, 10]);
+            circle(centerX, centerY, radius * 2);
+            drawingContext.setLineDash([]);
+            pop();
+            
+            // Draw cluster label - centered during voting phase, above circle otherwise
+            push();
+            colorMode(HSB);
+            fill(clusterColor.h, clusterColor.s, clusterColor.b, 255);
+            textAlign(CENTER, CENTER);
+            textSize(votingPhaseActive ? 28 : 32);
+            if (customFontSemibold) {
+                textFont(customFontSemibold);
+            }
+            const label = clusterLabels[clusterId] || `Cluster ${clusterId}`;
+            // Center label in circle during voting, above circle otherwise
+            const labelY = votingPhaseActive ? centerY : centerY - radius - 50;
+            text(label, centerX, labelY);
+            pop();
+        });
+        pop();
+    }
     
     colorMode(HSB);
 }
@@ -1917,13 +2162,140 @@ window.resetExperience = function() {
     }
 };
 
+// Fetch opposing headlines based on cluster keywords
+async function fetchOpposingHeadlines(clusterKeywords) {
+    try {
+        console.log('🔍 Fetching opposing headlines for cluster keywords:', clusterKeywords);
+        
+        const response = await fetch('http://localhost:3000/api/news/opposing-headlines', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keywords: clusterKeywords })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('✅ Received opposing headlines:', data);
+        return data; // { position1, position2 }
+    } catch (error) {
+        console.error('Error fetching opposing headlines:', error);
+        return null;
+    }
+}
+
+// Display debate headlines on main screen
+function displayDebateHeadlines(position1, position2) {
+    background(0);
+    
+    // Position 1 (Supportive - Blue)
+    push();
+    fill(100, 200, 255); // Blue
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    if (customFontSemibold) {
+        textFont(customFontSemibold);
+    }
+    text('POSITION A: SUPPORTIVE', width / 2, height / 3 - 100);
+    
+    textSize(24);
+    fill(255);
+    // Wrap text if too long
+    const maxWidth = width * 0.8;
+    const words1 = position1.title.split(' ');
+    let line1 = '';
+    let y1 = height / 3;
+    words1.forEach(word => {
+        const testLine = line1 + word + ' ';
+        if (textWidth(testLine) > maxWidth && line1.length > 0) {
+            text(line1, width / 2, y1);
+            line1 = word + ' ';
+            y1 += 30;
+        } else {
+            line1 = testLine;
+        }
+    });
+    text(line1, width / 2, y1);
+    
+    // Source
+    textSize(16);
+    fill(150);
+    text(`Source: ${position1.source}`, width / 2, y1 + 40);
+    pop();
+    
+    // VS
+    push();
+    fill(255);
+    textSize(48);
+    if (customFontSemibold) {
+        textFont(customFontSemibold);
+    }
+    text('VS', width / 2, height / 2);
+    pop();
+    
+    // Position 2 (Critical - Red)
+    push();
+    fill(255, 100, 100); // Red
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    if (customFontSemibold) {
+        textFont(customFontSemibold);
+    }
+    text('POSITION B: CRITICAL', width / 2, 2 * height / 3 - 100);
+    
+    textSize(24);
+    fill(255);
+    // Wrap text if too long
+    const words2 = position2.title.split(' ');
+    let line2 = '';
+    let y2 = 2 * height / 3;
+    words2.forEach(word => {
+        const testLine = line2 + word + ' ';
+        if (textWidth(testLine) > maxWidth && line2.length > 0) {
+            text(line2, width / 2, y2);
+            line2 = word + ' ';
+            y2 += 30;
+        } else {
+            line2 = testLine;
+        }
+    });
+    text(line2, width / 2, y2);
+    
+    // Source
+    textSize(16);
+    fill(150);
+    text(`Source: ${position2.source}`, width / 2, y2 + 40);
+    pop();
+}
+
+// Global function to test opposing headlines (for testing)
+window.testOpposingHeadlines = async function(keywords = ['politics', 'government']) {
+    console.log('🧪 Testing opposing headlines with keywords:', keywords);
+    
+    const headlines = await fetchOpposingHeadlines(keywords);
+    
+    if (headlines) {
+        console.log('✅ Headlines fetched successfully');
+        console.log('Position 1 (Supportive):', headlines.position1.title);
+        console.log('Position 2 (Critical):', headlines.position2.title);
+        
+        // Display them
+        displayDebateHeadlines(headlines.position1, headlines.position2);
+    } else {
+        console.error('❌ Failed to fetch headlines');
+    }
+};
+
 // Global function to skip to topic reveal screen (for testing)
 window.skipToReveal = function() {
     if (ws && ws.readyState === WebSocket.OPEN) {
-        // Create placeholder cluster data
+        // Create placeholder cluster data with keywords for testing
         const placeholderCluster = {
             id: 0,
-            label: 'Topic Title',
+            label: 'Politics and Governance',
+            keywords: ['politics', 'government', 'governance', 'policy', 'democracy'],
             color: {
                 h: Math.random() * 360, // Random hue
                 s: 70,
@@ -1947,10 +2319,39 @@ window.skipToReveal = function() {
 
 // Topic reveal animation for main display
 function startTopicRevealAnimation(cluster) {
+    console.log('🎬 startTopicRevealAnimation called');
+    console.log('   Received cluster:', JSON.stringify(cluster, null, 2));
+    
+    // Prevent multiple simultaneous animations
+    if (revealAnimationActive) {
+        console.warn('⚠️ Reveal animation already active, ignoring duplicate call');
+        return;
+    }
+    
+    // Validate cluster has keywords
+    if (!cluster) {
+        console.error('❌ No cluster provided to startTopicRevealAnimation');
+        return;
+    }
+    
+    if (!cluster.keywords || !Array.isArray(cluster.keywords) || cluster.keywords.length === 0) {
+        console.warn('⚠️ Cluster missing keywords, adding fallback keywords');
+        // Use cluster label to generate fallback keywords
+        const labelWords = (cluster.label || 'discussion').toLowerCase().split(' ');
+        cluster.keywords = labelWords.length > 0 ? labelWords : ['politics', 'government', 'policy'];
+        console.log('   Fallback keywords:', cluster.keywords);
+    }
+    
     revealAnimationActive = true;
     revealClusterColor = cluster.color;
     revealBlobSize = 80; // Start with initial metaball size
     revealPhase = 'growing';
+    
+    // Store winning cluster for later use
+    winningCluster = cluster;
+    console.log('🏆 Winning cluster stored:', cluster.label);
+    console.log('   Keywords:', cluster.keywords);
+    console.log('   winningCluster variable:', winningCluster);
     
     // Find the winning cluster's position on the display
     // Calculate center position of all nodes in this cluster
@@ -1986,7 +2387,7 @@ function startTopicRevealAnimation(cluster) {
 // Animate blob growth to full screen
 function animateRevealGrowth() {
     const startTime = Date.now();
-    const duration = 3000; // 3 seconds to match mobile
+    const duration = 2000; // 2 seconds for reveal animation
     const startSize = 80; // Initial metaball size
     const maxSize = Math.sqrt(width * width + height * height) * 1.2; // Diagonal coverage
     
@@ -2044,6 +2445,8 @@ function animateToBorder() {
             // ========================================
             // 🎯 Start Debate Voting Interaction
             // ========================================
+            console.log('🔍 About to start debate voting. Current winningCluster:', winningCluster);
+            console.log('   Has keywords?', winningCluster?.keywords);
             startDebateVoting();
             // ========================================
         }
@@ -2111,6 +2514,7 @@ function connectWebSocket() {
         if (data.type === 'skip_to_reveal') {
             // Trigger synchronized topic reveal animation on main display
             console.log('🎬 Starting topic reveal animation on main display');
+            console.log('📦 Received cluster data:', JSON.stringify(data.cluster, null, 2));
             votingPhaseActive = false; // Hide voting text when animation starts
             startTopicRevealAnimation(data.cluster);
         }
@@ -2133,13 +2537,23 @@ function connectWebSocket() {
                 clusteringAnimationStartTime = Date.now();
                 clusteringProgress = 0;
                 
+                // Reset phase flags
+                clusteringPhase1Done = false;
+                clusteringPhase2Done = false;
+                clusteringPhase3Done = false;
+                
                 console.log('⏰ Timer completed! Starting clustering animation...');
                 logActivity('⏰ Timer completed - starting clustering animation!', 'cluster');
                 
-                // Run clustering on all existing posts
-                recalculateSimilarities().then(() => {
-                    logActivity('✅ All posts clustered successfully!', 'cluster');
-                });
+                // DON'T enable clustering physics yet - wait for Phase 2
+                // Phase 1 is just evaluation, no movement
+                clusteringEnabled = false;
+                
+                // Algorithm will run during animation phases:
+                // Phase 1 (0-25%): Evaluate individual posts
+                // Phase 2 (25-50%): Cluster similar posts together
+                // Phase 3 (50-65%): Merge similar clusters
+                // Phase 4 (65-75%): Filter weak clusters
             }
         }
     };
@@ -2196,6 +2610,12 @@ class Node {
         // Random position
         this.x = random(100, canvasWidth - 100);
         this.y = random(100, canvasHeight - 100);
+        
+        console.log(`📍 New post spawned at (${Math.round(this.x)}, ${Math.round(this.y)}): "${content.substring(0, 30)}..."`);
+        
+        // Track initial position to detect movement
+        this.initialX = this.x;
+        this.initialY = this.y;
         
         this.vx = 0;
         this.vy = 0;
@@ -2284,74 +2704,76 @@ class Node {
             fy += (dyHeadline / distToHeadline) * repelForce;
         }
         
-        // Attraction to similar nodes, strong repulsion between different clusters
-        nodes.forEach(other => {
-            if (other === this) return;
-            
-            const dx = other.x - this.x;
-            const dy = other.y - this.y;
-            const dist = sqrt(dx * dx + dy * dy);
-            
-            if (dist < 1) return;
-            
-            const key = nodes.indexOf(this) < nodes.indexOf(other) 
-                ? `${nodes.indexOf(this)}-${nodes.indexOf(other)}`
-                : `${nodes.indexOf(other)}-${nodes.indexOf(this)}`;
-            
-            const similarity = connectionCache.get(key) || 0;
-            
-            // Check if nodes are in different clusters
-            const differentCluster = this.cluster !== undefined && 
-                                    other.cluster !== undefined && 
-                                    this.cluster !== other.cluster;
-            
-            if (similarity > 0.3) {
-                // ATTRACTION for similar posts - they cluster together
-                const force = (similarity - 0.3) * 2.5;
-                fx += (dx / dist) * force;
-                fy += (dy / dist) * force;
+        // CLUSTERING PHYSICS - Only active after timer completes
+        if (clusteringEnabled) {
+            // Attraction to similar nodes, strong repulsion between different clusters
+            nodes.forEach(other => {
+                if (other === this) return;
                 
-                // Prevent excessive overlap within cluster
-                if (dist < 100) {
-                    const repelForce = (100 - dist) / 100 * 2.5;
-                    fx -= (dx / dist) * repelForce;
-                    fy -= (dy / dist) * repelForce;
-                }
-            } else {
-                // BOUNCING PHYSICS for dissimilar posts
-                // Calculate collision radius to match visual metaball outline
-                const collisionRadius = 80; // Match metaballRadius from rendering
-                const minDistance = collisionRadius * 1.8; // Slightly larger for smoother collision
+                const dx = other.x - this.x;
+                const dy = other.y - this.y;
+                const dist = sqrt(dx * dx + dy * dy);
                 
-                if (dist < minDistance) {
-                    // COLLISION DETECTED - gentle bounce away
-                    const overlap = minDistance - dist;
-                    const bounceForce = (overlap / minDistance) * 1.5; // Gentler bounce
+                if (dist < 1) return;
+                
+                const key = nodes.indexOf(this) < nodes.indexOf(other) 
+                    ? `${nodes.indexOf(this)}-${nodes.indexOf(other)}`
+                    : `${nodes.indexOf(other)}-${nodes.indexOf(this)}`;
+                
+                const similarity = connectionCache.get(key) || 0;
+                
+                // Check if nodes are in different clusters
+                const differentCluster = this.cluster !== undefined && 
+                                        other.cluster !== undefined && 
+                                        this.cluster !== other.cluster;
+                
+                if (similarity > 0.3) {
+                    // ATTRACTION for similar posts - extremely slow for visible 7.5s animation
+                    const force = (similarity - 0.3) * 0.03; // VERY slow - was 0.15, now 0.03
+                    fx += (dx / dist) * force;
+                    fy += (dy / dist) * force;
                     
-                    // Push away from collision
-                    fx -= (dx / dist) * bounceForce;
-                    fy -= (dy / dist) * bounceForce;
+                    // Prevent excessive overlap within cluster
+                    if (dist < 100) {
+                        const repelForce = (100 - dist) / 100 * 0.05; // VERY slow - was 0.3, now 0.05
+                        fx -= (dx / dist) * repelForce;
+                        fy -= (dy / dist) * repelForce;
+                    }
+                } else {
+                    // BOUNCING PHYSICS for dissimilar posts
+                    // Calculate collision radius to match visual metaball outline
+                    const collisionRadius = 80; // Match metaballRadius from rendering
+                    const minDistance = collisionRadius * 1.8; // Slightly larger for smoother collision
                     
-                    // Add velocity-based bounce (more subtle)
-                    const relativeVx = (other.vx || 0) - (this.vx || 0);
-                    const relativeVy = (other.vy || 0) - (this.vy || 0);
-                    const bounceTransfer = 0.1; // Reduced from 0.3
-                    fx -= relativeVx * bounceTransfer;
-                    fy -= relativeVy * bounceTransfer;
+                    if (dist < minDistance) {
+                        // COLLISION DETECTED - gentle bounce away
+                        const overlap = minDistance - dist;
+                        const bounceForce = (overlap / minDistance) * 1.5; // Gentler bounce
+                        
+                        // Push away from collision
+                        fx -= (dx / dist) * bounceForce;
+                        fy -= (dy / dist) * bounceForce;
+                        
+                        // Add velocity-based bounce (more subtle)
+                        const relativeVx = (other.vx || 0) - (this.vx || 0);
+                        const relativeVy = (other.vy || 0) - (this.vy || 0);
+                        const bounceTransfer = 0.1; // Reduced from 0.3
+                        fx -= relativeVx * bounceTransfer;
+                        fy -= relativeVy * bounceTransfer;
+                    }
+                    
+                    // Additional repulsion for different clusters (reduced)
+                    if (differentCluster && dist < 350) {
+                        const repelForce = (350 - dist) / 350 * 1.5; // Reduced from 3.0
+                        fx -= (dx / dist) * repelForce;
+                        fy -= (dy / dist) * repelForce;
+                    }
                 }
-                
-                // Additional repulsion for different clusters (reduced)
-                if (differentCluster && dist < 350) {
-                    const repelForce = (350 - dist) / 350 * 1.5; // Reduced from 3.0
-                    fx -= (dx / dist) * repelForce;
-                    fy -= (dy / dist) * repelForce;
-                }
-            }
-        });
+            });
+        }
         
-        // Removed: center gravity - allows clusters to spread out naturally
-        
-        // Add gentle random drift to keep clusters floating and prevent static glitching
+        // GENTLE FLOATING PHYSICS - Always active for natural movement
+        // Add gentle random drift to keep posts floating
         const driftStrength = 0.05;
         const driftAngle = noise(this.x * 0.01, this.y * 0.01, frameCount * 0.01) * TWO_PI * 2;
         fx += cos(driftAngle) * driftStrength;
@@ -2364,8 +2786,8 @@ class Node {
         
         this.vx += fx;
         this.vy += fy;
-        this.vx *= 0.75;
-        this.vy *= 0.75;
+        this.vx *= 0.92; // Higher damping = slower movement (was 0.75)
+        this.vy *= 0.92;
         
         this.x += this.vx;
         this.y += this.vy;
@@ -2544,103 +2966,188 @@ function draw() {
     try {
         background(0);
         
-        // Handle clustering animation
+        // Handle clustering animation - visualize algorithm "thinking"
         if (clusteringAnimationActive) {
             const elapsed = Date.now() - clusteringAnimationStartTime;
-            const duration = 3000; // 3 seconds for clustering animation
+            const duration = 30000; // 30 seconds - split into 3 phases
             clusteringProgress = min(elapsed / duration, 1);
             
-            // Draw posts in background (static positions)
-            drawSpeechBubbles();
+            // Hide timer during clustering
+            const headlineDisplay = document.getElementById('headlineDisplay');
+            if (headlineDisplay) {
+                headlineDisplay.style.display = 'none';
+            }
             
-            // Draw clustering overlay
+            // PHASE 1 (0-25%): Evaluate individual posts
+            if (clusteringProgress < 0.25) {
+                drawSpeechBubbles();
+                drawPostEvaluation(clusteringProgress / 0.25);
+            }
+            // PHASE 2 (25-50%): Cluster similar posts together
+            else if (clusteringProgress < 0.5) {
+                // Run initial clustering at start of Phase 2
+                if (!clusteringPhase1Done) {
+                    clusteringPhase1Done = true;
+                    clusteringEnabled = true; // NOW enable physics so posts start pulling together
+                    console.log('🔍 Phase 2: Clustering similar posts...');
+                    recalculateSimilarities().then(() => {
+                        console.log('✅ Phase 2: Initial clustering complete');
+                    });
+                }
+                drawSpeechBubbles();
+                // Only show clustering visualization if not in voting phase
+                if (!votingPhaseActive) {
+                    const clusterProgress = (clusteringProgress - 0.25) / 0.25;
+                    drawPostsClustering(clusterProgress);
+                }
+            }
+            // PHASE 3 (50-65%): Merge similar clusters
+            else if (clusteringProgress < 0.65) {
+                // Run merging at start of Phase 3
+                if (!clusteringPhase2Done) {
+                    clusteringPhase2Done = true;
+                    console.log('🔗 Phase 3: Merging similar clusters...');
+                    clusterRegistry.mergeSimilarClusters(0.7);
+                    generateClusterLabels();
+                    console.log('✅ Phase 3: Merging complete');
+                }
+                drawSpeechBubbles();
+                // Only show merging visualization if not in voting phase
+                if (!votingPhaseActive) {
+                    const mergeProgress = (clusteringProgress - 0.5) / 0.15;
+                    drawClusterMerging(mergeProgress);
+                }
+            }
+            // PHASE 4 (65-75%): Filter weak clusters, fade out posts
+            else if (clusteringProgress < 0.75) {
+                // Run filtering at start of Phase 4
+                if (!clusteringPhase3Done) {
+                    clusteringPhase3Done = true;
+                    console.log('🧹 Phase 4: Filtering weak clusters...');
+                    clusterRegistry.filterLowQualityClusters(0.35);
+                    generateClusterLabels();
+                    updateClusterListUI();
+                    console.log('✅ Phase 4: Filtering complete');
+                }
+                const fadeProgress = (clusteringProgress - 0.65) / 0.1;
+                push();
+                tint(255, 255 * (1 - fadeProgress));
+                drawSpeechBubbles();
+                pop();
+                drawClusterFiltering(fadeProgress);
+            }
+            // PHASE 5 (75-100%): Show final accepted clusters
+            
+            // Draw loading screen with phase indicator
             push();
-            
-            // "Clustering..." text at top
             fill(255);
-            textAlign(CENTER, TOP);
+            textAlign(CENTER, CENTER);
             textSize(48);
             if (customFontSemibold) {
                 textFont(customFontSemibold);
             }
-            text('Clustering...', width / 2, 100);
             
-            // Progress bar
+            // Show current phase
+            let phaseText = 'Clustering...';
+            if (clusteringProgress < 0.25) {
+                phaseText = 'Evaluating posts...';
+            } else if (clusteringProgress < 0.5) {
+                phaseText = 'Clustering similar posts...';
+            } else if (clusteringProgress < 0.65) {
+                phaseText = 'Merging similar topics...';
+            } else if (clusteringProgress < 0.75) {
+                phaseText = 'Filtering weak clusters...';
+            } else {
+                phaseText = 'Finalizing clusters...';
+            }
+            text(phaseText, width / 2, height / 2 - 50);
+            
+            // Draw progress bar
             const barWidth = 400;
             const barHeight = 20;
             const barX = width / 2 - barWidth / 2;
-            const barY = 180;
+            const barY = height / 2 + 20;
             
+            // Background bar
             noFill();
             stroke(255);
             strokeWeight(2);
             rect(barX, barY, barWidth, barHeight);
             
+            // Progress fill
             noStroke();
             fill(255);
             rect(barX, barY, barWidth * clusteringProgress, barHeight);
+            pop();
             
-            // Show cluster labels and outlines appearing progressively
-            if (clusteringProgress > 0.3) {
-                // Group nodes by cluster
-                const clusterGroups = new Map();
-                nodes.forEach(node => {
-                    const clusterId = node.cluster !== undefined ? node.cluster : 0;
-                    if (!clusterGroups.has(clusterId)) {
-                        clusterGroups.set(clusterId, []);
-                    }
-                    clusterGroups.get(clusterId).push(node);
-                });
-                
-                // Draw cluster labels and dashed outlines
+            // Draw cluster outlines and labels as they form
+            push();
+            // Group nodes by cluster
+            const clusterGroups = new Map();
+            nodes.forEach(node => {
+                const clusterId = node.cluster !== undefined ? node.cluster : 0;
+                if (!clusterGroups.has(clusterId)) {
+                    clusterGroups.set(clusterId, []);
+                }
+                clusterGroups.get(clusterId).push(node);
+            });
+            
+            // Draw cluster labels and dashed outlines
+            // Only show clusters after posts have disappeared (70% progress)
+            if (clusteringProgress >= 0.7) {
                 clusterGroups.forEach((clusterNodes, clusterId) => {
                     if (clusterNodes.length === 0) return;
                     
-                    const fadeIn = map(clusteringProgress, 0.3, 1, 0, 255);
-                    
-                    // Calculate cluster bounds
+                    // Calculate cluster center based on final node positions
                     const xs = clusterNodes.map(n => n.x);
                     const ys = clusterNodes.map(n => n.y);
                     const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
                     const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+                    
+                    // Fixed radius for clean, consistent circles
                     const radius = 150;
+                    
+                    // Show clusters immediately at full opacity (no fade-in)
+                    const alpha = 255;
+                    
+                    const clusterColor = clusterNodes[0].clusterColor || { h: 0, s: 70, b: 80 };
                     
                     // Draw dashed circle outline
                     push();
                     noFill();
-                    const clusterColor = clusterNodes[0].clusterColor || { h: 0, s: 70, b: 80 };
                     colorMode(HSB);
-                    stroke(clusterColor.h, clusterColor.s, clusterColor.b, fadeIn);
+                    stroke(clusterColor.h, clusterColor.s, clusterColor.b, alpha);
                     strokeWeight(3);
                     drawingContext.setLineDash([10, 10]);
                     circle(centerX, centerY, radius * 2);
                     drawingContext.setLineDash([]);
                     pop();
                     
-                    // Draw cluster label
-                    colorMode(RGB);
-                    fill(255, fadeIn);
+                    // Draw cluster label perfectly centered in circle
+                    push();
+                    colorMode(HSB);
+                    fill(clusterColor.h, clusterColor.s, clusterColor.b, alpha);
                     textAlign(CENTER, CENTER);
-                    textSize(24);
+                    textSize(28);
                     if (customFontSemibold) {
                         textFont(customFontSemibold);
                     }
                     const label = clusterLabels[clusterId] || `Cluster ${clusterId}`;
-                    text(label, centerX, centerY - radius - 40);
+                    // Use textBounds to ensure perfect centering
+                    text(label, centerX, centerY);
+                    pop();
                 });
             }
-            
             pop();
             
-            // When animation completes, position posts into clusters and enable physics
+            // When animation completes, disable the animation flag and show timer
             if (clusteringProgress >= 1) {
                 clusteringAnimationActive = false;
-                
-                // Position posts into spatial clusters
-                positionNodesInClusters();
-                
-                clusteringEnabled = true;
-                console.log('✅ Clustering animation complete - posts positioned in clusters, enabling physics');
+                const headlineDisplay = document.getElementById('headlineDisplay');
+                if (headlineDisplay) {
+                    headlineDisplay.style.display = 'block';
+                }
+                console.log('✅ Clustering animation complete - posts clustered');
             }
             
             return; // Skip normal rendering during clustering animation
@@ -2853,10 +3360,12 @@ function draw() {
             pop();
         });
         
-        // Update node physics
-        nodes.forEach(node => {
-            node.update();
-        });
+        // Update node physics (only if clustering is enabled)
+        if (clusteringEnabled) {
+            nodes.forEach(node => {
+                node.update();
+            });
+        }
         
         // Update timestamp for trending detection
         lastClusterUpdate = Date.now();
@@ -3659,7 +4168,7 @@ function fillASCIIInterior(field, cols, rows, minX, minY, resolution, threshold,
 // ========================================
 
 // Start debate voting interaction
-function startDebateVoting() {
+async function startDebateVoting() {
     console.log('🎤 Starting debate voting interaction');
     debateVotingActive = true;
     
@@ -3668,6 +4177,31 @@ function startDebateVoting() {
     const displayCountdown = document.getElementById('displayCountdown');
     if (headlineText) headlineText.textContent = '';
     if (displayCountdown) displayCountdown.textContent = '';
+    
+    // Fetch opposing headlines based on winning cluster
+    if (winningCluster && winningCluster.keywords) {
+        console.log('📰 Fetching opposing headlines for cluster:', winningCluster.label);
+        console.log('   Keywords:', winningCluster.keywords);
+        headlinesLoading = true;
+        
+        try {
+            opposingHeadlines = await fetchOpposingHeadlines(winningCluster.keywords);
+            headlinesLoading = false;
+            
+            if (opposingHeadlines) {
+                console.log('✅ Opposing headlines loaded successfully!');
+                console.log('   Position 1 (Supportive):', opposingHeadlines.position1.title);
+                console.log('   Position 2 (Critical):', opposingHeadlines.position2.title);
+            } else {
+                console.warn('⚠️ Failed to fetch opposing headlines, falling back to metaballs');
+            }
+        } catch (error) {
+            console.error('❌ Error fetching headlines:', error);
+            headlinesLoading = false;
+        }
+    } else {
+        console.warn('⚠️ No winning cluster or keywords available');
+    }
     
     // Initialize votes (50/50 split)
     blueVotes = 50;
@@ -3741,6 +4275,25 @@ function updateDebateMetaballs() {
 
 // Draw debate voting metaballs
 function drawDebateVotingMetaballs() {
+    // Show loading state while fetching headlines
+    if (headlinesLoading) {
+        background(0);
+        fill(255);
+        textAlign(CENTER, CENTER);
+        textSize(32);
+        if (customFontSemibold) {
+            textFont(customFontSemibold);
+        }
+        text('Loading opposing headlines...', width / 2, height / 2);
+        return;
+    }
+    
+    // If we have opposing headlines, display them instead of metaballs
+    if (opposingHeadlines) {
+        displayDebateHeadlines(opposingHeadlines.position1, opposingHeadlines.position2);
+        return;
+    }
+    
     if (!debateVotingActive || !blueMetaball || !redMetaball) return;
     
     // Update sizes
@@ -3817,6 +4370,242 @@ function drawAnimatedMetaball(ball, ballColor) {
     textSize(32);
     text(Math.round(ball.votePercentage) + '%', 0, 0);
     
+    pop();
+}
+
+// Visualize algorithm evaluating individual posts (Phase 1)
+function drawPostEvaluation(progress) {
+    if (!nodes || nodes.length === 0) return;
+    
+    push();
+    const alpha = 255 * progress;
+    
+    // Draw similarity lines between posts
+    for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+            if (!nodes[i].embedding || !nodes[j].embedding) continue;
+            
+            // Calculate similarity between posts
+            const key = `${i}-${j}`;
+            let similarity = connectionCache.get(key);
+            
+            if (similarity === undefined) {
+                let dotProduct = 0;
+                let mag1 = 0;
+                let mag2 = 0;
+                
+                for (let k = 0; k < nodes[i].embedding.length; k++) {
+                    dotProduct += nodes[i].embedding[k] * nodes[j].embedding[k];
+                    mag1 += nodes[i].embedding[k] * nodes[i].embedding[k];
+                    mag2 += nodes[j].embedding[k] * nodes[j].embedding[k];
+                }
+                
+                similarity = dotProduct / (Math.sqrt(mag1) * Math.sqrt(mag2));
+                connectionCache.set(key, similarity);
+            }
+            
+            // Only show connections above threshold
+            if (similarity > 0.3) {
+                // Draw dotted line
+                const lineAlpha = alpha * similarity;
+                stroke(100, 150, 255, lineAlpha);
+                strokeWeight(1);
+                drawingContext.setLineDash([5, 5]);
+                line(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y);
+                drawingContext.setLineDash([]);
+                
+                // Draw similarity percentage at midpoint
+                const midX = (nodes[i].x + nodes[j].x) / 2;
+                const midY = (nodes[i].y + nodes[j].y) / 2;
+                
+                fill(100, 150, 255, lineAlpha);
+                noStroke();
+                textAlign(CENTER, CENTER);
+                textSize(10);
+                if (customFontMedium) {
+                    textFont(customFontMedium);
+                }
+                text(`${(similarity * 100).toFixed(0)}%`, midX, midY);
+            }
+        }
+    }
+    
+    pop();
+}
+
+// Visualize posts clustering together (Phase 2)
+function drawPostsClustering(progress) {
+    if (!clusterRegistry || clusterRegistry.clusters.length === 0) return;
+    
+    push();
+    
+    // Smooth easing function for gradual animation
+    const easeProgress = progress * progress * (3 - 2 * progress); // Smoothstep
+    const alpha = 255 * easeProgress;
+    
+    // Draw lines connecting posts to their cluster centers
+    clusterRegistry.clusters.forEach(cluster => {
+        if (!cluster.nodes || cluster.nodes.length === 0) return;
+        
+        // Calculate cluster center
+        const xs = cluster.nodes.map(n => n.x);
+        const ys = cluster.nodes.map(n => n.y);
+        const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+        const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+        
+        // Draw lines from posts to center - fade in gradually
+        cluster.nodes.forEach(node => {
+            stroke(cluster.color.h, cluster.color.s, cluster.color.b, alpha * 0.3);
+            strokeWeight(1);
+            line(node.x, node.y, centerX, centerY);
+        });
+        
+        // Draw forming cluster circle - grows gradually
+        noFill();
+        stroke(cluster.color.h, cluster.color.s, cluster.color.b, alpha);
+        strokeWeight(2);
+        const maxRadius = Math.max(...cluster.nodes.map(n => 
+            Math.sqrt((n.x - centerX) ** 2 + (n.y - centerY) ** 2)
+        )) + 50;
+        const radius = maxRadius * easeProgress;
+        circle(centerX, centerY, radius * 2);
+    });
+    pop();
+}
+
+// Visualize cluster merging (Phase 3)
+function drawClusterMerging(progress) {
+    if (!clusterRegistry || !clusterRegistry.mergePairs || clusterRegistry.mergePairs.length === 0) return;
+    
+    push();
+    
+    // Animate posts from merged clusters moving to their target clusters
+    nodes.forEach(node => {
+        if (node.mergeTarget) {
+            // Calculate target cluster center
+            const targetNodes = node.mergeTarget.nodes;
+            const xs = targetNodes.map(n => n.x);
+            const ys = targetNodes.map(n => n.y);
+            const targetX = (Math.min(...xs) + Math.max(...xs)) / 2;
+            const targetY = (Math.min(...ys) + Math.max(...ys)) / 2;
+            
+            // Move post toward target cluster center
+            const dx = targetX - node.x;
+            const dy = targetY - node.y;
+            node.x += dx * progress * 0.1;
+            node.y += dy * progress * 0.1;
+            
+            // Draw movement trail
+            stroke(node.mergeTarget.color.h, node.mergeTarget.color.s, node.mergeTarget.color.b, 100);
+            strokeWeight(2);
+            line(node.x, node.y, targetX, targetY);
+        }
+    });
+    
+    // Draw connecting lines between merging clusters
+    clusterRegistry.mergePairs.forEach(pair => {
+        if (!pair.cluster1.nodes || !pair.cluster2.nodes) return;
+        
+        // Calculate centers
+        const xs1 = pair.cluster1.nodes.map(n => n.x);
+        const ys1 = pair.cluster1.nodes.map(n => n.y);
+        const center1X = (Math.min(...xs1) + Math.max(...xs1)) / 2;
+        const center1Y = (Math.min(...ys1) + Math.max(...ys1)) / 2;
+        
+        const xs2 = pair.cluster2.nodes.map(n => n.x);
+        const ys2 = pair.cluster2.nodes.map(n => n.y);
+        const center2X = (Math.min(...xs2) + Math.max(...xs2)) / 2;
+        const center2Y = (Math.min(...ys2) + Math.max(...ys2)) / 2;
+        
+        // Draw thick pulsing line showing merge
+        const alpha = 255 * progress;
+        stroke(255, 200, 0, alpha);
+        const pulse = sin(frameCount * 0.15) * 0.5 + 0.5;
+        strokeWeight(3 + pulse * 4);
+        line(center1X, center1Y, center2X, center2Y);
+        
+        // Draw merge icon
+        fill(255, 200, 0, alpha);
+        noStroke();
+        textAlign(CENTER, CENTER);
+        textSize(32);
+        text('🔗', (center1X + center2X) / 2, (center1Y + center2Y) / 2);
+        
+        // Draw "MERGING" text
+        fill(255, alpha);
+        textSize(16);
+        if (customFontMedium) {
+            textFont(customFontMedium);
+        }
+        text('MERGING', (center1X + center2X) / 2, (center1Y + center2Y) / 2 + 40);
+    });
+    
+    pop();
+}
+
+// Visualize cluster filtering (Phase 3)
+function drawClusterFiltering(progress) {
+    if (!clusterRegistry || clusterRegistry.clusters.length === 0) return;
+    
+    push();
+    clusterRegistry.clusters.forEach(cluster => {
+        if (!cluster.nodes || cluster.nodes.length === 0) return;
+        
+        const quality = clusterRegistry.evaluateClusterQuality(cluster);
+        
+        // Show rejection animation for weak clusters
+        if (quality < 0.35) {
+            const xs = cluster.nodes.map(n => n.x);
+            const ys = cluster.nodes.map(n => n.y);
+            const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+            const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+            
+            // Fade out weak clusters
+            const alpha = 255 * (1 - progress);
+            
+            // Draw red X
+            stroke(255, 0, 0, alpha);
+            strokeWeight(4);
+            const size = 40;
+            line(centerX - size, centerY - size, centerX + size, centerY + size);
+            line(centerX + size, centerY - size, centerX - size, centerY + size);
+            
+            // Draw "REJECTED" text
+            fill(255, 0, 0, alpha);
+            textAlign(CENTER, CENTER);
+            textSize(16);
+            if (customFontMedium) {
+                textFont(customFontMedium);
+            }
+            text('REJECTED', centerX, centerY + 60);
+        } else {
+            // Show acceptance animation for strong clusters
+            const xs = cluster.nodes.map(n => n.x);
+            const ys = cluster.nodes.map(n => n.y);
+            const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+            const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+            
+            // Fade in green checkmark
+            const alpha = 255 * progress;
+            
+            // Draw green glow
+            noFill();
+            stroke(0, 255, 0, alpha * 0.5);
+            strokeWeight(2);
+            const glowSize = 60 + sin(frameCount * 0.1) * 10;
+            circle(centerX, centerY, glowSize);
+            
+            // Draw checkmark
+            stroke(0, 255, 0, alpha);
+            strokeWeight(4);
+            noFill();
+            beginShape();
+            vertex(centerX - 20, centerY);
+            vertex(centerX - 5, centerY + 15);
+            vertex(centerX + 20, centerY - 15);
+            endShape();
+        }
+    });
     pop();
 }
 

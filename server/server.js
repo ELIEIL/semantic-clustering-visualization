@@ -45,8 +45,8 @@ const postVotes = new Map(); // postId -> { upvotes: 0, downvotes: 0, voters: Se
 const userVotes = new Map(); // userId -> [{ postId, vote, timestamp }]
 const userPreferences = new Map(); // userId -> { topics, bias, keywords, sources }
 
-// Synchronized countdown timer (2 minutes)
-let countdownTime = 120; // seconds
+// Synchronized countdown timer (1 minute)
+let countdownTime = 60; // seconds
 let countdownInterval = null;
 
 // Initialize ConceptNet client for semantic understanding
@@ -129,7 +129,7 @@ function startCountdownTimer() {
         clearInterval(countdownInterval);
     }
     
-    countdownTime = 120; // Reset to 2 minutes
+    countdownTime = 60; // Reset to 1 minute
     
     countdownInterval = setInterval(() => {
         if (countdownTime <= 0) {
@@ -148,7 +148,7 @@ function startCountdownTimer() {
         }
     }, 1000);
     
-    console.log('Countdown timer started (2 minutes)');
+    console.log('Countdown timer started (1 minute)');
 }
 
 function resetCountdownTimer() {
@@ -762,6 +762,133 @@ const server = http.createServer(async (req, res) => {
                     cacheStats: sentenceTransformer.getCacheStats()
                 }));
             } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: error.message }));
+            }
+        });
+        return;
+    }
+    
+    // Sentiment analysis endpoint
+    if (req.url.startsWith('/api/sentiment/analyze')) {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                if (!sentenceTransformer) {
+                    res.writeHead(503, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Sentence Transformer not ready yet' }));
+                    return;
+                }
+                
+                const { text } = JSON.parse(body);
+                console.log('📊 Analyzing sentiment for:', text.substring(0, 50) + '...');
+                
+                // Use transformer to analyze sentiment
+                // Returns score: -1 (very negative) to +1 (very positive)
+                const sentiment = await sentenceTransformer.analyzeSentiment(text);
+                console.log('📈 Sentiment score:', sentiment);
+                
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ sentiment }));
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: error.message }));
+            }
+        });
+        return;
+    }
+    
+    // Get opposing headlines based on cluster keywords
+    if (req.url.startsWith('/api/news/opposing-headlines')) {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const { keywords } = JSON.parse(body);
+                console.log('🔍 Fetching opposing headlines for keywords:', keywords);
+                
+                // 1. Search articles by keywords
+                const articles = await newsAPI.searchArticlesByKeywords(keywords, 30);
+                
+                if (articles.length < 2) {
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Not enough articles found' }));
+                    return;
+                }
+                
+                // 2. Analyze sentiment for each article (using title + description)
+                console.log('📊 Analyzing sentiment for', articles.length, 'articles...');
+                const articlesWithSentiment = [];
+                
+                for (const article of articles) {
+                    try {
+                        if (!sentenceTransformer) {
+                            // Fallback: simple keyword-based sentiment
+                            const text = (article.title + ' ' + article.description).toLowerCase();
+                            const positiveWords = ['support', 'benefit', 'positive', 'success', 'growth', 'improve', 'help', 'good', 'better'];
+                            const negativeWords = ['oppose', 'harm', 'negative', 'crisis', 'threat', 'danger', 'risk', 'bad', 'worse', 'fail'];
+                            
+                            let sentiment = 0;
+                            positiveWords.forEach(word => {
+                                if (text.includes(word)) sentiment += 0.2;
+                            });
+                            negativeWords.forEach(word => {
+                                if (text.includes(word)) sentiment -= 0.2;
+                            });
+                            
+                            articlesWithSentiment.push({ ...article, sentiment });
+                        } else {
+                            const sentiment = await sentenceTransformer.analyzeSentiment(
+                                article.title + ' ' + article.description
+                            );
+                            articlesWithSentiment.push({ ...article, sentiment });
+                        }
+                    } catch (error) {
+                        console.error('Error analyzing article sentiment:', error.message);
+                    }
+                }
+                
+                // 3. Sort by sentiment
+                articlesWithSentiment.sort((a, b) => a.sentiment - b.sentiment);
+                
+                // 4. Select most negative and most positive
+                const negative = articlesWithSentiment[0]; // Most negative
+                const positive = articlesWithSentiment[articlesWithSentiment.length - 1]; // Most positive
+                
+                console.log('✅ Selected opposing headlines:');
+                console.log('   Negative:', negative.title, '(sentiment:', negative.sentiment, ')');
+                console.log('   Positive:', positive.title, '(sentiment:', positive.sentiment, ')');
+                
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({
+                    position1: {
+                        title: positive.title,
+                        description: positive.description,
+                        stance: 'Supportive',
+                        sentiment: positive.sentiment,
+                        source: positive.source,
+                        url: positive.url,
+                        imageUrl: positive.imageUrl
+                    },
+                    position2: {
+                        title: negative.title,
+                        description: negative.description,
+                        stance: 'Critical',
+                        sentiment: negative.sentiment,
+                        source: negative.source,
+                        url: negative.url,
+                        imageUrl: negative.imageUrl
+                    }
+                }));
+            } catch (error) {
+                console.error('Error fetching opposing headlines:', error);
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: error.message }));
             }

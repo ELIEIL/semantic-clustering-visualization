@@ -167,6 +167,53 @@ class NewsAPIClient {
     clearCache() {
         this.cachedHeadline = null;
         this.cacheTimestamp = null;
+        console.log('NewsAPI cache cleared');
+    }
+
+    async searchArticlesByKeywords(keywords, maxResults = 20) {
+        try {
+            const query = Array.isArray(keywords) ? keywords.join(' OR ') : keywords;
+            
+            console.log(`🔍 Searching NewsAPI for: "${query}"`);
+            
+            const response = await axios.get(`${this.baseUrl}/everything`, {
+                params: {
+                    q: query,
+                    language: 'en',
+                    sortBy: 'relevancy',
+                    pageSize: maxResults,
+                    apiKey: this.apiKey
+                }
+            });
+
+            if (response.data.articles && response.data.articles.length > 0) {
+                const articles = response.data.articles
+                    .filter(article => 
+                        article.title && 
+                        article.title.length > 20 && 
+                        article.title.length < 120 &&
+                        !article.title.includes('[Removed]') &&
+                        article.description
+                    )
+                    .map(article => ({
+                        title: article.title,
+                        description: article.description,
+                        source: article.source.name,
+                        url: article.url,
+                        imageUrl: article.urlToImage || null,
+                        publishedAt: article.publishedAt
+                    }));
+
+                console.log(`✅ Found ${articles.length} relevant articles`);
+                return articles;
+            }
+
+            console.log('⚠️ No articles found for keywords');
+            return [];
+        } catch (error) {
+            console.error('NewsAPI search error:', error.message);
+            return [];
+        }
     }
 }
 

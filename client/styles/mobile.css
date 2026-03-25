@@ -87,6 +87,48 @@ body {
     background: #f44336;
 }
 
+/* Task Header */
+.task-header {
+    margin-bottom: 30px;
+}
+
+.task-title {
+    font-size: 32px;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+    color: #000;
+}
+
+.task-instruction {
+    font-size: 18px;
+    font-weight: 400;
+    margin: 0;
+    color: #000;
+    line-height: 1.4;
+}
+
+/* Task Guidance */
+.task-guidance {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #000;
+}
+
+.guidance-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+    color: #000;
+}
+
+.guidance-example {
+    font-size: 14px;
+    font-weight: 400;
+    margin: 5px 0;
+    color: #999;
+    font-style: italic;
+}
+
 /* Main Container */
 .mobile-container {
     padding: 30px;

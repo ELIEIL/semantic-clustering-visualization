@@ -16,15 +16,26 @@
         
         <!-- Input Section -->
         <div id="inputSection" class="input-section">
+            <div class="task-header">
+                <h1 class="task-title">Task 1</h1>
+                <p class="task-instruction">Write down something you'd like to discuss</p>
+            </div>
+            
+            <div class="task-guidance">
+                <p class="guidance-title">Be concrete and use keywords</p>
+                <p class="guidance-example"><em>E.g: "I care about climate change"</em></p>
+                <p class="guidance-example"><em>"Recently i have though a lot about politics"</em></p>
+            </div>
+            
             <textarea 
                 id="textInput" 
                 class="opinion-input" 
-                placeholder="Whats your opinion?"
+                placeholder="Write here"
                 maxlength="500"
                 autocomplete="off"
             ></textarea>
             <div class="bottom-controls">
-                <div id="countdown" class="countdown-timer">03:00</div>
+                <div id="countdown" class="countdown-timer">02:00</div>
                 <button id="submitBtn" class="submit-btn">Submit</button>
             </div>
         </div>

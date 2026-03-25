@@ -596,6 +596,12 @@ function displayClusters(clusters) {
     
     // Store clusters for winner determination
     currentClusters = clusters;
+    console.log('📦 Stored clusters for voting:', clusters.map(c => ({ 
+        id: c.id, 
+        label: c.label, 
+        hasKeywords: !!c.keywords,
+        keywords: c.keywords 
+    })));
     
     clusterList.innerHTML = '';
     
@@ -758,6 +764,8 @@ function onVotingComplete() {
     
     if (winningCluster) {
         console.log('🏆 Winning cluster:', winningCluster.label, 'with', winningCluster.votes, 'votes');
+        console.log('   Has keywords?', !!winningCluster.keywords);
+        console.log('   Keywords:', winningCluster.keywords);
         
         // Send winning cluster to server to trigger main display animation
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -765,7 +773,7 @@ function onVotingComplete() {
                 type: 'skip_to_reveal',
                 cluster: winningCluster
             }));
-            console.log('📤 Sent winning cluster to server for main display animation');
+            console.log('📤 Sent winning cluster to server:', JSON.stringify(winningCluster, null, 2));
         }
         
         // Show topic reveal transition on mobile
