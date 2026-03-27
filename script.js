@@ -48,6 +48,14 @@ let redVotes = 50;
 let blueMetaball = null;
 let redMetaball = null;
 
+// Role assignment state
+let roleAssignmentActive = false;
+let roleAssignmentPhase = 'idle'; // 'idle', 'fade-out', 'topic-move', 'circles-fade-in', 'static'
+let roleAssignments = new Map(); // Map of clientId -> { role: 'debater', group: 1|2 } or { role: 'listener' }
+let topicMoveProgress = 0;
+let circlesFadeProgress = 0;
+let roleAssignmentAutoTriggered = false; // Flag to prevent multiple auto-triggers
+
 // Opposing headlines for debate
 let opposingHeadlines = null; // Stores { position1, position2 }
 let winningCluster = null; // Stores the winning cluster from voting
@@ -1989,13 +1997,13 @@ function drawSpeechBubbles() {
         const animatedAngle = node.pointerAngle + floatyOffset;
         
         // Calculate text dimensions
-        textSize(20);
+        textSize(24);
         if (customFontSemibold) {
             textFont(customFontSemibold);
         }
         
-        const lineHeight = 26;
-        const letterSpacing = 20 * 0.25;
+        const lineHeight = 30;
+        const letterSpacing = 24 * 0.25;
         const padding = 12;
         
         // Measure text width with letter spacing
@@ -2033,8 +2041,8 @@ function drawSpeechBubbles() {
         });
     }
     
-    // Draw cluster outlines and labels if clustering is enabled
-    if (clusteringEnabled) {
+    // Draw cluster outlines and labels during clustering animation AND voting phase
+    if (clusteringEnabled && (clusteringAnimationActive || votingPhaseActive)) {
         push();
         // Group nodes by cluster
         const clusterGroups = new Map();
@@ -2064,10 +2072,12 @@ function drawSpeechBubbles() {
                 return Math.sqrt(dx * dx + dy * dy);
             })) + 50);
             
+            // Get cluster color (needed for both outline and label)
+            const clusterColor = clusterNodes[0].clusterColor || { h: 0, s: 70, b: 80 };
+            
             // Draw dashed circle outline
             push();
             noFill();
-            const clusterColor = clusterNodes[0].clusterColor || { h: 0, s: 70, b: 80 };
             colorMode(HSB);
             stroke(clusterColor.h, clusterColor.s, clusterColor.b, 255);
             strokeWeight(3);
@@ -2317,7 +2327,33 @@ window.skipToReveal = function() {
     }
 };
 
-// Topic reveal animation for main display
+// Global function to skip to role assignment (for testing)
+window.skipToRoles = function() {
+    console.log('🎭 Starting role assignment...');
+    
+    // Ensure we have a winning cluster
+    if (!winningCluster) {
+        winningCluster = {
+            id: 0,
+            label: 'Climate Change and Environment',
+            color: { h: 45, s: 70, b: 80 }
+        };
+    }
+    
+    // Ensure reveal cluster color is set
+    if (!revealClusterColor) {
+        revealClusterColor = winningCluster.color;
+    }
+    
+    // Stop reveal animation if active
+    revealAnimationActive = false;
+    revealPhase = 'idle';
+    
+    // Start role assignment animation
+    startRoleAssignment();
+};
+
+// Topic reveal animation for main display - with fade transition
 function startTopicRevealAnimation(cluster) {
     console.log('🎬 startTopicRevealAnimation called');
     console.log('   Received cluster:', JSON.stringify(cluster, null, 2));
@@ -2328,60 +2364,171 @@ function startTopicRevealAnimation(cluster) {
         return;
     }
     
-    // Validate cluster has keywords
+    // Validate cluster
     if (!cluster) {
         console.error('❌ No cluster provided to startTopicRevealAnimation');
         return;
     }
     
     if (!cluster.keywords || !Array.isArray(cluster.keywords) || cluster.keywords.length === 0) {
-        console.warn('⚠️ Cluster missing keywords, adding fallback keywords');
-        // Use cluster label to generate fallback keywords
         const labelWords = (cluster.label || 'discussion').toLowerCase().split(' ');
         cluster.keywords = labelWords.length > 0 ? labelWords : ['politics', 'government', 'policy'];
-        console.log('   Fallback keywords:', cluster.keywords);
+    }
+    
+    // Hide timer and QR code
+    const headlineDisplay = document.getElementById('headlineDisplay');
+    if (headlineDisplay) {
+        headlineDisplay.style.display = 'none';
     }
     
     revealAnimationActive = true;
     revealClusterColor = cluster.color;
-    revealBlobSize = 80; // Start with initial metaball size
-    revealPhase = 'growing';
+    revealPhase = 'fade-out';
     
     // Store winning cluster for later use
     winningCluster = cluster;
     console.log('🏆 Winning cluster stored:', cluster.label);
     console.log('   Keywords:', cluster.keywords);
-    console.log('   winningCluster variable:', winningCluster);
     
-    // Find the winning cluster's position on the display
-    // Calculate center position of all nodes in this cluster
-    const clusterNodes = nodes.filter(node => node.cluster === cluster.id);
+    // Start fade-to-black animation
+    animateFadeToBlack();
+}
+
+// Animate fade to black, then fade in reveal screen
+function animateFadeToBlack() {
+    const startTime = Date.now();
+    const fadeOutDuration = 800; // 0.8 seconds fade to black
+    const fadeInDuration = 800; // 0.8 seconds fade in
+    const holdDuration = 200; // Hold black for 0.2 seconds
     
-    if (clusterNodes.length > 0) {
-        // Calculate average position (center of cluster)
-        let sumX = 0, sumY = 0;
-        clusterNodes.forEach(node => {
-            sumX += node.x;
-            sumY += node.y;
-        });
-        revealBlobX = sumX / clusterNodes.length;
-        revealBlobY = sumY / clusterNodes.length;
-        console.log(`🎯 Winning cluster position: (${revealBlobX.toFixed(0)}, ${revealBlobY.toFixed(0)})`);
-    } else {
-        // Fallback to center if cluster not found
-        revealBlobX = width / 2;
-        revealBlobY = height / 2;
-        console.log('⚠️ Cluster nodes not found, using center position');
+    function animate() {
+        const elapsed = Date.now() - startTime;
+        
+        if (elapsed < fadeOutDuration) {
+            // Phase 1: Fade to black
+            const progress = elapsed / fadeOutDuration;
+            window.revealFadeProgress = progress;
+            revealPhase = 'fade-out';
+            requestAnimationFrame(animate);
+        } else if (elapsed < fadeOutDuration + holdDuration) {
+            // Phase 2: Hold black
+            window.revealFadeProgress = 1;
+            revealPhase = 'fade-out';
+            requestAnimationFrame(animate);
+        } else if (elapsed < fadeOutDuration + holdDuration + fadeInDuration) {
+            // Phase 3: Fade in reveal screen
+            const fadeInElapsed = elapsed - fadeOutDuration - holdDuration;
+            const progress = fadeInElapsed / fadeInDuration;
+            window.revealFadeProgress = 1 - progress; // Reverse for fade in
+            revealPhase = 'fade-in';
+            requestAnimationFrame(animate);
+        } else {
+            // Phase 4: Show static reveal
+            window.revealFadeProgress = 0;
+            revealPhase = 'static';
+            console.log('🎬 Fade animation complete - showing reveal');
+            
+            // Automatically trigger role assignment after 3.5 seconds (only once)
+            if (!roleAssignmentAutoTriggered) {
+                roleAssignmentAutoTriggered = true;
+                setTimeout(() => {
+                    console.log('🎭 Auto-triggering role assignment after reveal');
+                    startRoleAssignment();
+                }, 3500);
+            }
+        }
     }
     
-    console.log('🎬 Topic reveal animation started from cluster position');
+    animate();
+}
+
+// Start role assignment with dissolve transition
+function startRoleAssignment() {
+    console.log('🎭 startRoleAssignment called');
     
-    // Phase 1: Wait 3.5s (matching mobile announcement time)
-    setTimeout(() => {
-        console.log('📺 Phase 1: Growing blob');
-        // Start blob growth animation (will be handled in draw loop)
-        animateRevealGrowth();
-    }, 3500);
+    // Prevent multiple simultaneous role assignments
+    if (roleAssignmentActive) {
+        return;
+    }
+    
+    // Hide timer and QR code
+    const headlineDisplay = document.getElementById('headlineDisplay');
+    if (headlineDisplay) {
+        headlineDisplay.style.display = 'none';
+    }
+    
+    roleAssignmentActive = true;
+    roleAssignmentPhase = 'fade-out';
+    
+    // Assign roles to connected clients
+    assignRolesToClients();
+    
+    // Start dissolve animation
+    animateRoleAssignmentTransition();
+}
+
+// Assign roles to all connected clients
+function assignRolesToClients() {
+    // Get list of connected client IDs from server
+    // For now, we'll broadcast the assignment request and let server handle it
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'assign_roles',
+            distribution: {
+                group1Percent: 30,
+                group2Percent: 30,
+                listenersPercent: 40
+            }
+        }));
+        console.log('📤 Role assignment request sent to server');
+    }
+}
+
+// Animate role assignment transition: fade out reveal -> move topic up -> fade in circles
+function animateRoleAssignmentTransition() {
+    const startTime = Date.now();
+    const fadeOutDuration = 800; // 0.8s fade to black
+    const holdDuration = 200; // 0.2s hold
+    const topicMoveDuration = 1000; // 1s topic moves to top
+    const circlesFadeDuration = 800; // 0.8s circles fade in
+    
+    function animate() {
+        const elapsed = Date.now() - startTime;
+        
+        if (elapsed < fadeOutDuration) {
+            // Phase 1: Fade reveal screen to black
+            const progress = elapsed / fadeOutDuration;
+            window.roleAssignmentFadeProgress = progress;
+            roleAssignmentPhase = 'fade-out';
+            requestAnimationFrame(animate);
+        } else if (elapsed < fadeOutDuration + holdDuration) {
+            // Phase 2: Hold black
+            window.roleAssignmentFadeProgress = 1;
+            roleAssignmentPhase = 'fade-out';
+            requestAnimationFrame(animate);
+        } else if (elapsed < fadeOutDuration + holdDuration + topicMoveDuration) {
+            // Phase 3: Topic moves to top
+            const moveElapsed = elapsed - fadeOutDuration - holdDuration;
+            topicMoveProgress = moveElapsed / topicMoveDuration;
+            roleAssignmentPhase = 'topic-move';
+            requestAnimationFrame(animate);
+        } else if (elapsed < fadeOutDuration + holdDuration + topicMoveDuration + circlesFadeDuration) {
+            // Phase 4: Circles fade in
+            const circlesElapsed = elapsed - fadeOutDuration - holdDuration - topicMoveDuration;
+            circlesFadeProgress = circlesElapsed / circlesFadeDuration;
+            topicMoveProgress = 1; // Topic stays at top
+            roleAssignmentPhase = 'circles-fade-in';
+            requestAnimationFrame(animate);
+        } else {
+            // Phase 5: Static display
+            topicMoveProgress = 1;
+            circlesFadeProgress = 1;
+            roleAssignmentPhase = 'static';
+            console.log('🎭 Role assignment animation complete');
+        }
+    }
+    
+    animate();
 }
 
 // Animate blob growth to full screen
@@ -2517,6 +2664,14 @@ function connectWebSocket() {
             console.log('📦 Received cluster data:', JSON.stringify(data.cluster, null, 2));
             votingPhaseActive = false; // Hide voting text when animation starts
             startTopicRevealAnimation(data.cluster);
+        }
+        
+        if (data.type === 'assign_roles') {
+            // Mobile client requested role assignment, trigger on main display
+            console.log('🎭 Received role assignment trigger from server');
+            if (!roleAssignmentActive) {
+                startRoleAssignment();
+            }
         }
         
         if (data.type === 'debate_vote') {
@@ -2728,8 +2883,18 @@ class Node {
                                         this.cluster !== other.cluster;
                 
                 if (similarity > 0.3) {
-                    // ATTRACTION for similar posts - extremely slow for visible 7.5s animation
-                    const force = (similarity - 0.3) * 0.03; // VERY slow - was 0.15, now 0.03
+                    // ATTRACTION for similar posts - progressive strength during Phase 2
+                    // Calculate clustering strength based on animation progress (0 to 1 during Phase 2)
+                    let clusteringStrength = 1.0;
+                    if (clusteringAnimationActive && clusteringProgress >= 0.25 && clusteringProgress < 0.5) {
+                        // Ramp up from 0 to 1 during Phase 2 (25% to 50%)
+                        clusteringStrength = (clusteringProgress - 0.25) / 0.25;
+                    } else if (clusteringAnimationActive && clusteringProgress < 0.25) {
+                        // No attraction during Phase 1
+                        clusteringStrength = 0;
+                    }
+                    
+                    const force = (similarity - 0.3) * 0.03 * clusteringStrength;
                     fx += (dx / dist) * force;
                     fy += (dy / dist) * force;
                     
@@ -2972,6 +3137,28 @@ function draw() {
             const duration = 30000; // 30 seconds - split into 3 phases
             clusteringProgress = min(elapsed / duration, 1);
             
+            // Broadcast clustering progress to mobile clients
+            let phaseText = 'Creating topic clusters...';
+            if (clusteringProgress < 0.25) {
+                phaseText = 'Evaluating posts...';
+            } else if (clusteringProgress < 0.5) {
+                phaseText = 'Clustering similar posts...';
+            } else if (clusteringProgress < 0.65) {
+                phaseText = 'Merging similar topics...';
+            } else if (clusteringProgress < 0.75) {
+                phaseText = 'Filtering weak clusters...';
+            } else {
+                phaseText = 'Finalizing clusters...';
+            }
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'clustering_progress',
+                    progress: clusteringProgress,
+                    phase: phaseText
+                }));
+            }
+            
             // Hide timer during clustering
             const headlineDisplay = document.getElementById('headlineDisplay');
             if (headlineDisplay) {
@@ -3047,19 +3234,7 @@ function draw() {
                 textFont(customFontSemibold);
             }
             
-            // Show current phase
-            let phaseText = 'Clustering...';
-            if (clusteringProgress < 0.25) {
-                phaseText = 'Evaluating posts...';
-            } else if (clusteringProgress < 0.5) {
-                phaseText = 'Clustering similar posts...';
-            } else if (clusteringProgress < 0.65) {
-                phaseText = 'Merging similar topics...';
-            } else if (clusteringProgress < 0.75) {
-                phaseText = 'Filtering weak clusters...';
-            } else {
-                phaseText = 'Finalizing clusters...';
-            }
+            // Show current phase (reuse phaseText from above)
             text(phaseText, width / 2, height / 2 - 50);
             
             // Draw progress bar
@@ -3093,8 +3268,8 @@ function draw() {
             });
             
             // Draw cluster labels and dashed outlines
-            // Only show clusters after posts have disappeared (70% progress)
-            if (clusteringProgress >= 0.7) {
+            // Only show clusters after posts have disappeared (70% progress) and before animation completes
+            if (clusteringProgress >= 0.7 && clusteringProgress < 1.0) {
                 clusterGroups.forEach((clusterNodes, clusterId) => {
                     if (clusterNodes.length === 0) return;
                     
@@ -3147,94 +3322,137 @@ function draw() {
                 if (headlineDisplay) {
                     headlineDisplay.style.display = 'block';
                 }
+                
+                // Notify mobile clients that clustering is complete and send cluster data
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'clustering_complete'
+                    }));
+                    
+                    // Broadcast clusters for voting
+                    const clustersToSend = clusterRegistry.clusters.map(cluster => ({
+                        id: cluster.id,
+                        label: clusterLabels[cluster.id] || `Cluster ${cluster.id}`,
+                        color: cluster.color || { h: 0, s: 70, b: 80 },
+                        nodeCount: cluster.nodes.length,
+                        votes: cluster.votes || 0
+                    }));
+                    
+                    ws.send(JSON.stringify({
+                        type: 'update_clusters',
+                        clusters: clustersToSend,
+                        uncategorizedPosts: []
+                    }));
+                }
+                
                 console.log('✅ Clustering animation complete - posts clustered');
             }
             
             return; // Skip normal rendering during clustering animation
         }
         
-        // Handle topic reveal animation
-        if (revealPhase === 'growing' || revealPhase === 'full') {
-            // Draw growing blob during animation
-            if (revealBlobSize > 0 && revealClusterColor) {
-                push();
-                
-                // Convert HSB to RGB
-                const h = revealClusterColor.h;
-                const s = revealClusterColor.s;
-                const b = revealClusterColor.b;
-                
-                colorMode(HSB, 360, 100, 100);
-                const c = color(h, s, b);
-                colorMode(RGB, 255);
-                
-                fill(c);
-                noStroke();
-                
-                // Draw morphing blob from cluster's actual position
-                const time = frameCount * 0.05;
-                const morphX = sin(time) * 20;
-                const morphY = cos(time * 1.3) * 20;
-                
-                ellipse(revealBlobX + morphX, revealBlobY + morphY, revealBlobSize, revealBlobSize);
-                
-                // Debug: Log once per second
-                if (frameCount % 60 === 0) {
-                    console.log(`🎨 Drawing blob: size=${revealBlobSize.toFixed(0)}, pos=(${revealBlobX.toFixed(0)},${revealBlobY.toFixed(0)}), phase=${revealPhase}`);
-                }
-                
-                pop();
-            }
-            return; // Skip normal rendering during animation
-        }
-        
-        if (revealPhase === 'fading' || revealPhase === 'border') {
-            // Draw transition from full color to border
-            background(0);
+        // Handle topic reveal fade-out (clusters fading to black)
+        if (revealPhase === 'fade-out') {
+            const fadeProgress = window.revealFadeProgress || 0;
             
-            if (revealClusterColor) {
-                push();
+            // Draw normal clusters/posts first
+            const mode = window.visualizationMode || visualizationMode;
+            if (mode === 'outline') {
+                drawOutlineMode();
+            } else if (mode === 'bubbles') {
+                drawSpeechBubbles();
+            } else {
+                drawClusterMetaballs();
+            }
+            
+            // Overlay black with increasing opacity
+            push();
+            fill(0, fadeProgress * 255);
+            noStroke();
+            rect(0, 0, width, height);
+            pop();
+            
+            return; // Skip normal rendering during fade
+        }
+        
+        // Handle topic reveal fade-in (reveal screen fading in from black)
+        if (revealPhase === 'fade-in' || revealPhase === 'static') {
+            // Black background
+            background(0);
+
+            if (revealClusterColor && winningCluster) {
+                const fadeProgress = revealPhase === 'fade-in' ? (1 - (window.revealFadeProgress || 0)) : 1;
                 
+                push();
+
                 // Convert HSB to RGB
                 const h = revealClusterColor.h;
                 const s = revealClusterColor.s;
                 const b = revealClusterColor.b;
-                
+
                 colorMode(HSB, 360, 100, 100);
                 const c = color(h, s, b);
                 colorMode(RGB, 255);
-                
-                // Simple dissolve effect - blob fades out, black background fades in
-                if (revealPhase === 'fading' || revealPhase === 'border') {
-                    const fadeProgress = window.borderFadeProgress || 0;
-                    const maxSize = Math.sqrt(width * width + height * height) * 1.2;
-                    
-                    // Fill opacity decreases
-                    const fillAlpha = (1 - fadeProgress) * 255;
-                    
-                    // Draw blob fading out
-                    fill(red(c), green(c), blue(c), fillAlpha);
-                    noStroke();
-                    ellipse(width / 2, height / 2, maxSize, maxSize);
-                    
-                    // Fill background with black as blob becomes transparent
-                    if (fadeProgress > 0) {
-                        push();
-                        fill(0, fadeProgress * 255);
-                        noStroke();
-                        rect(0, 0, width, height);
-                        pop();
-                    }
-                    
-                    pop();
-                    return;
+
+                // Draw "Chosen topic" title - MD IO font (using Regular as placeholder)
+                fill(255, fadeProgress * 255);
+                textAlign(CENTER, CENTER);
+                textSize(64);
+                if (customFont) {
+                    textFont(customFont); // TODO: Replace with MD IO font when available
                 }
-                
+                text('Chosen topic', width / 2, height / 2 - 180);
+
+                // Draw subtitle - MD Primer font (using Medium as placeholder)
+                fill(150, fadeProgress * 255);
+                textSize(24);
+                if (customFontMedium) {
+                    textFont(customFontMedium); // TODO: Replace with MD Primer font when available
+                }
+                text('Get ready for a debate!', width / 2, height / 2 - 120);
+
+                // Draw topic name in dashed outline - MD Thermochrome Semibold
+                push();
+                noFill();
+                stroke(red(c), green(c), blue(c), fadeProgress * 255);
+                strokeWeight(4);
+                drawingContext.setLineDash([10, 10]);
+
+                // Calculate text width for rounded rectangle
+                textSize(36);
+                if (customFontSemibold) {
+                    textFont(customFontSemibold);
+                }
+                const topicText = winningCluster.label || 'Discussion';
+                const textW = textWidth(topicText);
+                const boxW = textW + 120;
+                const boxH = 90;
+                const boxX = width / 2;
+                const boxY = height / 2 + 20;
+
+                // Draw rounded rectangle
+                rectMode(CENTER);
+                rect(boxX, boxY, boxW, boxH, 45);
+                drawingContext.setLineDash([]);
+
+                // Draw topic text
+                fill(red(c), green(c), blue(c), fadeProgress * 255);
+                noStroke();
+                textAlign(CENTER, CENTER);
+                text(topicText, boxX, boxY);
+
+                pop();
                 pop();
             }
-            return; // Skip normal rendering during border phase
+            return; // Skip normal rendering during reveal
         }
         
+        // Handle role assignment animation
+        if (roleAssignmentActive) {
+            drawRoleAssignmentScreen();
+            return; // Skip normal rendering during role assignment
+        }
+
         // Draw debate voting metaballs if active
         if (debateVotingActive) {
             drawDebateVotingMetaballs();
@@ -3290,11 +3508,12 @@ function draw() {
             drawClusterMetaballs();
         }
         
-        // Draw animated dashed connection circles (uplink effect)
-        connectionCache.forEach((similarity, key) => {
-            const [i, j] = key.split('-').map(Number);
-            
-            if (!nodes[i] || !nodes[j]) return;
+        // Draw animated dashed connection circles (uplink effect) - ONLY during clustering animation
+        if (!votingPhaseActive && clusteringAnimationActive) {
+            connectionCache.forEach((similarity, key) => {
+                const [i, j] = key.split('-').map(Number);
+                
+                if (!nodes[i] || !nodes[j]) return;
             
             const alpha = map(similarity, 0.3, 1, 50, 200);
             
@@ -3358,7 +3577,8 @@ function draw() {
             circle(nodes[j].x, nodes[j].y, pulse2);
             
             pop();
-        });
+            });
+        }
         
         // Update node physics (only if clustering is enabled)
         if (clusteringEnabled) {
@@ -4273,6 +4493,167 @@ function updateDebateMetaballs() {
     redMetaball.currentSize += (redMetaball.targetSize - redMetaball.currentSize) * 0.1;
 }
 
+// Draw role assignment screen with animation phases
+function drawRoleAssignmentScreen() {
+    background(0);
+    
+    if (!winningCluster) return;
+    
+    const fadeProgress = window.roleAssignmentFadeProgress || 0;
+    
+    // Phase 1: Fade out reveal screen
+    if (roleAssignmentPhase === 'fade-out') {
+        // Draw reveal screen fading to black
+        if (revealClusterColor) {
+            push();
+            
+            const h = revealClusterColor.h;
+            const s = revealClusterColor.s;
+            const b = revealClusterColor.b;
+            
+            colorMode(HSB, 360, 100, 100);
+            const c = color(h, s, b);
+            colorMode(RGB, 255);
+            
+            const alpha = (1 - fadeProgress) * 255;
+            
+            // Draw fading reveal content
+            fill(255, alpha);
+            textAlign(CENTER, CENTER);
+            textSize(64);
+            if (customFont) textFont(customFont);
+            text('Chosen topic', width / 2, height / 2 - 180);
+            
+            fill(150, alpha);
+            textSize(24);
+            if (customFontMedium) textFont(customFontMedium);
+            text('Get ready for a debate!', width / 2, height / 2 - 120);
+            
+            // Topic box
+            push();
+            noFill();
+            stroke(red(c), green(c), blue(c), alpha);
+            strokeWeight(4);
+            drawingContext.setLineDash([10, 10]);
+            
+            textSize(36);
+            if (customFontSemibold) textFont(customFontSemibold);
+            const topicText = winningCluster.label || 'Discussion';
+            const textW = textWidth(topicText);
+            const boxW = textW + 120;
+            const boxH = 90;
+            
+            rectMode(CENTER);
+            rect(width / 2, height / 2 + 20, boxW, boxH, 45);
+            drawingContext.setLineDash([]);
+            
+            fill(red(c), green(c), blue(c), alpha);
+            noStroke();
+            text(topicText, width / 2, height / 2 + 20);
+            
+            pop();
+            pop();
+        }
+        return;
+    }
+    
+    // Phase 2 & 3: Topic moves to top
+    if (roleAssignmentPhase === 'topic-move' || roleAssignmentPhase === 'circles-fade-in' || roleAssignmentPhase === 'static') {
+        if (revealClusterColor) {
+            push();
+            
+            const h = revealClusterColor.h;
+            const s = revealClusterColor.s;
+            const b = revealClusterColor.b;
+            
+            colorMode(HSB, 360, 100, 100);
+            const c = color(h, s, b);
+            colorMode(RGB, 255);
+            
+            // Interpolate topic position from center to top
+            const startY = height / 2 + 20;
+            const endY = 100;
+            const currentY = startY + (endY - startY) * topicMoveProgress;
+            
+            // Draw topic at moving position
+            textSize(36);
+            if (customFontSemibold) textFont(customFontSemibold);
+            const topicText = winningCluster.label || 'Discussion';
+            const textW = textWidth(topicText);
+            const boxW = textW + 120;
+            const boxH = 90;
+            
+            // Topic box
+            push();
+            noFill();
+            stroke(red(c), green(c), blue(c));
+            strokeWeight(4);
+            drawingContext.setLineDash([10, 10]);
+            rectMode(CENTER);
+            rect(width / 2, currentY, boxW, boxH, 45);
+            drawingContext.setLineDash([]);
+            
+            fill(red(c), green(c), blue(c));
+            noStroke();
+            textAlign(CENTER, CENTER);
+            text(topicText, width / 2, currentY);
+            pop();
+            
+            pop();
+        }
+    }
+    
+    // Phase 3 & 4: Circles fade in
+    if (roleAssignmentPhase === 'circles-fade-in' || roleAssignmentPhase === 'static') {
+        const alpha = circlesFadeProgress * 255;
+        
+        // Calculate circle positions with equal horizontal spacing
+        const circleRadius = Math.min(width, height) * 0.3; // 30% of screen
+        const spacing = width * 0.1; // 10% spacing in middle
+        const leftCircleX = width / 2 - spacing / 2 - circleRadius;
+        const rightCircleX = width / 2 + spacing / 2 + circleRadius;
+        const circleY = height / 2 + 100;
+        
+        push();
+        
+        // Group 1 circle (red)
+        noFill();
+        stroke(220, 50, 50, alpha); // Red
+        strokeWeight(6);
+        drawingContext.setLineDash([15, 15]);
+        circle(leftCircleX, circleY, circleRadius * 2);
+        drawingContext.setLineDash([]);
+        
+        fill(220, 50, 50, alpha);
+        textAlign(CENTER, CENTER);
+        textSize(48);
+        if (customFont) textFont(customFont);
+        text('Group 1', leftCircleX, circleY - 40);
+        textSize(32);
+        if (customFontMedium) textFont(customFontMedium);
+        text('Stand here', leftCircleX, circleY + 20);
+        
+        // Group 2 circle (green)
+        noFill();
+        stroke(50, 200, 100, alpha); // Green
+        strokeWeight(6);
+        drawingContext.setLineDash([15, 15]);
+        circle(rightCircleX, circleY, circleRadius * 2);
+        drawingContext.setLineDash([]);
+        
+        fill(50, 200, 100, alpha);
+        textAlign(CENTER, CENTER);
+        textSize(48);
+        if (customFont) textFont(customFont);
+        text('Group 2', rightCircleX, circleY - 40);
+        textSize(32);
+        if (customFontMedium) textFont(customFontMedium);
+        text('Stand here', rightCircleX, circleY + 20);
+        
+        pop();
+    }
+}
+
 // Draw debate voting metaballs
 function drawDebateVotingMetaballs() {
     // Show loading state while fetching headlines
@@ -4380,7 +4761,20 @@ function drawPostEvaluation(progress) {
     push();
     const alpha = 255 * progress;
     
-    // Draw similarity lines between posts
+    // Draw large white dashed circle outline around all posts
+    push();
+    noFill();
+    stroke(255, alpha);
+    strokeWeight(3);
+    drawingContext.setLineDash([10, 10]);
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = min(width, height) * 0.4;
+    circle(centerX, centerY, radius * 2);
+    drawingContext.setLineDash([]);
+    pop();
+    
+    // Draw dotted lines between similar posts with percentages
     for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
             if (!nodes[i].embedding || !nodes[j].embedding) continue;
@@ -4405,30 +4799,60 @@ function drawPostEvaluation(progress) {
             }
             
             // Only show connections above threshold
-            if (similarity > 0.3) {
+            if (similarity > 0.5) {
                 // Draw dotted line
                 const lineAlpha = alpha * similarity;
-                stroke(100, 150, 255, lineAlpha);
-                strokeWeight(1);
+                
+                // Color based on similarity strength
+                colorMode(HSB);
+                const hue = map(similarity, 0.5, 1.0, 0, 240); // Red to blue
+                stroke(hue, 70, 80, lineAlpha);
+                strokeWeight(2);
                 drawingContext.setLineDash([5, 5]);
                 line(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y);
                 drawingContext.setLineDash([]);
-                
-                // Draw similarity percentage at midpoint
-                const midX = (nodes[i].x + nodes[j].x) / 2;
-                const midY = (nodes[i].y + nodes[j].y) / 2;
-                
-                fill(100, 150, 255, lineAlpha);
-                noStroke();
-                textAlign(CENTER, CENTER);
-                textSize(10);
-                if (customFontMedium) {
-                    textFont(customFontMedium);
-                }
-                text(`${(similarity * 100).toFixed(0)}%`, midX, midY);
+                colorMode(RGB);
             }
         }
     }
+    
+    // Draw quality score circles above each post
+    nodes.forEach(node => {
+        if (!node.embedding || node.embedding.length === 0) return;
+        
+        // Calculate semantic strength of individual post
+        let magnitude = 0;
+        for (let i = 0; i < node.embedding.length; i++) {
+            magnitude += node.embedding[i] * node.embedding[i];
+        }
+        magnitude = Math.sqrt(magnitude);
+        const strength = Math.min(magnitude / 10, 1);
+        
+        // Position above post
+        const circleX = node.x;
+        const circleY = node.y - 60;
+        
+        // Color based on quality
+        colorMode(HSB);
+        const hue = map(strength, 0, 1, 0, 240); // Red (low) to blue (high)
+        const scoreColor = color(hue, 70, 80, alpha);
+        
+        // Draw filled circle background
+        fill(scoreColor);
+        noStroke();
+        circle(circleX, circleY, 30);
+        
+        // Draw percentage text
+        colorMode(RGB);
+        fill(255, alpha);
+        noStroke();
+        textAlign(CENTER, CENTER);
+        textSize(14);
+        if (customFontMedium) {
+            textFont(customFontMedium);
+        }
+        text(`${(strength * 100).toFixed(0)}%`, circleX, circleY);
+    });
     
     pop();
 }

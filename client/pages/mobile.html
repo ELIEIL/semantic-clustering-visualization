@@ -40,6 +40,16 @@
             </div>
         </div>
         
+        <!-- Clustering Loading Section (shown during clustering animation) -->
+        <div id="clusteringLoadingSection" class="clustering-loading-section" style="display: none;">
+            <div class="clustering-loading-content">
+                <h1 id="clusteringPhaseText" class="clustering-phase-text">Evaluating posts...</h1>
+                <div class="clustering-progress-container">
+                    <div id="clusteringProgressBar" class="clustering-progress-bar"></div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Cluster Results Section (shown after timer ends) -->
         <div id="clusterSection" class="cluster-section" style="display: none;">
             <div class="cluster-header">
@@ -56,23 +66,34 @@
         <!-- Topic Reveal Section (shown after voting ends) -->
         <div id="topicRevealSection" class="topic-reveal-section" style="display: none;">
             <div class="reveal-content">
-                <h1 class="reveal-title">The topic of choice</h1>
+                <h1 class="reveal-title">Chosen topic</h1>
                 <p class="reveal-subtitle">Get ready to discuss this topic</p>
-                <div id="revealBlob" class="reveal-blob"></div>
-                <h2 id="revealTopicName" class="reveal-topic-name"></h2>
+                <div id="revealTopicBox" class="reveal-topic-box">
+                    <span id="revealTopicName" class="reveal-topic-name"></span>
+                </div>
             </div>
         </div>
         
-        <!-- Debater Role Section -->
-        <div id="debaterSection" class="role-section debater-role" style="display: none;">
-            <h1 class="role-title">You are a debater</h1>
-            <p class="role-subtitle">Place yourselves in the circle and get ready</p>
-        </div>
-        
-        <!-- Listener Role Section -->
-        <div id="listenerSection" class="role-section listener-role" style="display: none;">
-            <h1 class="role-title">You are a listener</h1>
-            <p class="role-subtitle">Vote on which speaker you agree with most.</p>
+        <!-- Role Assignment Section -->
+        <div id="roleAssignmentSection" class="role-assignment-section" style="display: none;">
+            <div class="role-content">
+                <h2 class="task-header">Task 3</h2>
+                <p class="task-instruction">Get ready by placing yourself in the right role location</p>
+                
+                <div id="roleBox" class="role-box">
+                    <p class="role-label">Your role</p>
+                    <h1 id="roleName" class="role-name">Debater</h1>
+                    
+                    <div id="roleIcon" class="role-icon">
+                        <!-- Icon will be dynamically generated -->
+                    </div>
+                    
+                    <div id="groupInfo" class="group-info">
+                        <h2 id="groupName" class="group-name">Group 1</h2>
+                        <p id="groupInstruction" class="group-instruction">Place yourselves in the circle in your circle and get ready</p>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Debate Voting Section -->

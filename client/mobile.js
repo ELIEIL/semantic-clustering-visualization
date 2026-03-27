@@ -90,10 +90,20 @@ function connect() {
             // Sync countdown timer with server
             updateCountdownFromServer(data.time);
             
-            // Switch to cluster view when timer ends
+            // Switch to clustering loading view when timer ends
             if (data.time === 0) {
-                showClusterView();
+                showClusteringLoadingView();
             }
+        }
+        
+        if (data.type === 'clustering_progress') {
+            // Update clustering progress on mobile
+            updateClusteringProgress(data.progress, data.phase);
+        }
+        
+        if (data.type === 'clustering_complete') {
+            // Clustering animation finished, show cluster results
+            showClusterView();
         }
         
         if (data.type === 'clusters') {
@@ -155,8 +165,8 @@ function connect() {
         
         if (data.type === 'role_assignment') {
             // Display role screen based on assignment
-            console.log(`🎭 Role assigned: ${data.role}`);
-            showRoleScreen(data.role);
+            console.log(`🎭 Role assigned: ${data.role}, group: ${data.group || 'none'}`);
+            showRoleScreen(data.role, data.group);
         }
         
         if (data.type === 'start_debate_voting') {
@@ -574,13 +584,39 @@ function updateCountdownFromServer(time) {
     }
 }
 
-// Switch from input view to cluster results view
-function showClusterView() {
+// Show clustering loading screen
+function showClusteringLoadingView() {
     const inputSection = document.getElementById('inputSection');
+    const loadingSection = document.getElementById('clusteringLoadingSection');
+    
+    if (inputSection && loadingSection) {
+        inputSection.style.display = 'none';
+        loadingSection.style.display = 'flex';
+        console.log('⏳ Showing clustering loading view');
+    }
+}
+
+// Update clustering progress bar and phase text
+function updateClusteringProgress(progress, phase) {
+    const progressBar = document.getElementById('clusteringProgressBar');
+    const phaseText = document.getElementById('clusteringPhaseText');
+    
+    if (progressBar) {
+        progressBar.style.width = `${progress * 100}%`;
+    }
+    
+    if (phaseText && phase) {
+        phaseText.textContent = phase;
+    }
+}
+
+// Switch from loading view to cluster results view
+function showClusterView() {
+    const loadingSection = document.getElementById('clusteringLoadingSection');
     const clusterSection = document.getElementById('clusterSection');
     
-    if (inputSection && clusterSection) {
-        inputSection.style.display = 'none';
+    if (loadingSection && clusterSection) {
+        loadingSection.style.display = 'none';
         clusterSection.style.display = 'block';
         console.log('📊 Switched to cluster view');
         
@@ -620,16 +656,10 @@ function displayClusters(clusters) {
         ).join('');
         
         clusterItem.innerHTML = `
-            <div class="cluster-top">
-                <div class="cluster-circle" style="background: rgb(${rgb.r}, ${rgb.g}, ${rgb.b});"></div>
-                <div class="cluster-votes-container">
-                    <div class="cluster-votes">
-                        ${voteDots}
-                    </div>
-                    <div class="vote-count">${voteCount} ${voteCount === 1 ? 'vote' : 'votes'}</div>
-                </div>
+            <div class="cluster-box" style="border-color: rgb(${rgb.r}, ${rgb.g}, ${rgb.b}); color: rgb(${rgb.r}, ${rgb.g}, ${rgb.b});">
+                <span class="cluster-label">${cluster.label || 'Cluster ' + cluster.id}</span>
+                <span class="cluster-vote-count">${voteCount}</span>
             </div>
-            <h2 class="cluster-name">${cluster.label || 'Cluster ' + cluster.id}</h2>
         `;
         
         // Add click handler for voting
@@ -801,23 +831,141 @@ function findWinningCluster() {
     return winner;
 }
 
-// Show topic reveal with 3-screen animation
+// Show role assignment screen
+function showRoleScreen(role, group) {
+    console.log(`🎭 Showing role screen: ${role}, group: ${group}`);
+    
+    // Hide all other sections
+    const inputSection = document.getElementById('inputSection');
+    const clusterSection = document.getElementById('clusterSection');
+    const revealSection = document.getElementById('topicRevealSection');
+    const roleSection = document.getElementById('roleAssignmentSection');
+    
+    if (inputSection) inputSection.style.display = 'none';
+    if (clusterSection) clusterSection.style.display = 'none';
+    if (revealSection) revealSection.style.display = 'none';
+    
+    // Show role section
+    if (roleSection) {
+        roleSection.style.display = 'flex';
+        
+        const roleBox = document.getElementById('roleBox');
+        const roleName = document.getElementById('roleName');
+        const roleIcon = document.getElementById('roleIcon');
+        const groupInfo = document.getElementById('groupInfo');
+        const groupName = document.getElementById('groupName');
+        const groupInstruction = document.getElementById('groupInstruction');
+        
+        // Set role name
+        if (roleName) {
+            roleName.textContent = role === 'debater' ? 'Debater' : 'Listener';
+        }
+        
+        // Set box color based on role
+        if (roleBox) {
+            if (role === 'listener') {
+                roleBox.classList.add('listener');
+            } else {
+                roleBox.classList.remove('listener');
+            }
+        }
+        
+        // Generate role icon (simplified circles/rows)
+        if (roleIcon) {
+            roleIcon.innerHTML = generateRoleIcon(role, group);
+        }
+        
+        // Set group info
+        if (role === 'debater' && group) {
+            if (groupInfo) groupInfo.style.display = 'block';
+            if (groupName) {
+                groupName.textContent = `Group ${group}`;
+                groupName.className = 'group-name';
+                groupName.classList.add(`group-${group}`);
+            }
+            if (groupInstruction) {
+                groupInstruction.textContent = 'Place yourselves in the circle in your circle and get ready';
+            }
+        } else {
+            // Listener
+            if (groupInfo) groupInfo.style.display = 'block';
+            if (groupName) {
+                groupName.textContent = '';
+                groupName.style.display = 'none';
+            }
+            if (groupInstruction) {
+                groupInstruction.textContent = 'Stay seated, or place yourselves in the stair seats';
+                groupInstruction.style.color = '#666';
+            }
+        }
+    }
+}
+
+// Generate role icon SVG
+function generateRoleIcon(role, group) {
+    if (role === 'debater') {
+        // Semicircle formation icon
+        const color = group === 1 ? '#0000FE' : '#0000FE'; // Blue for both debater groups
+        return `
+            <svg width="120" height="80" viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg">
+                <!-- Semicircle formation -->
+                <circle cx="60" cy="70" r="8" fill="${color}"/>
+                <circle cx="40" cy="60" r="8" fill="${color}"/>
+                <circle cx="80" cy="60" r="8" fill="${color}"/>
+                <circle cx="30" cy="45" r="8" fill="${color}"/>
+                <circle cx="90" cy="45" r="8" fill="${color}"/>
+                <circle cx="25" cy="30" r="8" fill="${color}"/>
+                <circle cx="95" cy="30" r="8" fill="${color}"/>
+                <!-- Top line -->
+                <rect x="20" y="10" width="80" height="6" rx="3" fill="${color}"/>
+                <!-- Bottom sections -->
+                <rect x="45" y="75" width="30" height="5" rx="2.5" fill="${color}"/>
+                <rect x="35" y="75" width="8" height="5" rx="2.5" fill="${color}"/>
+                <rect x="77" y="75" width="8" height="5" rx="2.5" fill="${color}"/>
+            </svg>
+        `;
+    } else {
+        // Rows of seats icon for listeners
+        const color = '#FF6B35'; // Orange for listeners
+        return `
+            <svg width="120" height="80" viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg">
+                <!-- Row 1 -->
+                <rect x="20" y="10" width="20" height="8" rx="4" fill="${color}"/>
+                <rect x="50" y="10" width="20" height="8" rx="4" fill="${color}"/>
+                <rect x="80" y="10" width="20" height="8" rx="4" fill="${color}"/>
+                <!-- Row 2 -->
+                <rect x="20" y="28" width="20" height="8" rx="4" fill="${color}"/>
+                <rect x="50" y="28" width="20" height="8" rx="4" fill="${color}"/>
+                <rect x="80" y="28" width="20" height="8" rx="4" fill="${color}"/>
+                <!-- Row 3 -->
+                <rect x="20" y="46" width="20" height="8" rx="4" fill="${color}"/>
+                <rect x="50" y="46" width="20" height="8" rx="4" fill="${color}"/>
+                <rect x="80" y="46" width="20" height="8" rx="4" fill="${color}"/>
+                <!-- Row 4 -->
+                <rect x="20" y="64" width="20" height="8" rx="4" fill="${color}"/>
+                <rect x="50" y="64" width="20" height="8" rx="4" fill="${color}"/>
+                <rect x="80" y="64" width="20" height="8" rx="4" fill="${color}"/>
+            </svg>
+        `;
+    }
+}
+
+// Show topic reveal - simple static display
 function showTopicReveal(cluster) {
     const clusterSection = document.getElementById('clusterSection');
     const revealSection = document.getElementById('topicRevealSection');
-    const revealBlob = document.getElementById('revealBlob');
+    const revealTopicBox = document.getElementById('revealTopicBox');
     const revealTopicName = document.getElementById('revealTopicName');
-    const revealTitle = document.querySelector('.reveal-title');
-    const revealSubtitle = document.querySelector('.reveal-subtitle');
     
-    if (!revealSection || !revealBlob || !revealTopicName) return;
+    if (!revealSection || !revealTopicBox || !revealTopicName) return;
     
     // Convert cluster color to RGB
     const rgb = hsbToRgb(cluster.color.h, cluster.color.s, cluster.color.b);
     const colorString = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
     
-    // Set blob color
-    revealBlob.style.background = colorString;
+    // Set box border and text color
+    revealTopicBox.style.borderColor = colorString;
+    revealTopicBox.style.color = colorString;
     
     // Set topic name
     revealTopicName.textContent = cluster.label || 'Cluster ' + cluster.id;
@@ -833,66 +981,20 @@ function showTopicReveal(cluster) {
         revealSection.style.display = 'flex';
         revealSection.classList.add('fade-in');
         
-        // Show topic announcement (3.5 seconds)
-        console.log('📺 Topic announcement');
+        console.log('📺 Topic reveal displayed');
         
-        // Start continuous growth animation after delay
+        // Trigger role assignment after a delay
         setTimeout(() => {
-            console.log('📺 Starting continuous growth animation');
-            
-            // Fade out text
-            revealTitle.classList.add('fade-out');
-            revealSubtitle.classList.add('fade-out');
-            revealTopicName.classList.add('fade-out');
-            
-            // Start smooth growth to full screen (one continuous animation)
-            setTimeout(() => {
-                revealBlob.classList.add('grow-full');
-            }, 1000);
-            
-            // Trigger role assignment after animation completes
-            setTimeout(() => {
-                console.log('🎯 Requesting role assignment');
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'assign_roles' }));
-                }
-                
-                // ========================================
-                // 🎯 INTEGRATION HOOK: Post-Reveal Interaction
-                // ========================================
-                // This is where the new post-reveal interaction feature will be triggered.
-                // After role assignment request, you can start your new interaction:
-                // Example: startProximityMatchmaking();
-                // ========================================
-            }, 4000);
+            console.log('🎯 Requesting role assignment');
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'assign_roles' }));
+            }
             
         }, 3500);
         
     }, 800); // Wait for fade-out animation
 }
 
-// Show role assignment screen
-function showRoleScreen(role) {
-    const revealSection = document.getElementById('topicRevealSection');
-    const debaterSection = document.getElementById('debaterSection');
-    const listenerSection = document.getElementById('listenerSection');
-    
-    // Hide reveal section
-    if (revealSection) {
-        revealSection.style.display = 'none';
-    }
-    
-    // Show appropriate role screen
-    if (role === 'debater') {
-        debaterSection.style.display = 'flex';
-        listenerSection.style.display = 'none';
-        console.log('🎤 Displaying debater screen');
-    } else if (role === 'listener') {
-        debaterSection.style.display = 'none';
-        listenerSection.style.display = 'flex';
-        console.log('👂 Displaying listener screen');
-    }
-}
 
 // ========================================
 // Debate Voting Handlers

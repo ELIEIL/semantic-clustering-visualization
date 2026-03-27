@@ -356,35 +356,107 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'assign_roles') {
-                // Randomly select 2 debaters from all connected mobile clients
+                // Assign roles with distribution: 30% Group 1, 30% Group 2, 40% Listeners
                 const clientIds = Array.from(mobileClients.keys());
                 
-                if (clientIds.length < 2) {
-                    console.log('⚠️ Not enough mobile clients for role assignment (need at least 2)');
+                if (clientIds.length < 1) {
+                    console.log('⚠️ No mobile clients connected for role assignment');
                     return;
                 }
                 
-                // Shuffle and pick first 2 as debaters
+                // Shuffle client IDs
                 const shuffled = clientIds.sort(() => Math.random() - 0.5);
-                const debaterIds = shuffled.slice(0, 2);
+                
+                // Calculate distribution
+                const totalClients = shuffled.length;
+                const group1Count = Math.floor(totalClients * 0.3);
+                const group2Count = Math.floor(totalClients * 0.3);
+                const listenersCount = totalClients - group1Count - group2Count;
                 
                 // Assign roles
                 clientRoles.clear();
-                clientIds.forEach(id => {
-                    const role = debaterIds.includes(id) ? 'debater' : 'listener';
-                    clientRoles.set(id, role);
+                let index = 0;
+                
+                // Group 1 debaters
+                for (let i = 0; i < group1Count; i++) {
+                    const id = shuffled[index++];
+                    clientRoles.set(id, { role: 'debater', group: 1 });
                     
-                    // Send role to client
                     const client = mobileClients.get(id);
                     if (client && client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                             type: 'role_assignment',
-                            role: role
+                            role: 'debater',
+                            group: 1
+                        }));
+                    }
+                }
+                
+                // Group 2 debaters
+                for (let i = 0; i < group2Count; i++) {
+                    const id = shuffled[index++];
+                    clientRoles.set(id, { role: 'debater', group: 2 });
+                    
+                    const client = mobileClients.get(id);
+                    if (client && client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'role_assignment',
+                            role: 'debater',
+                            group: 2
+                        }));
+                    }
+                }
+                
+                // Listeners
+                for (let i = 0; i < listenersCount; i++) {
+                    const id = shuffled[index++];
+                    clientRoles.set(id, { role: 'listener' });
+                    
+                    const client = mobileClients.get(id);
+                    if (client && client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'role_assignment',
+                            role: 'listener'
+                        }));
+                    }
+                }
+                
+                // Broadcast to display clients to trigger role assignment animation
+                displayClients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'assign_roles'
                         }));
                     }
                 });
                 
-                console.log(`🎭 Roles assigned: ${debaterIds.length} debaters, ${clientIds.length - debaterIds.length} listeners`);
+                console.log(`🎭 Roles assigned: ${group1Count} Group 1, ${group2Count} Group 2, ${listenersCount} Listeners`);
+                return;
+            }
+            
+            if (data.type === 'clustering_progress') {
+                // Broadcast clustering progress to all clients (especially mobile)
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'clustering_progress',
+                            progress: data.progress,
+                            phase: data.phase
+                        }));
+                    }
+                });
+                return;
+            }
+            
+            if (data.type === 'clustering_complete') {
+                // Broadcast clustering complete to all clients
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'clustering_complete'
+                        }));
+                    }
+                });
                 return;
             }
             
