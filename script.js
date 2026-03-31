@@ -43,10 +43,16 @@ let votingCountdownTime = 0; // Countdown time in seconds
 
 // Debate voting state (post-reveal interaction)
 let debateVotingActive = false;
-let blueVotes = 50;
-let redVotes = 50;
-let blueMetaball = null;
-let redMetaball = null;
+let redVoteCount = 0;
+let greenVoteCount = 0;
+
+// Debate timer state
+let debateTimerActive = false;
+let currentTurn = 1; // 1 = Group 1, 2 = Group 2
+let turnTimeRemaining = 30; // seconds
+let totalTurns = 4; // 2 turns per group
+let currentTurnNumber = 0; // 0-3 (4 total turns)
+let debateTimerInterval = null;
 
 // Role assignment state
 let roleAssignmentActive = false;
@@ -55,6 +61,8 @@ let roleAssignments = new Map(); // Map of clientId -> { role: 'debater', group:
 let topicMoveProgress = 0;
 let circlesFadeProgress = 0;
 let roleAssignmentAutoTriggered = false; // Flag to prevent multiple auto-triggers
+let readyCount = 0;
+let totalDebaters = 0;
 
 // Opposing headlines for debate
 let opposingHeadlines = null; // Stores { position1, position2 }
@@ -1533,12 +1541,10 @@ function drawMetaball3() {
 }
 
 function drawOutlineMode() {
-    // Update physics (only if clustering is enabled)
-    if (clusteringEnabled) {
-        nodes.forEach(node => {
-            node.update();
-        });
-    }
+    // Update physics for gentle floating animation
+    nodes.forEach(node => {
+        node.update();
+    });
     
     // Draw each post as a rounded rectangle with stroke outline
     nodes.forEach(node => {
@@ -2353,6 +2359,141 @@ window.skipToRoles = function() {
     startRoleAssignment();
 };
 
+// Global function to start debate voting (for testing)
+window.startDebateVoting = function() {
+    console.log('🎤 Starting debate voting...');
+    
+    // Ensure we have a winning cluster
+    if (!winningCluster) {
+        winningCluster = {
+            id: 0,
+            label: 'Politics and governance',
+            color: { h: 45, s: 70, b: 80 }
+        };
+    }
+    
+    // Hide timer and QR code
+    const headlineDisplay = document.getElementById('headlineDisplay');
+    const controlsContainer = document.getElementById('controlsContainer');
+    if (headlineDisplay) {
+        headlineDisplay.style.display = 'none';
+    }
+    if (controlsContainer) {
+        controlsContainer.style.display = 'none';
+    }
+    
+    // Activate debate voting
+    debateVotingActive = true;
+    roleAssignmentActive = false;
+    revealAnimationActive = false;
+    votingPhaseActive = false; // Hide posts/clusters
+    
+    // Reset vote counts
+    redVoteCount = 0;
+    greenVoteCount = 0;
+    
+    // Start debate timer
+    startDebateTimer();
+    
+    // Broadcast to mobile clients with cluster info
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'start_debate_voting',
+            clusterName: winningCluster ? winningCluster.label : 'Politics and governance',
+            clusterColor: winningCluster ? winningCluster.color : { h: 45, s: 70, b: 80 }
+        }));
+    }
+    
+    console.log('🎤 Debate voting started');
+};
+
+// Start debate timer with alternating turns
+function startDebateTimer() {
+    // Reset timer state
+    currentTurnNumber = 0;
+    currentTurn = 1; // Start with Group 1
+    turnTimeRemaining = 30;
+    debateTimerActive = true;
+    
+    // Clear any existing timer
+    if (debateTimerInterval) {
+        clearInterval(debateTimerInterval);
+    }
+    
+    console.log('⏱️ Starting debate timer - Group 1 turn');
+    
+    // Broadcast initial timer state
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'debate_timer_update',
+            currentTurn: currentTurn,
+            turnTimeRemaining: turnTimeRemaining,
+            currentTurnNumber: currentTurnNumber,
+            totalTurns: totalTurns,
+            debateOver: false
+        }));
+    }
+    
+    // Start countdown
+    debateTimerInterval = setInterval(() => {
+        turnTimeRemaining--;
+        
+        // Broadcast timer update to mobile clients
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'debate_timer_update',
+                currentTurn: currentTurn,
+                turnTimeRemaining: turnTimeRemaining,
+                currentTurnNumber: currentTurnNumber,
+                totalTurns: totalTurns,
+                debateOver: false
+            }));
+        }
+        
+        if (turnTimeRemaining <= 0) {
+            // Move to next turn
+            currentTurnNumber++;
+            
+            if (currentTurnNumber >= totalTurns) {
+                // Debate over
+                debateTimerActive = false;
+                clearInterval(debateTimerInterval);
+                debateTimerInterval = null;
+                console.log('🏁 Debate over!');
+                
+                // Broadcast debate over state
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'debate_timer_update',
+                        currentTurn: currentTurn,
+                        turnTimeRemaining: 0,
+                        currentTurnNumber: currentTurnNumber,
+                        totalTurns: totalTurns,
+                        debateOver: true
+                    }));
+                }
+            } else {
+                // Switch turns
+                currentTurn = currentTurn === 1 ? 2 : 1;
+                turnTimeRemaining = 30;
+                console.log(`⏱️ Turn ${currentTurnNumber + 1} - Group ${currentTurn}`);
+                
+                // Broadcast turn switch
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'debate_timer_update',
+                        currentTurn: currentTurn,
+                        turnTimeRemaining: turnTimeRemaining,
+                        currentTurnNumber: currentTurnNumber,
+                        totalTurns: totalTurns,
+                        debateOver: false
+                    }));
+                }
+            }
+        }
+    }, 1000);
+}
+
 // Topic reveal animation for main display - with fade transition
 function startTopicRevealAnimation(cluster) {
     console.log('🎬 startTopicRevealAnimation called');
@@ -2449,6 +2590,13 @@ function startRoleAssignment() {
     // Prevent multiple simultaneous role assignments
     if (roleAssignmentActive) {
         return;
+    }
+    
+    // Force stop reveal animation if it's active
+    if (revealAnimationActive) {
+        console.log('🎭 Stopping reveal animation to start role assignment');
+        revealAnimationActive = false;
+        revealPhase = 'idle';
     }
     
     // Hide timer and QR code
@@ -2674,9 +2822,29 @@ function connectWebSocket() {
             }
         }
         
-        if (data.type === 'debate_vote') {
-            // Handle debate vote from mobile client
-            handleDebateVote(data.color);
+        if (data.type === 'debater_ready_update') {
+            // Update ready count
+            readyCount = data.readyCount;
+            totalDebaters = data.totalDebaters;
+            console.log(`✅ Ready update: ${readyCount}/${totalDebaters}`);
+        }
+        
+        if (data.type === 'debate_vote_update') {
+            // Update vote counts from server
+            redVoteCount = data.red;
+            greenVoteCount = data.green;
+            console.log(`📊 Vote update - Red: ${redVoteCount}, Green: ${greenVoteCount}`);
+        }
+        
+        if (data.type === 'start_debate_voting') {
+            debateVotingActive = true;
+            roleAssignmentActive = false;
+            votingPhaseActive = false; // Hide posts/clusters
+            
+            // Start debate timer
+            startDebateTimer();
+            
+            console.log('🎤 Starting debate voting on main display');
         }
         
         if (data.type === 'countdown_update') {
@@ -3351,6 +3519,12 @@ function draw() {
             return; // Skip normal rendering during clustering animation
         }
         
+        // Handle role assignment animation (PRIORITY - check before reveal)
+        if (roleAssignmentActive) {
+            drawRoleAssignmentScreen();
+            return; // Skip normal rendering during role assignment
+        }
+        
         // Handle topic reveal fade-out (clusters fading to black)
         if (revealPhase === 'fade-out') {
             const fadeProgress = window.revealFadeProgress || 0;
@@ -3446,16 +3620,10 @@ function draw() {
             }
             return; // Skip normal rendering during reveal
         }
-        
-        // Handle role assignment animation
-        if (roleAssignmentActive) {
-            drawRoleAssignmentScreen();
-            return; // Skip normal rendering during role assignment
-        }
 
-        // Draw debate voting metaballs if active
+        // Draw debate voting screen if active
         if (debateVotingActive) {
-            drawDebateVotingMetaballs();
+            drawDebateVotingScreen();
             return; // Skip normal rendering during debate voting
         }
         
@@ -3597,6 +3765,11 @@ function draw() {
 
 function drawClusterMetaballs() {
     if (nodes.length < 1) return;
+    
+    // Update physics for gentle floating animation
+    nodes.forEach(node => {
+        node.update();
+    });
     
     // METABALL RENDERING OF POSTS THEMSELVES
     // Posts act as metaballs - blend when similar, separate when not
@@ -4633,6 +4806,13 @@ function drawRoleAssignmentScreen() {
         if (customFontMedium) textFont(customFontMedium);
         text('Stand here', leftCircleX, circleY + 20);
         
+        // Ready count in Group 1 circle
+        if (totalDebaters > 0) {
+            textSize(64);
+            fill(220, 50, 50, alpha);
+            text(`${readyCount}/${totalDebaters}`, leftCircleX, circleY);
+        }
+        
         // Group 2 circle (green)
         noFill();
         stroke(50, 200, 100, alpha); // Green
@@ -4650,8 +4830,187 @@ function drawRoleAssignmentScreen() {
         if (customFontMedium) textFont(customFontMedium);
         text('Stand here', rightCircleX, circleY + 20);
         
+        // Ready count in Group 2 circle
+        if (totalDebaters > 0) {
+            textSize(64);
+            fill(50, 200, 100, alpha);
+            text(`${readyCount}/${totalDebaters}`, rightCircleX, circleY);
+        }
+        
         pop();
     }
+}
+
+// Draw debate voting screen with live vote visualization
+function drawDebateVotingScreen() {
+    background(0);
+    
+    // Draw topic at top
+    if (winningCluster) {
+        push();
+        fill(255);
+        textAlign(CENTER, TOP);
+        textSize(24);
+        if (customFont) textFont(customFont);
+        text(winningCluster.label || 'Politics and governance', width / 2, 60);
+        pop();
+    }
+    
+    // Calculate circle sizes based on active holds (each person adds 50px)
+    const baseSize = 300;
+    const sizePerPerson = 50;
+    const redSize = baseSize + (redVoteCount * sizePerPerson);
+    const greenSize = baseSize + (greenVoteCount * sizePerPerson);
+    
+    // Calculate pulse effect (only when votes > 0)
+    const pulseSpeed = 0.05;
+    const redPulse = redVoteCount > 0 ? sin(frameCount * pulseSpeed) * 10 : 0;
+    const greenPulse = greenVoteCount > 0 ? sin(frameCount * pulseSpeed) * 10 : 0;
+    
+    // Circle positions
+    const leftX = width * 0.3;
+    const rightX = width * 0.7;
+    const circleY = height / 2 + 50;
+    
+    // Switch to RGB color mode for correct colors
+    colorMode(RGB, 255);
+    
+    // Draw Group 1 (Red) circle
+    push();
+    
+    // Glow effect when votes > 0
+    if (redVoteCount > 0) {
+        drawingContext.shadowBlur = 30 + redPulse;
+        drawingContext.shadowColor = 'rgba(220, 53, 69, 0.6)';
+    }
+    
+    noFill();
+    stroke(220, 53, 69);
+    strokeWeight(6);
+    drawingContext.setLineDash([15, 15]);
+    circle(leftX, circleY, redSize + redPulse);
+    drawingContext.setLineDash([]);
+    drawingContext.shadowBlur = 0;
+    
+    // Draw animated segmented progress for Group 1 (countdown from full)
+    if (debateTimerActive && currentTurn === 1) {
+        const progress = turnTimeRemaining / 30; // 1 to 0 as time goes down
+        const totalSegments = 40; // Number of segments around circle
+        const remainingSegments = Math.ceil(progress * totalSegments);
+        const segmentAngle = TWO_PI / totalSegments;
+        const segmentLength = segmentAngle * 0.6; // 60% solid, 40% gap to match dashed circle
+        const outerRadius = (redSize + redPulse) / 2 + 15; // Outside the main circle
+        
+        noFill();
+        stroke(220, 53, 69);
+        strokeWeight(6); // Match main circle stroke weight
+        strokeCap(SQUARE);
+        
+        for (let i = 0; i < remainingSegments; i++) {
+            const startAngle = -HALF_PI + (i * segmentAngle);
+            const endAngle = startAngle + segmentLength;
+            arc(leftX, circleY, outerRadius * 2, outerRadius * 2, startAngle, endAngle);
+        }
+    }
+    
+    // Group 1 label and content
+    fill(220, 53, 69);
+    textAlign(CENTER, CENTER);
+    textSize(36);
+    if (customFont) textFont(customFont);
+    text('Group 1', leftX, circleY - 40);
+    
+    // Status text or timer
+    if (!debateTimerActive) {
+        textSize(28);
+        if (customFontMedium) textFont(customFontMedium);
+        text('Debate', leftX, circleY);
+        text('Over', leftX, circleY + 35);
+    } else if (currentTurn === 1) {
+        textSize(20);
+        if (customFontMedium) textFont(customFontMedium);
+        text('Opening statement', leftX, circleY - 10);
+        textSize(56);
+        const minutes = Math.floor(turnTimeRemaining / 60);
+        const seconds = turnTimeRemaining % 60;
+        text(`${minutes}:${seconds.toString().padStart(2, '0')}`, leftX, circleY + 35);
+    } else {
+        textSize(24);
+        if (customFontMedium) textFont(customFontMedium);
+        text('Listen...', leftX, circleY);
+    }
+    
+    pop();
+    
+    // Draw Group 2 (Green) circle
+    push();
+    
+    // Glow effect when votes > 0
+    if (greenVoteCount > 0) {
+        drawingContext.shadowBlur = 30 + greenPulse;
+        drawingContext.shadowColor = 'rgba(50, 200, 100, 0.6)';
+    }
+    
+    noFill();
+    stroke(50, 200, 100);
+    strokeWeight(6);
+    drawingContext.setLineDash([15, 15]);
+    circle(rightX, circleY, greenSize + greenPulse);
+    drawingContext.setLineDash([]);
+    drawingContext.shadowBlur = 0;
+    
+    // Draw animated segmented progress for Group 2 (countdown from full)
+    if (debateTimerActive && currentTurn === 2) {
+        const progress = turnTimeRemaining / 30; // 1 to 0 as time goes down
+        const totalSegments = 40; // Number of segments around circle
+        const remainingSegments = Math.ceil(progress * totalSegments);
+        const segmentAngle = TWO_PI / totalSegments;
+        const segmentLength = segmentAngle * 0.6; // 60% solid, 40% gap to match dashed circle
+        const outerRadius = (greenSize + greenPulse) / 2 + 15; // Outside the main circle
+        
+        noFill();
+        stroke(50, 200, 100);
+        strokeWeight(6); // Match main circle stroke weight
+        strokeCap(SQUARE);
+        
+        for (let i = 0; i < remainingSegments; i++) {
+            const startAngle = -HALF_PI + (i * segmentAngle);
+            const endAngle = startAngle + segmentLength;
+            arc(rightX, circleY, outerRadius * 2, outerRadius * 2, startAngle, endAngle);
+        }
+    }
+    
+    // Group 2 label and content
+    fill(50, 200, 100);
+    textAlign(CENTER, CENTER);
+    textSize(36);
+    if (customFont) textFont(customFont);
+    text('Group 2', rightX, circleY - 40);
+    
+    // Status text or timer
+    if (!debateTimerActive) {
+        textSize(28);
+        if (customFontMedium) textFont(customFontMedium);
+        text('Debate', rightX, circleY);
+        text('Over', rightX, circleY + 35);
+    } else if (currentTurn === 2) {
+        textSize(20);
+        if (customFontMedium) textFont(customFontMedium);
+        text('Listen...', rightX, circleY - 10);
+        textSize(56);
+        const minutes = Math.floor(turnTimeRemaining / 60);
+        const seconds = turnTimeRemaining % 60;
+        text(`${minutes}:${seconds.toString().padStart(2, '0')}`, rightX, circleY + 35);
+    } else {
+        textSize(24);
+        if (customFontMedium) textFont(customFontMedium);
+        text('Listen...', rightX, circleY);
+    }
+    
+    pop();
+    
+    // Switch back to HSB for rest of sketch
+    colorMode(HSB, 360, 100, 100);
 }
 
 // Draw debate voting metaballs

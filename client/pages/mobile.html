@@ -9,6 +9,7 @@
     <link href="https://fonts.cdnfonts.com/css/ds-digital" rel="stylesheet">
     <link rel="stylesheet" href="../styles/mobile.css">
     <link rel="stylesheet" href="../styles/onboarding.css">
+    <link rel="stylesheet" href="../styles/mobile-debate.css">
 </head>
 <body>
     <!-- Main Content Container -->
@@ -91,6 +92,8 @@
                     <div id="groupInfo" class="group-info">
                         <h2 id="groupName" class="group-name">Group 1</h2>
                         <p id="groupInstruction" class="group-instruction">Place yourselves in the circle in your circle and get ready</p>
+                        <p class="ready-instruction">Press ready up whenever you are placed correctly</p>
+                        <button id="readyUpButton" class="ready-up-button">Ready up</button>
                     </div>
                 </div>
             </div>
@@ -98,17 +101,43 @@
         
         <!-- Debate Voting Section -->
         <div id="debateVotingSection" class="debate-voting-section" style="display: none;">
-            <h1 class="debate-title">Vote</h1>
-            <p class="debate-subtitle">Vote on the ones you agree with the most</p>
-            
-            <div class="debate-buttons">
-                <button id="voteBlueBtn" class="vote-button vote-blue"></button>
-                <button id="voteRedBtn" class="vote-button vote-red"></button>
+            <div class="debate-voting-content">
+                <h2 class="debate-turn-header" id="debateTurnHeader">Group 1<br>Your turn</h2>
+                
+                <h3 class="debate-topic-label">Debate topic</h3>
+                <div class="debate-topic-box" id="debateTopicBox">
+                    <p class="debate-statement" id="debateStatement">Politics and Governance</p>
+                </div>
+                
+                <!-- Circular Timer Display -->
+                <div class="circular-timer-container">
+                    <svg class="circular-timer-svg" viewBox="0 0 200 200">
+                        <!-- Dashed circle outline -->
+                        <circle 
+                            class="timer-circle-base group-1" 
+                            cx="100" 
+                            cy="100" 
+                            r="85"
+                            fill="none"
+                            stroke-width="4"
+                            stroke-dasharray="10 10"
+                        />
+                        <!-- Segmented progress -->
+                        <g id="timerSegments"></g>
+                    </svg>
+                    
+                    <!-- Timer text overlay -->
+                    <div class="timer-text-overlay">
+                        <p class="timer-group-label" id="timerGroupLabel">Group 1</p>
+                        <p class="timer-status-text" id="timerStatusText">Opening statement</p>
+                        <p class="timer-countdown" id="timerCountdown">0:30</p>
+                    </div>
+                </div>
             </div>
         </div>
         
     </div>
     
-    <script src="../mobile.js"></script>
+    <script src="../mobile.js?v=8"></script>
 </body>
 </html>

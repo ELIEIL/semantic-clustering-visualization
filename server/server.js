@@ -40,6 +40,17 @@ const rateLimitMap = new Map();
 let nextClientId = 1;
 const clientRoles = new Map(); // clientId -> 'debater' | 'listener'
 
+// Live debate voting state
+const debateVotes = {
+    red: 0,      // Group 1 (red) total votes
+    green: 0     // Group 2 (green) total votes
+};
+const clientDebateVotes = new Map(); // clientId -> 'red' | 'green' | null (current vote)
+const clientHoldState = new Map(); // clientId -> { side: 'red'|'green', startTime: timestamp }
+
+// Ready-up state for debaters
+const debaterReadyState = new Map(); // clientId -> boolean (ready or not)
+
 // Voting system data structures
 const postVotes = new Map(); // postId -> { upvotes: 0, downvotes: 0, voters: Set() }
 const userVotes = new Map(); // userId -> [{ postId, vote, timestamp }]
@@ -309,21 +320,6 @@ wss.on('connection', (ws) => {
                 return;
             }
             
-            if (data.type === 'debate_vote') {
-                // Broadcast debate vote to all clients (including main display)
-                wss.clients.forEach(client => {
-                    if (client.readyState === WebSocket.OPEN) {
-                        client.send(JSON.stringify({
-                            type: 'debate_vote',
-                            color: data.color
-                        }));
-                    }
-                });
-                
-                console.log(`🎤 Debate vote: ${data.color}`);
-                return;
-            }
-            
             if (data.type === 'start_debate_voting') {
                 // Broadcast start debate voting to all mobile clients
                 wss.clients.forEach(client => {
@@ -337,6 +333,23 @@ wss.on('connection', (ws) => {
                 });
                 
                 console.log('🎤 Broadcasting start debate voting');
+                return;
+            }
+            
+            if (data.type === 'debate_timer_update') {
+                // Broadcast timer updates to all mobile clients
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'debate_timer_update',
+                            currentTurn: data.currentTurn,
+                            turnTimeRemaining: data.turnTimeRemaining,
+                            currentTurnNumber: data.currentTurnNumber,
+                            totalTurns: data.totalTurns,
+                            debateOver: data.debateOver
+                        }));
+                    }
+                });
                 return;
             }
             
@@ -364,59 +377,24 @@ wss.on('connection', (ws) => {
                     return;
                 }
                 
-                // Shuffle client IDs
-                const shuffled = clientIds.sort(() => Math.random() - 0.5);
-                
-                // Calculate distribution
-                const totalClients = shuffled.length;
-                const group1Count = Math.floor(totalClients * 0.3);
-                const group2Count = Math.floor(totalClients * 0.3);
-                const listenersCount = totalClients - group1Count - group2Count;
-                
-                // Assign roles
+                // TESTING MODE: Always assign as debater, alternating between groups
+                // TODO: Revert to random distribution for actual testing
                 clientRoles.clear();
-                let index = 0;
+                debaterReadyState.clear();
                 
-                // Group 1 debaters
-                for (let i = 0; i < group1Count; i++) {
-                    const id = shuffled[index++];
-                    clientRoles.set(id, { role: 'debater', group: 1 });
+                for (let i = 0; i < clientIds.length; i++) {
+                    const id = clientIds[i];
+                    const group = (i % 2) + 1; // Alternate between Group 1 and Group 2
+                    
+                    clientRoles.set(id, { role: 'debater', group: group });
+                    debaterReadyState.set(id, false); // Initialize as not ready
                     
                     const client = mobileClients.get(id);
                     if (client && client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                             type: 'role_assignment',
                             role: 'debater',
-                            group: 1
-                        }));
-                    }
-                }
-                
-                // Group 2 debaters
-                for (let i = 0; i < group2Count; i++) {
-                    const id = shuffled[index++];
-                    clientRoles.set(id, { role: 'debater', group: 2 });
-                    
-                    const client = mobileClients.get(id);
-                    if (client && client.readyState === WebSocket.OPEN) {
-                        client.send(JSON.stringify({
-                            type: 'role_assignment',
-                            role: 'debater',
-                            group: 2
-                        }));
-                    }
-                }
-                
-                // Listeners
-                for (let i = 0; i < listenersCount; i++) {
-                    const id = shuffled[index++];
-                    clientRoles.set(id, { role: 'listener' });
-                    
-                    const client = mobileClients.get(id);
-                    if (client && client.readyState === WebSocket.OPEN) {
-                        client.send(JSON.stringify({
-                            type: 'role_assignment',
-                            role: 'listener'
+                            group: group
                         }));
                     }
                 }
@@ -430,7 +408,115 @@ wss.on('connection', (ws) => {
                     }
                 });
                 
-                console.log(`🎭 Roles assigned: ${group1Count} Group 1, ${group2Count} Group 2, ${listenersCount} Listeners`);
+                const totalDebaters = clientIds.length;
+                const group1Debaters = Math.ceil(totalDebaters / 2);
+                const group2Debaters = Math.floor(totalDebaters / 2);
+                console.log(`🎭 TESTING MODE - All debaters: ${group1Debaters} Group 1, ${group2Debaters} Group 2`);
+                return;
+            }
+            
+            if (data.type === 'debater_ready') {
+                const clientId = ws.clientId;
+                if (!clientId) return;
+                
+                // Mark debater as ready
+                debaterReadyState.set(clientId, true);
+                
+                // Count ready debaters
+                let readyCount = 0;
+                let totalDebaters = 0;
+                clientRoles.forEach((roleInfo, id) => {
+                    if (roleInfo.role === 'debater') {
+                        totalDebaters++;
+                        if (debaterReadyState.get(id)) {
+                            readyCount++;
+                        }
+                    }
+                });
+                
+                console.log(`✅ Debater ready: ${readyCount}/${totalDebaters}`);
+                
+                // Broadcast ready count to all displays
+                displayClients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'debater_ready_update',
+                            readyCount: readyCount,
+                            totalDebaters: totalDebaters
+                        }));
+                    }
+                });
+                
+                // If all debaters are ready, start debate voting
+                if (readyCount === totalDebaters && totalDebaters > 0) {
+                    console.log('🎤 All debaters ready! Starting debate voting...');
+                    
+                    // Broadcast start debate voting to all clients
+                    wss.clients.forEach(client => {
+                        if (client.readyState === WebSocket.OPEN) {
+                            client.send(JSON.stringify({
+                                type: 'start_debate_voting'
+                            }));
+                        }
+                    });
+                }
+                
+                return;
+            }
+            
+            if (data.type === 'debate_vote') {
+                const clientId = ws.clientId;
+                const { side, action } = data; // side: 'red' | 'green', action: 'press' | 'release'
+                
+                if (!clientId) return;
+                
+                if (action === 'press') {
+                    // Remove vote from previous side if switching
+                    const previousSide = clientDebateVotes.get(clientId);
+                    if (previousSide && previousSide !== side) {
+                        debateVotes[previousSide] = Math.max(0, debateVotes[previousSide] - 1);
+                    }
+                    
+                    // Add vote to new side if not already voting
+                    if (previousSide !== side) {
+                        debateVotes[side]++;
+                        clientDebateVotes.set(clientId, side);
+                    }
+                    
+                    // Track hold state
+                    clientHoldState.set(clientId, {
+                        side: side,
+                        startTime: Date.now()
+                    });
+                    
+                } else if (action === 'release') {
+                    // Remove hold state
+                    clientHoldState.delete(clientId);
+                }
+                
+                // Count active holds per side
+                let redActiveHolds = 0;
+                let greenActiveHolds = 0;
+                clientHoldState.forEach((holdInfo) => {
+                    if (holdInfo.side === 'red') {
+                        redActiveHolds++;
+                    } else if (holdInfo.side === 'green') {
+                        greenActiveHolds++;
+                    }
+                });
+                
+                // Broadcast active hold counts to all displays
+                displayClients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'debate_vote_update',
+                            red: redActiveHolds,
+                            green: greenActiveHolds
+                        }));
+                    }
+                });
+                
+                console.log(`📊 Active holds - Red: ${redActiveHolds}, Green: ${greenActiveHolds}`);
                 return;
             }
             
@@ -686,6 +772,44 @@ wss.on('connection', (ws) => {
         console.log('Client disconnected');
         displayClients.delete(ws);
         moderatorClients.delete(ws);
+        
+        // Clean up debate vote if client was voting
+        if (ws.clientId) {
+            const votingSide = clientDebateVotes.get(ws.clientId);
+            if (votingSide) {
+                debateVotes[votingSide] = Math.max(0, debateVotes[votingSide] - 1);
+                clientDebateVotes.delete(ws.clientId);
+            }
+            
+            // Remove from hold state
+            const wasHolding = clientHoldState.has(ws.clientId);
+            clientHoldState.delete(ws.clientId);
+            
+            // If client was holding, broadcast updated active hold counts
+            if (wasHolding) {
+                let redActiveHolds = 0;
+                let greenActiveHolds = 0;
+                clientHoldState.forEach((holdInfo) => {
+                    if (holdInfo.side === 'red') {
+                        redActiveHolds++;
+                    } else if (holdInfo.side === 'green') {
+                        greenActiveHolds++;
+                    }
+                });
+                
+                displayClients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'debate_vote_update',
+                            red: redActiveHolds,
+                            green: greenActiveHolds
+                        }));
+                    }
+                });
+            }
+            
+            mobileClients.delete(ws.clientId);
+        }
     });
     
     ws.on('error', (error) => {
@@ -997,8 +1121,10 @@ const server = http.createServer(async (req, res) => {
     
     // Regular file serving
     // Resolve file path relative to project root (one level up from server directory)
-    let filePath = path.join(__dirname, '..', req.url);
-    if (req.url === '/') {
+    // Strip query parameters (e.g., ?v=3 for cache busting)
+    const urlWithoutQuery = req.url.split('?')[0];
+    let filePath = path.join(__dirname, '..', urlWithoutQuery);
+    if (urlWithoutQuery === '/') {
         filePath = path.join(__dirname, '..', 'client', 'pages', 'mobile.html');
     }
     

@@ -166,13 +166,44 @@ function connect() {
         if (data.type === 'role_assignment') {
             // Display role screen based on assignment
             console.log(`🎭 Role assigned: ${data.role}, group: ${data.group || 'none'}`);
+            
+            // Store user's group for timer display
+            if (data.group) {
+                userGroup = data.group;
+            }
+            
             showRoleScreen(data.role, data.group);
         }
         
         if (data.type === 'start_debate_voting') {
             // Show debate voting screen
             console.log('🎤 Starting debate voting on mobile');
+            
+            // Store cluster information
+            if (data.clusterName) {
+                const debateStatement = document.getElementById('debateStatement');
+                if (debateStatement) {
+                    debateStatement.textContent = data.clusterName;
+                }
+            }
+            
+            // Store and apply original cluster color to topic box
+            if (data.clusterColor) {
+                originalTopicColor = data.clusterColor;
+                const topicBox = document.getElementById('debateTopicBox');
+                if (topicBox) {
+                    // Convert HSB to RGB for CSS
+                    const rgb = hsbToRgb(data.clusterColor.h, data.clusterColor.s, data.clusterColor.b);
+                    topicBox.style.borderColor = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+                }
+            }
+            
             showDebateVoting();
+        }
+        
+        if (data.type === 'debate_timer_update') {
+            // Update timer display on mobile
+            updateDebateTimer(data);
         }
     };
     
@@ -997,6 +1028,25 @@ function showTopicReveal(cluster) {
 
 
 // ========================================
+// Ready-up button handler
+const readyUpButton = document.getElementById('readyUpButton');
+if (readyUpButton) {
+    readyUpButton.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'debater_ready'
+            }));
+            
+            // Visual feedback
+            readyUpButton.classList.add('ready');
+            readyUpButton.textContent = '✓ Ready';
+            readyUpButton.disabled = true;
+            
+            console.log('✅ Marked as ready');
+        }
+    });
+}
+
 // Debate Voting Handlers
 // ========================================
 
@@ -1053,6 +1103,253 @@ function showDebateVoting() {
         debateVotingSection.style.display = 'flex';
     }
 }
+
+// Debate voting handlers
+let currentVoteSide = null;
+let isVoting = false;
+
+function initDebateVoting() {
+    const redCircle = document.getElementById('voteRedCircle');
+    const greenCircle = document.getElementById('voteGreenCircle');
+    
+    if (!redCircle || !greenCircle) return;
+    
+    // Red circle handlers
+    redCircle.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        votePress('red');
+    });
+    redCircle.addEventListener('mousedown', () => votePress('red'));
+    
+    redCircle.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        voteRelease();
+    });
+    redCircle.addEventListener('mouseup', () => voteRelease());
+    redCircle.addEventListener('mouseleave', () => {
+        if (isVoting && currentVoteSide === 'red') voteRelease();
+    });
+    
+    // Green circle handlers
+    greenCircle.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        votePress('green');
+    });
+    greenCircle.addEventListener('mousedown', () => votePress('green'));
+    
+    greenCircle.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        voteRelease();
+    });
+    greenCircle.addEventListener('mouseup', () => voteRelease());
+    greenCircle.addEventListener('mouseleave', () => {
+        if (isVoting && currentVoteSide === 'green') voteRelease();
+    });
+    
+    console.log('🎤 Debate voting handlers initialized');
+}
+
+function votePress(side) {
+    const redCircle = document.getElementById('voteRedCircle');
+    const greenCircle = document.getElementById('voteGreenCircle');
+    
+    if (!redCircle || !greenCircle) return;
+    
+    // Remove voting class from both
+    redCircle.classList.remove('voting');
+    greenCircle.classList.remove('voting');
+    
+    // Add to pressed circle
+    if (side === 'red') {
+        redCircle.classList.add('voting');
+    } else {
+        greenCircle.classList.add('voting');
+    }
+    
+    currentVoteSide = side;
+    isVoting = true;
+    
+    // Send vote to server
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'debate_vote',
+            side: side,
+            action: 'press'
+        }));
+    }
+    
+    console.log(`🗳️ Voting for ${side}`);
+}
+
+function voteRelease() {
+    const redCircle = document.getElementById('voteRedCircle');
+    const greenCircle = document.getElementById('voteGreenCircle');
+    
+    if (!redCircle || !greenCircle) return;
+    
+    redCircle.classList.remove('voting');
+    greenCircle.classList.remove('voting');
+    
+    if (currentVoteSide && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'debate_vote',
+            side: currentVoteSide,
+            action: 'release'
+        }));
+    }
+    
+    currentVoteSide = null;
+    isVoting = false;
+}
+
+function showDebateVoting() {
+    const debateSection = document.getElementById('debateVotingSection');
+    const roleSection = document.getElementById('roleAssignmentSection');
+    const revealSection = document.getElementById('topicRevealSection');
+    
+    if (roleSection) roleSection.style.display = 'none';
+    if (revealSection) revealSection.style.display = 'none';
+    if (debateSection) {
+        debateSection.style.display = 'flex';
+        initDebateVoting();
+    }
+    
+    console.log('🎤 Debate voting screen displayed');
+}
+
+// Store user's group assignment and original topic color
+let userGroup = null;
+let originalTopicColor = null; // Store the original cluster color
+
+// Convert HSB to RGB
+function hsbToRgb(h, s, b) {
+    s = s / 100;
+    b = b / 100;
+    const k = (n) => (n + h / 60) % 6;
+    const f = (n) => b * (1 - s * Math.max(0, Math.min(k(n), 4 - k(n), 1)));
+    return {
+        r: Math.round(255 * f(5)),
+        g: Math.round(255 * f(3)),
+        b: Math.round(255 * f(1))
+    };
+}
+
+// Update debate timer display on mobile
+function updateDebateTimer(data) {
+    const timerCountdown = document.getElementById('timerCountdown');
+    const timerGroupLabel = document.getElementById('timerGroupLabel');
+    const timerStatusText = document.getElementById('timerStatusText');
+    const turnHeader = document.getElementById('debateTurnHeader');
+    const topicBox = document.getElementById('debateTopicBox');
+    const circleBase = document.querySelector('.timer-circle-base');
+    const timerSegmentsContainer = document.getElementById('timerSegments');
+    
+    if (!timerCountdown || !timerGroupLabel || !timerStatusText) return;
+    
+    // Update timer countdown
+    const minutes = Math.floor(data.turnTimeRemaining / 60);
+    const seconds = data.turnTimeRemaining % 60;
+    timerCountdown.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    // Determine group name and colors for turn indicators
+    const groupName = data.currentTurn === 1 ? 'Group 1' : 'Group 2';
+    const groupClass = data.currentTurn === 1 ? 'group-1' : 'group-2';
+    const isMyTurn = userGroup === data.currentTurn;
+    
+    console.log(`🔍 Debug - userGroup: ${userGroup}, currentTurn: ${data.currentTurn}, isMyTurn: ${isMyTurn}`);
+    
+    // Update group label (changes color based on current turn)
+    timerGroupLabel.textContent = groupName;
+    timerGroupLabel.className = `timer-group-label ${groupClass}`;
+    
+    // Update turn header (changes color based on current turn)
+    if (turnHeader) {
+        if (data.debateOver) {
+            turnHeader.innerHTML = 'Debate<br>Over';
+            turnHeader.className = 'debate-turn-header';
+        } else if (isMyTurn) {
+            turnHeader.innerHTML = `${groupName}<br>Your turn`;
+            turnHeader.className = `debate-turn-header ${groupClass}`;
+        } else {
+            turnHeader.innerHTML = `${groupName}<br>Speaking`;
+            turnHeader.className = `debate-turn-header ${groupClass}`;
+        }
+    }
+    
+    // Topic box color stays constant (original cluster color) - do NOT change
+    // Only set it once when we first get the topic
+    
+    // Update circle base color (changes based on current turn)
+    if (circleBase) {
+        const strokeColor = data.currentTurn === 1 ? '#DC3545' : '#32C864';
+        console.log(`🎨 Setting circle color: ${strokeColor} for turn ${data.currentTurn}`);
+        circleBase.className = `timer-circle-base ${groupClass}`;
+        // Use style.stroke to override CSS with !important priority
+        circleBase.style.stroke = strokeColor;
+        console.log(`🎨 Circle style.stroke set to:`, circleBase.style.stroke);
+    } else {
+        console.error('❌ Circle base element not found!');
+    }
+    
+    // Update status text
+    if (data.debateOver) {
+        timerStatusText.textContent = 'Complete';
+        timerCountdown.textContent = '0:00';
+    } else if (isMyTurn) {
+        timerStatusText.textContent = 'Opening statement';
+    } else {
+        timerStatusText.textContent = 'Listen...';
+    }
+    
+    // Draw segmented progress (countdown from full) - always show for current speaker
+    if (timerSegmentsContainer && !data.debateOver) {
+        drawTimerSegments(timerSegmentsContainer, data.turnTimeRemaining, data.currentTurn);
+    } else if (timerSegmentsContainer) {
+        timerSegmentsContainer.innerHTML = ''; // Clear segments when debate is over
+    }
+    
+    console.log(`⏱️ Timer updated: ${groupName} - ${timerCountdown.textContent}`);
+}
+
+// Draw segmented circular timer
+function drawTimerSegments(container, timeRemaining, currentTurn) {
+    const progress = timeRemaining / 30; // 1 to 0 as time goes down
+    const totalSegments = 40;
+    const remainingSegments = Math.ceil(progress * totalSegments);
+    const segmentAngle = (2 * Math.PI) / totalSegments;
+    const segmentLength = segmentAngle * 0.6; // 60% solid, 40% gap
+    const outerRadius = 95; // Outside the dashed circle (base is 85)
+    const centerX = 100;
+    const centerY = 100;
+    
+    // Clear existing segments
+    container.innerHTML = '';
+    
+    // Create SVG path elements for each segment
+    for (let i = 0; i < remainingSegments; i++) {
+        const startAngle = -Math.PI / 2 + (i * segmentAngle); // Start at top
+        const endAngle = startAngle + segmentLength;
+        
+        // Calculate arc path
+        const startX = centerX + outerRadius * Math.cos(startAngle);
+        const startY = centerY + outerRadius * Math.sin(startAngle);
+        const endX = centerX + outerRadius * Math.cos(endAngle);
+        const endY = centerY + outerRadius * Math.sin(endAngle);
+        
+        // Create path element
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const pathData = `M ${startX} ${startY} A ${outerRadius} ${outerRadius} 0 0 1 ${endX} ${endY}`;
+        path.setAttribute('d', pathData);
+        path.setAttribute('class', `timer-segment group-${currentTurn}`);
+        
+        container.appendChild(path);
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    initDebateVoting();
+});
 
 connect();
 textInput.focus();

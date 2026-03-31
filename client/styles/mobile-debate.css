@@ -1,0 +1,138 @@
+/* Debate Voting Section */
+.debate-voting-section {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    z-index: 3000;
+}
+
+.debate-voting-content {
+    width: 100%;
+    max-width: 500px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Turn Header */
+.debate-turn-header {
+    font-family: 'MD Primer Trail', -apple-system, sans-serif;
+    font-size: 28px;
+    font-weight: 600;
+    color: #DC3545;
+    margin: 0 0 30px 0;
+    line-height: 1.3;
+}
+
+.debate-turn-header.group-2 {
+    color: #32C864;
+}
+
+/* Topic Box */
+.debate-topic-label {
+    font-family: 'MD Primer Trail', -apple-system, sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: #000;
+    margin: 0 0 12px 0;
+}
+
+.debate-topic-box {
+    border: 3px dashed;
+    border-radius: 30px;
+    padding: 16px 32px;
+    margin: 0 0 60px 0;
+    display: inline-block;
+    /* Border color set dynamically from winning cluster color */
+}
+
+.debate-statement {
+    font-family: 'MD Primer Trail', -apple-system, sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: #000;
+    margin: 0;
+    line-height: 1.2;
+}
+
+/* Circular Timer */
+.circular-timer-container {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    margin: 0 auto;
+}
+
+.circular-timer-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.timer-circle-base {
+    stroke: #DC3545;
+}
+
+.timer-circle-base.group-2 {
+    stroke: #32C864;
+}
+
+.timer-segment {
+    fill: none;
+    stroke-width: 4;
+    stroke-linecap: square;
+}
+
+.timer-segment.group-1 {
+    stroke: #DC3545;
+}
+
+.timer-segment.group-2 {
+    stroke: #32C864;
+}
+
+/* Timer Text Overlay */
+.timer-text-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+}
+
+.timer-group-label {
+    font-family: 'MD Primer Trail', -apple-system, sans-serif;
+    font-size: 24px;
+    font-weight: 600;
+    color: #DC3545;
+    margin: 0 0 8px 0;
+}
+
+.timer-group-label.group-2 {
+    color: #32C864;
+}
+
+.timer-status-text {
+    font-family: 'MD Primer Trail', -apple-system, sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    color: #000;
+    margin: 0 0 12px 0;
+}
+
+.timer-countdown {
+    font-family: 'DS-Digital', 'Courier New', monospace;
+    font-size: 48px;
+    font-weight: 700;
+    color: #000;
+    letter-spacing: 4px;
+    margin: 0;
+}
