@@ -260,17 +260,42 @@ body {
 
 .clustering-progress-container {
     width: 100%;
-    height: 8px;
-    background: #e0e0e0;
-    border-radius: 4px;
-    overflow: hidden;
+    height: 20px;
+    background: #fff;
+    border: 2px solid #000;
+    border-radius: 0;
+    overflow: visible;
+    position: relative;
+    display: flex;
+    gap: 2px;
+    padding: 2px;
 }
 
 .clustering-progress-bar {
     height: 100%;
     background: #000;
     width: 0%;
-    transition: width 0.3s ease;
+    transition: width 0.1s linear;
+    position: relative;
+}
+
+/* Segmented progress bar effect */
+.clustering-progress-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        to right,
+        transparent 0px,
+        transparent calc(5% - 2px),
+        #fff 2px,
+        #fff calc(5%)
+    );
+    pointer-events: none;
+    z-index: 1;
 }
 
 /* Topic Reveal Section */

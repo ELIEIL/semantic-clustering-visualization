@@ -131,7 +131,7 @@ function connect() {
                 clearInterval(votingTimerInterval);
                 votingTimerInterval = null;
             }
-            votingTimeRemaining = 60;
+            votingTimeRemaining = 30;
             currentClusters = [];
             
             // Reset voting flag for new round
@@ -148,7 +148,7 @@ function connect() {
         
         if (data.type === 'cluster_vote_update') {
             // Update vote count for specific cluster
-            updateClusterVotes(data.clusterId);
+            updateClusterVotes(data.clusterId, data.voteCount);
         }
         
         if (data.type === 'skip_to_reveal') {
@@ -167,9 +167,28 @@ function connect() {
             // Display role screen based on assignment
             console.log(`🎭 Role assigned: ${data.role}, group: ${data.group || 'none'}`);
             
-            // Store user's group for timer display
-            if (data.group) {
+            // Store user's role and group
+            if (data.role === 'debater') {
+                userRole = 'debater';
                 userGroup = data.group;
+            }
+            
+            // Update debate topic box with cluster name
+            if (data.clusterName) {
+                const debateStatement = document.getElementById('debateStatement');
+                if (debateStatement) {
+                    debateStatement.textContent = data.clusterName;
+                    console.log('📝 Set debate topic to:', data.clusterName);
+                }
+            }
+            
+            // Update topic box color
+            if (data.clusterColor) {
+                const topicBox = document.getElementById('debateTopicBox');
+                if (topicBox) {
+                    const rgb = hsbToRgb(data.clusterColor.h, data.clusterColor.s, data.clusterColor.b);
+                    topicBox.style.borderColor = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+                }
             }
             
             showRoleScreen(data.role, data.group);
@@ -185,6 +204,18 @@ function connect() {
                 if (debateStatement) {
                     debateStatement.textContent = data.clusterName;
                 }
+            }
+            
+            // Store debate question and positions
+            if (data.debateQuestion) {
+                console.log('📝 Debate question:', data.debateQuestion);
+                console.log('   Group 1:', data.group1Position?.stance);
+                console.log('   Group 2:', data.group2Position?.stance);
+                
+                // Store for later display based on user's group
+                window.debateQuestion = data.debateQuestion;
+                window.group1Position = data.group1Position;
+                window.group2Position = data.group2Position;
             }
             
             // Store and apply original cluster color to topic box
@@ -746,38 +777,33 @@ function hsbToRgb(h, s, b) {
 }
 
 // Update vote display for a cluster
-function updateClusterVotes(clusterId) {
+function updateClusterVotes(clusterId, voteCount) {
     const clusterItem = document.querySelector(`[data-cluster-id="${clusterId}"]`);
-    if (!clusterItem) return;
+    if (!clusterItem) {
+        console.log(`⚠️ Cluster item not found for ID: ${clusterId}`);
+        return;
+    }
     
-    const voteCountEl = clusterItem.querySelector('.vote-count');
-    const voteDotsEl = clusterItem.querySelector('.cluster-votes');
+    const voteCountEl = clusterItem.querySelector('.cluster-vote-count');
     
-    if (voteCountEl && voteDotsEl) {
-        // Parse current vote count
-        const currentVotes = parseInt(voteCountEl.textContent) || 0;
-        const newVotes = currentVotes + 1;
-        
-        // Update count
-        voteCountEl.textContent = `${newVotes} ${newVotes === 1 ? 'vote' : 'votes'}`;
-        
-        // Add new vote dot (max 10 visible)
-        if (newVotes <= 10) {
-            const newDot = document.createElement('div');
-            newDot.className = 'vote-dot';
-            voteDotsEl.appendChild(newDot);
-        }
+    if (voteCountEl) {
+        // Update count with value from server
+        voteCountEl.textContent = `${voteCount}`;
         
         // Update stored cluster data
         const cluster = currentClusters.find(c => c.id === clusterId);
         if (cluster) {
-            cluster.votes = newVotes;
+            cluster.votes = voteCount;
         }
+        
+        console.log(`✅ Updated cluster ${clusterId} to ${voteCount} votes`);
+    } else {
+        console.log(`⚠️ Vote count element not found for cluster ${clusterId}`);
     }
 }
 
 // Voting timer variables
-let votingTimeRemaining = 60; // 1 minute in seconds
+let votingTimeRemaining = 30; // 30 seconds to match server
 let votingTimerInterval = null;
 let currentClusters = []; // Store clusters for winner determination
 
@@ -786,7 +812,7 @@ function startVotingTimer() {
     const votingTimerEl = document.getElementById('votingTimer');
     if (!votingTimerEl) return;
     
-    votingTimeRemaining = 60; // Reset to 1 minute
+    votingTimeRemaining = 30; // Reset to 30 seconds
     
     if (votingTimerInterval) {
         clearInterval(votingTimerInterval);

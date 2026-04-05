@@ -1,0 +1,388 @@
+{
+  "topics": [
+    {
+      "category": "Politics & Governance",
+      "name": "Democracy & Voting",
+      "keywords": ["democracy", "voting", "elections", "turnout", "representation"],
+      "statements": [
+        "Should voting be mandatory in democratic societies?",
+        "Is direct democracy better than representative democracy?",
+        "Should governments restrict misinformation during elections?",
+        "Should younger people (under 18) be allowed to vote?",
+        "Is political polarization a threat to democracy?"
+      ]
+    },
+    {
+      "category": "Politics & Governance",
+      "name": "Government Power & Freedom",
+      "keywords": ["freedom", "authority", "state", "regulation", "control"],
+      "statements": [
+        "Should governments prioritize security over personal freedom?",
+        "Is too much government regulation harmful to society?",
+        "Should governments have the power to limit protests?",
+        "Is civil disobedience justified in modern democracies?",
+        "Should governments intervene more in citizens' lives?"
+      ]
+    },
+    {
+      "category": "Politics & Governance",
+      "name": "Immigration & Borders",
+      "keywords": ["immigration", "borders", "refugees", "asylum", "migration"],
+      "statements": [
+        "Should countries have stricter immigration policies?",
+        "Is open-border policy a realistic goal?",
+        "Should refugees be prioritized over economic migrants?",
+        "Should cultural integration be required for immigrants?",
+        "Is immigration beneficial for national economies?"
+      ]
+    },
+    {
+      "category": "Politics & Governance",
+      "name": "Law & Justice",
+      "keywords": ["justice", "crime", "punishment", "prison", "law"],
+      "statements": [
+        "Should rehabilitation be prioritized over punishment in prisons?",
+        "Is the death penalty ever justified?",
+        "Should minor crimes be decriminalized?",
+        "Is the justice system fair across social groups?",
+        "Should surveillance be expanded to prevent crime?"
+      ]
+    },
+    {
+      "category": "Technology & Innovation",
+      "name": "AI & Automation",
+      "keywords": ["AI", "automation", "machine learning", "jobs", "robotics"],
+      "statements": [
+        "Should AI development be slowed down to manage risks?",
+        "Will automation create more jobs than it destroys?",
+        "Should AI systems be regulated like humans?",
+        "Is AI a threat to human creativity?",
+        "Should companies be liable for AI decisions?"
+      ]
+    },
+    {
+      "category": "Technology & Innovation",
+      "name": "Social Media",
+      "keywords": ["social media", "platforms", "addiction", "algorithm", "feed"],
+      "statements": [
+        "Does social media do more harm than good?",
+        "Should social media platforms be regulated as publishers?",
+        "Should algorithmic feeds be transparent?",
+        "Should anonymity online be restricted?",
+        "Are social media companies responsible for user behavior?"
+      ]
+    },
+    {
+      "category": "Technology & Innovation",
+      "name": "Digital Life & Internet",
+      "keywords": ["internet", "digital", "online", "platforms", "access"],
+      "statements": [
+        "Should internet access be a human right?",
+        "Should governments control internet infrastructure?",
+        "Is the internet making people less informed?",
+        "Should digital platforms limit user time?",
+        "Is online identity more important than offline identity?"
+      ]
+    },
+    {
+      "category": "Technology & Innovation",
+      "name": "Emerging Tech",
+      "keywords": ["VR", "AR", "biotech", "metaverse", "innovation"],
+      "statements": [
+        "Should the metaverse replace physical interaction?",
+        "Is human enhancement technology ethical?",
+        "Should biotech research have strict global limits?",
+        "Will virtual reality improve or harm society?",
+        "Should innovation be slowed for ethical reasons?"
+      ]
+    },
+    {
+      "category": "Environment & Climate",
+      "name": "Climate Change",
+      "keywords": ["climate", "warming", "emissions", "carbon", "sustainability"],
+      "statements": [
+        "Should governments enforce strict climate regulations?",
+        "Is individual behavior more important than policy change?",
+        "Should climate activism disrupt daily life?",
+        "Should fossil fuels be banned entirely?",
+        "Is economic growth compatible with sustainability?"
+      ]
+    },
+    {
+      "category": "Environment & Climate",
+      "name": "Conservation & Nature",
+      "keywords": ["biodiversity", "wildlife", "conservation", "ecosystems"],
+      "statements": [
+        "Should humans limit land use to protect nature?",
+        "Is rewilding more important than development?",
+        "Should endangered species be prioritized over human needs?",
+        "Is conservation worth economic sacrifice?",
+        "Should nature have legal rights?"
+      ]
+    },
+    {
+      "category": "Environment & Climate",
+      "name": "Pollution & Waste",
+      "keywords": ["waste", "plastic", "pollution", "recycling"],
+      "statements": [
+        "Should single-use plastics be banned globally?",
+        "Is recycling enough to solve environmental issues?",
+        "Should companies be fully responsible for their waste?",
+        "Should consumers pay more for sustainable products?",
+        "Is zero-waste living realistic?"
+      ]
+    },
+    {
+      "category": "Social Justice & Equality",
+      "name": "Equality & Rights",
+      "keywords": ["equality", "rights", "discrimination", "fairness"],
+      "statements": [
+        "Should equality of outcome be prioritized over opportunity?",
+        "Is affirmative action still necessary?",
+        "Should governments enforce diversity quotas?",
+        "Is discrimination still a systemic issue?",
+        "Should all inequalities be addressed politically?"
+      ]
+    },
+    {
+      "category": "Social Justice & Equality",
+      "name": "Identity & Gender",
+      "keywords": ["gender", "identity", "LGBTQ+", "inclusion"],
+      "statements": [
+        "Should gender identity be self-determined legally?",
+        "Should gender-neutral language be mandatory?",
+        "Is identity politics dividing society?",
+        "Should institutions adapt to gender diversity?",
+        "Is gender a social construct or biological?"
+      ]
+    },
+    {
+      "category": "Social Justice & Equality",
+      "name": "Mental Health & Society",
+      "keywords": ["mental health", "stress", "anxiety", "wellbeing"],
+      "statements": [
+        "Should mental health services be free for everyone?",
+        "Is modern society causing more mental health issues?",
+        "Should schools teach emotional intelligence?",
+        "Is social media harming mental health?",
+        "Should workplaces prioritize wellbeing over productivity?"
+      ]
+    },
+    {
+      "category": "Economy & Finance",
+      "name": "Wealth & Inequality",
+      "keywords": ["wealth", "inequality", "rich", "poverty"],
+      "statements": [
+        "Should wealth redistribution be increased?",
+        "Is capitalism responsible for inequality?",
+        "Should billionaires exist?",
+        "Should there be a maximum income limit?",
+        "Is economic inequality inevitable?"
+      ]
+    },
+    {
+      "category": "Economy & Finance",
+      "name": "Markets & Capitalism",
+      "keywords": ["capitalism", "markets", "business", "economy"],
+      "statements": [
+        "Is capitalism the best economic system?",
+        "Should governments regulate markets more strictly?",
+        "Is free market competition fair?",
+        "Should monopolies be broken up?",
+        "Is economic growth always desirable?"
+      ]
+    },
+    {
+      "category": "Economy & Finance",
+      "name": "Work & Income",
+      "keywords": ["income", "salary", "UBI", "jobs"],
+      "statements": [
+        "Should universal basic income be implemented?",
+        "Should minimum wage be increased globally?",
+        "Is job security more important than flexibility?",
+        "Should gig work be regulated like full-time work?",
+        "Is work central to identity?"
+      ]
+    },
+    {
+      "category": "Education & Learning",
+      "name": "School Systems",
+      "keywords": ["school", "curriculum", "students", "learning"],
+      "statements": [
+        "Should homework be banned in schools?",
+        "Is standardized testing effective?",
+        "Should schools prioritize creativity over discipline?",
+        "Is the current education system outdated?",
+        "Should school be more personalized?"
+      ]
+    },
+    {
+      "category": "Education & Learning",
+      "name": "Higher Education",
+      "keywords": ["university", "degree", "tuition"],
+      "statements": [
+        "Is a university degree still necessary?",
+        "Should higher education be free?",
+        "Is education more valuable than experience?",
+        "Should admissions be merit-based only?",
+        "Is student debt unethical?"
+      ]
+    },
+    {
+      "category": "Education & Learning",
+      "name": "Learning & Technology",
+      "keywords": ["edtech", "digital learning", "AI learning"],
+      "statements": [
+        "Should AI replace traditional teaching methods?",
+        "Is online learning as effective as in-person learning?",
+        "Should students use AI tools freely?",
+        "Is technology harming attention spans?",
+        "Should schools limit screen time?"
+      ]
+    },
+    {
+      "category": "Health & Wellness",
+      "name": "Healthcare Systems",
+      "keywords": ["healthcare", "hospitals", "insurance"],
+      "statements": [
+        "Should healthcare be free for everyone?",
+        "Is privatized healthcare better than public systems?",
+        "Should lifestyle choices affect healthcare access?",
+        "Should governments control healthcare pricing?",
+        "Is healthcare a human right?"
+      ]
+    },
+    {
+      "category": "Health & Wellness",
+      "name": "Medicine & Treatment",
+      "keywords": ["medicine", "drugs", "treatment", "pharma"],
+      "statements": [
+        "Should pharmaceutical companies be regulated more?",
+        "Should alternative medicine be recognized?",
+        "Is over-medication a problem?",
+        "Should experimental treatments be allowed?",
+        "Should drug prices be capped?"
+      ]
+    },
+    {
+      "category": "Health & Wellness",
+      "name": "Lifestyle & Fitness",
+      "keywords": ["fitness", "diet", "exercise", "lifestyle"],
+      "statements": [
+        "Should governments promote healthy lifestyles actively?",
+        "Is diet more important than exercise?",
+        "Should unhealthy products be taxed?",
+        "Is body positivity harmful or beneficial?",
+        "Should fitness be part of education?"
+      ]
+    },
+    {
+      "category": "Culture & Arts",
+      "name": "Art & Expression",
+      "keywords": ["art", "expression", "creativity", "censorship"],
+      "statements": [
+        "Should art ever be censored?",
+        "Is art still meaningful in the digital age?",
+        "Should public funding support artists?",
+        "Is AI-generated art real art?",
+        "Should controversial art be protected?"
+      ]
+    },
+    {
+      "category": "Culture & Arts",
+      "name": "Cultural Identity",
+      "keywords": ["culture", "identity", "tradition", "heritage"],
+      "statements": [
+        "Should cultural traditions be preserved at all costs?",
+        "Is globalization erasing culture?",
+        "Should cultural appropriation be restricted?",
+        "Is cultural identity important in modern society?",
+        "Should cultures evolve freely?"
+      ]
+    },
+    {
+      "category": "Ethics & Morality",
+      "name": "Moral Responsibility",
+      "keywords": ["ethics", "morality", "responsibility"],
+      "statements": [
+        "Should morality be universal or culturally defined?",
+        "Are humans inherently good or selfish?",
+        "Should intention matter more than outcome?",
+        "Is it ever acceptable to lie?",
+        "Should ethics guide all decisions?"
+      ]
+    },
+    {
+      "category": "Ethics & Morality",
+      "name": "Bioethics",
+      "keywords": ["genetics", "cloning", "life", "bio"],
+      "statements": [
+        "Should genetic modification be allowed in humans?",
+        "Is cloning ethical?",
+        "Should life be artificially extended?",
+        "Should humans control evolution?",
+        "Is playing 'god' ever justified?"
+      ]
+    },
+    {
+      "category": "Privacy & Security",
+      "name": "Data & Surveillance",
+      "keywords": ["privacy", "data", "tracking", "surveillance"],
+      "statements": [
+        "Should governments have access to personal data?",
+        "Is privacy more important than security?",
+        "Should companies be allowed to collect user data?",
+        "Should surveillance be normalized?",
+        "Is anonymity online necessary?"
+      ]
+    },
+    {
+      "category": "Work & Career",
+      "name": "Work Culture",
+      "keywords": ["work", "career", "productivity", "balance"],
+      "statements": [
+        "Should work weeks be reduced globally?",
+        "Is remote work better than office work?",
+        "Should passion be prioritized over salary?",
+        "Is burnout a systemic issue?",
+        "Should companies prioritize employee wellbeing?"
+      ]
+    },
+    {
+      "category": "Relationships & Family",
+      "name": "Relationships",
+      "keywords": ["relationships", "dating", "love", "commitment"],
+      "statements": [
+        "Is modern dating culture harmful?",
+        "Should long-term relationships be prioritized?",
+        "Is monogamy outdated?",
+        "Should relationships require compromise?",
+        "Is independence more important than partnership?"
+      ]
+    },
+    {
+      "category": "Media & Entertainment",
+      "name": "Media Influence",
+      "keywords": ["media", "news", "entertainment", "influence"],
+      "statements": [
+        "Should media be regulated for accuracy?",
+        "Is entertainment shaping societal values?",
+        "Should influencers be held accountable?",
+        "Is news media biased?",
+        "Should content be censored?"
+      ]
+    },
+    {
+      "category": "Global Issues & International Relations",
+      "name": "Global Cooperation",
+      "keywords": ["global", "international", "cooperation", "conflict"],
+      "statements": [
+        "Should countries prioritize global cooperation over nationalism?",
+        "Is globalization beneficial?",
+        "Should powerful nations intervene in conflicts?",
+        "Is the UN effective?",
+        "Should borders matter less?"
+      ]
+    }
+  ]
+}

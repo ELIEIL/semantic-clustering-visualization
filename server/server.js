@@ -11,6 +11,9 @@ const os = require('os');
 const CONFIG = require('./config.js');
 const ConceptNetClient = require('./api/conceptnet-client.js');
 const NewsAPIClient = require('./api/news-api.js');
+const { analyzeKeywordsForDebate } = require('./keyword-analysis.js');
+const { findBestDebateStatement } = require('./statement-matcher.js');
+const { initializeSpellChecker, correctClusterLabels, correctPosts } = require('./spell-checker.js');
 
 const PORT = 8080;
 const HTTP_PORT = 3000;
@@ -33,12 +36,17 @@ const displayClients = new Set();
 const moderatorClients = new Set();
 const mobileClients = new Map(); // clientId -> WebSocket connection
 const pendingPosts = [];
-const approvedPosts = [];
+let approvedPosts = [];
 const rateLimitMap = new Map();
 
 // Role assignment
 let nextClientId = 1;
 const clientRoles = new Map(); // clientId -> 'debater' | 'listener'
+
+// Cluster voting state
+const clusterVotes = new Map(); // clusterId -> vote count
+const clientClusterVotes = new Map(); // clientId -> clusterId (prevent multiple votes)
+let currentClusters = []; // Store current clusters with their data
 
 // Live debate voting state
 const debateVotes = {
@@ -56,8 +64,8 @@ const postVotes = new Map(); // postId -> { upvotes: 0, downvotes: 0, voters: Se
 const userVotes = new Map(); // userId -> [{ postId, vote, timestamp }]
 const userPreferences = new Map(); // userId -> { topics, bias, keywords, sources }
 
-// Synchronized countdown timer (1 minute)
-let countdownTime = 60; // seconds
+// Synchronized countdown timer (30 seconds for testing)
+let countdownTime = 30; // seconds
 let countdownInterval = null;
 
 // Initialize ConceptNet client for semantic understanding
@@ -140,7 +148,7 @@ function startCountdownTimer() {
         clearInterval(countdownInterval);
     }
     
-    countdownTime = 60; // Reset to 1 minute
+    countdownTime = 30; // Reset to 30 seconds
     
     countdownInterval = setInterval(() => {
         if (countdownTime <= 0) {
@@ -303,20 +311,37 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'vote_cluster') {
-                // Track cluster votes
                 const clusterId = data.clusterId;
+                const votingClientId = data.clientId;
                 
-                // Broadcast vote to all clients
+                // Prevent duplicate votes from same client
+                if (clientClusterVotes.has(votingClientId)) {
+                    console.log(`⚠️ Client ${votingClientId} already voted`);
+                    return;
+                }
+                
+                // Find cluster label for logging
+                const cluster = currentClusters.find(c => c.id === clusterId);
+                const clusterLabel = cluster ? cluster.label : 'Unknown';
+                
+                // Record vote
+                clientClusterVotes.set(votingClientId, clusterId);
+                const currentVotes = clusterVotes.get(clusterId) || 0;
+                clusterVotes.set(clusterId, currentVotes + 1);
+                
+                console.log(`✅ Vote recorded for cluster ${clusterId} "${clusterLabel}" (now has ${currentVotes + 1} votes)`);
+                
+                // Broadcast updated vote count to all clients
                 wss.clients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                             type: 'cluster_vote_update',
-                            clusterId: clusterId
+                            clusterId: clusterId,
+                            voteCount: currentVotes + 1
                         }));
                     }
                 });
                 
-                console.log(`Vote recorded for cluster ${clusterId}`);
                 return;
             }
             
@@ -377,6 +402,11 @@ wss.on('connection', (ws) => {
                     return;
                 }
                 
+                // Store cluster data for role assignment
+                const clusterName = data.clusterName;
+                const clusterColor = data.clusterColor;
+                console.log('📦 Role assignment with cluster:', clusterName);
+                
                 // TESTING MODE: Always assign as debater, alternating between groups
                 // TODO: Revert to random distribution for actual testing
                 clientRoles.clear();
@@ -394,7 +424,9 @@ wss.on('connection', (ws) => {
                         client.send(JSON.stringify({
                             type: 'role_assignment',
                             role: 'debater',
-                            group: group
+                            group: group,
+                            clusterName: clusterName,
+                            clusterColor: clusterColor
                         }));
                     }
                 }
@@ -547,6 +579,16 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'update_clusters') {
+                // Store cluster data for later winner determination
+                currentClusters = data.clusters || [];
+                
+                // Initialize vote counts for new clusters
+                currentClusters.forEach(cluster => {
+                    if (!clusterVotes.has(cluster.id)) {
+                        clusterVotes.set(cluster.id, 0);
+                    }
+                });
+                
                 // Broadcast cluster data to all clients (especially mobile)
                 const clusterMessage = {
                     type: 'clusters',
@@ -562,6 +604,46 @@ wss.on('connection', (ws) => {
                 });
                 
                 console.log('Broadcasted cluster update:', data.clusters.length, 'clusters,', data.uncategorizedPosts?.length || 0, 'uncategorized');
+                return;
+            }
+            
+            if (data.type === 'get_winning_cluster') {
+                // Determine winning cluster based on votes
+                console.log('🗳️ Determining winning cluster...');
+                console.log('   Current clusters:', currentClusters.map(c => `${c.id}:"${c.label}"`).join(', '));
+                console.log('   Vote counts:');
+                currentClusters.forEach(cluster => {
+                    const votes = clusterVotes.get(cluster.id) || 0;
+                    console.log(`      Cluster ${cluster.id} "${cluster.label}": ${votes} votes`);
+                });
+                
+                let winningCluster = null;
+                let maxVotes = 0;
+                
+                currentClusters.forEach(cluster => {
+                    const votes = clusterVotes.get(cluster.id) || 0;
+                    if (votes > maxVotes) {
+                        maxVotes = votes;
+                        winningCluster = cluster;
+                    }
+                });
+                
+                // If no votes, pick first cluster
+                if (!winningCluster && currentClusters.length > 0) {
+                    winningCluster = currentClusters[0];
+                    console.log('⚠️ No votes recorded, picking first cluster');
+                }
+                
+                console.log(`🏆 Winning cluster: ${winningCluster?.label} (ID: ${winningCluster?.id}) with ${maxVotes} votes`);
+                
+                // Send winning cluster to requesting client
+                if (winningCluster) {
+                    ws.send(JSON.stringify({
+                        type: 'winning_cluster',
+                        cluster: winningCluster,
+                        votes: maxVotes
+                    }));
+                }
                 return;
             }
             
@@ -1092,6 +1174,78 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     
+    // Analyze keywords for debate positions (NEW: uses semantic statement matching)
+    if (req.url.startsWith('/api/analyze-keywords')) {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const { keywords, clusterPosts } = JSON.parse(body);
+                console.log('🔍 Analyzing cluster for debate statement:', keywords);
+                
+                // Use semantic statement matcher with manual topic library
+                const result = await findBestDebateStatement(clusterPosts || [], sentenceTransformer);
+                
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(result));
+            } catch (error) {
+                console.error('Error finding debate statement:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: error.message }));
+            }
+        });
+        return;
+    }
+    
+    // Spell-check individual posts endpoint
+    if (req.url.startsWith('/api/spell-check-posts')) {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const { posts } = JSON.parse(body);
+                const correctedPosts = correctPosts(posts);
+                
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ posts: correctedPosts }));
+            } catch (error) {
+                console.error('Error in spell-checking posts:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: error.message }));
+            }
+        });
+        return;
+    }
+    
+    // Spell-check cluster labels endpoint
+    if (req.url.startsWith('/api/spell-check')) {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const { clusters } = JSON.parse(body);
+                const correctedClusters = correctClusterLabels(clusters);
+                
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ clusters: correctedClusters }));
+            } catch (error) {
+                console.error('Error in spell-checking:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: error.message }));
+            }
+        });
+        return;
+    }
+    
     // ConceptNet semantic similarity endpoint
     if (req.url.startsWith('/api/conceptnet/similarity')) {
         let body = '';
@@ -1173,6 +1327,13 @@ server.listen(HTTP_PORT, async () => {
                 break;
             }
         }
+    }
+    
+    // Initialize spell-checker
+    try {
+        await initializeSpellChecker();
+    } catch (error) {
+        console.error('⚠️ Spell-checker initialization failed:', error);
     }
     
     console.log('\n=================================');
