@@ -99,7 +99,7 @@
             </div>
         </div>
         
-        <!-- Debate Voting Section -->
+        <!-- Debate Voting Section (for debaters) -->
         <div id="debateVotingSection" class="debate-voting-section" style="display: none;">
             <div class="debate-voting-content">
                 <h2 class="debate-turn-header" id="debateTurnHeader">Group 1<br>Your turn</h2>
@@ -132,6 +132,46 @@
                         <p class="timer-status-text" id="timerStatusText">Opening statement</p>
                         <p class="timer-countdown" id="timerCountdown">0:30</p>
                     </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Listener Voting Section (for audience) -->
+        <div id="listenerVotingSection" class="listener-voting-section" style="display: none;">
+            <div class="listener-voting-content">
+                <!-- Audience Icon -->
+                <div class="listener-icon">
+                    <svg width="80" height="60" viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Row 1 -->
+                        <rect x="10" y="10" width="20" height="15" rx="3" fill="#FF6B35"/>
+                        <rect x="35" y="10" width="20" height="15" rx="3" fill="#FF6B35"/>
+                        <rect x="60" y="10" width="20" height="15" rx="3" fill="#FF6B35"/>
+                        <rect x="85" y="10" width="20" height="15" rx="3" fill="#FF6B35"/>
+                        <!-- Row 2 -->
+                        <rect x="10" y="32" width="20" height="15" rx="3" fill="#FF6B35"/>
+                        <rect x="35" y="32" width="20" height="15" rx="3" fill="#FF6B35"/>
+                        <rect x="60" y="32" width="20" height="15" rx="3" fill="#FF6B35"/>
+                        <rect x="85" y="32" width="20" height="15" rx="3" fill="#FF6B35"/>
+                        <!-- Row 3 -->
+                        <rect x="10" y="54" width="20" height="15" rx="3" fill="#FF6B35"/>
+                        <rect x="35" y="54" width="20" height="15" rx="3" fill="#FF6B35"/>
+                        <rect x="60" y="54" width="20" height="15" rx="3" fill="#FF6B35"/>
+                        <rect x="85" y="54" width="20" height="15" rx="3" fill="#FF6B35"/>
+                    </svg>
+                </div>
+                
+                <p class="listener-role-label">Your role</p>
+                <h1 class="listener-role-name">Audience</h1>
+                
+                <h2 class="listener-argument-label">Argument</h2>
+                <p class="listener-argument-text" id="listenerArgumentText">Should fossil fuels be banned entirely?</p>
+                
+                <p class="listener-instruction">Vote on who you agree with the most by pressing the correct clusters</p>
+                
+                <!-- Voting Circles -->
+                <div class="listener-voting-circles">
+                    <div class="listener-vote-circle red" id="listenerRedCircle"></div>
+                    <div class="listener-vote-circle green" id="listenerGreenCircle"></div>
                 </div>
             </div>
         </div>

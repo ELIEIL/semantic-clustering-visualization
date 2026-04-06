@@ -907,6 +907,117 @@ body {
     border-color: #32C864;
 }
 
+/* ========================================
+   Listener Voting Section
+   ======================================== */
+
+.listener-voting-section {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    padding: 20px;
+}
+
+.listener-voting-content {
+    width: 100%;
+    max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.listener-icon {
+    margin-bottom: 20px;
+}
+
+.listener-role-label {
+    font-family: 'MD Thermochrome', sans-serif;
+    font-size: 16px;
+    color: #666;
+    margin: 0 0 8px 0;
+}
+
+.listener-role-name {
+    font-family: 'MD Thermochrome', sans-serif;
+    font-size: 48px;
+    font-weight: bold;
+    color: #000;
+    margin: 0 0 30px 0;
+}
+
+.listener-argument-label {
+    font-family: 'MD Thermochrome', sans-serif;
+    font-size: 20px;
+    font-weight: bold;
+    color: #FF0000;
+    margin: 0 0 10px 0;
+}
+
+.listener-argument-text {
+    font-family: 'MD Thermochrome', sans-serif;
+    font-size: 18px;
+    color: #000;
+    margin: 0 0 30px 0;
+    line-height: 1.4;
+}
+
+.listener-instruction {
+    font-family: 'MD Thermochrome', sans-serif;
+    font-size: 14px;
+    color: #000;
+    margin: 0 0 40px 0;
+    max-width: 350px;
+}
+
+.listener-voting-circles {
+    display: flex;
+    gap: 40px;
+    align-items: center;
+    justify-content: center;
+}
+
+.listener-vote-circle {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    border: 4px dashed;
+    cursor: pointer;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    transform: scale(1);
+    opacity: 1;
+}
+
+.listener-vote-circle.red {
+    border-color: #FF0000;
+}
+
+.listener-vote-circle.green {
+    border-color: #00FF00;
+}
+
+.listener-vote-circle:active {
+    transform: scale(0.95);
+    opacity: 0.8;
+}
+
+.listener-vote-circle.voting {
+    animation: pulse 0.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
 /* Voting Section */
 .voting-section {
     background: white;

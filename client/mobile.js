@@ -168,9 +168,17 @@ function connect() {
             console.log(`🎭 Role assigned: ${data.role}, group: ${data.group || 'none'}`);
             
             // Store user's role and group
+            userRole = data.role;
             if (data.role === 'debater') {
-                userRole = 'debater';
                 userGroup = data.group;
+            }
+            
+            // Update debate argument text for listeners
+            if (data.role === 'listener' && data.debateArgument) {
+                const listenerArgumentText = document.getElementById('listenerArgumentText');
+                if (listenerArgumentText) {
+                    listenerArgumentText.textContent = data.debateArgument;
+                }
             }
             
             // Update debate topic box with cluster name
@@ -1054,13 +1062,13 @@ function showTopicReveal(cluster) {
 
 
 // ========================================
-// Ready-up button handler
+// Ready-up button handler (works for both debaters and listeners)
 const readyUpButton = document.getElementById('readyUpButton');
 if (readyUpButton) {
     readyUpButton.addEventListener('click', () => {
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({
-                type: 'debater_ready'
+                type: 'user_ready' // Changed to generic type that works for all roles
             }));
             
             // Visual feedback
@@ -1230,22 +1238,131 @@ function voteRelease() {
 
 function showDebateVoting() {
     const debateSection = document.getElementById('debateVotingSection');
+    const listenerSection = document.getElementById('listenerVotingSection');
     const roleSection = document.getElementById('roleAssignmentSection');
     const revealSection = document.getElementById('topicRevealSection');
     
     if (roleSection) roleSection.style.display = 'none';
     if (revealSection) revealSection.style.display = 'none';
-    if (debateSection) {
-        debateSection.style.display = 'flex';
-        initDebateVoting();
-    }
     
-    console.log('🎤 Debate voting screen displayed');
+    // Check if user is a listener
+    if (userRole === 'listener') {
+        // Show listener voting interface
+        if (debateSection) debateSection.style.display = 'none';
+        if (listenerSection) {
+            listenerSection.style.display = 'flex';
+            initListenerVoting();
+        }
+        console.log('🎤 Listener voting screen displayed');
+    } else {
+        // Show debater voting interface
+        if (listenerSection) listenerSection.style.display = 'none';
+        if (debateSection) {
+            debateSection.style.display = 'flex';
+            initDebateVoting();
+        }
+        console.log('🎤 Debate voting screen displayed');
+    }
 }
 
 // Store user's group assignment and original topic color
 let userGroup = null;
+let userRole = null; // Store user's role (debater or listener)
 let originalTopicColor = null; // Store the original cluster color
+
+// Track vote balance (starts at 0, negative = red winning, positive = green winning)
+let voteBalance = 0; // Range: -20 to +20
+
+// Initialize listener voting interface
+function initListenerVoting() {
+    const redCircle = document.getElementById('listenerRedCircle');
+    const greenCircle = document.getElementById('listenerGreenCircle');
+    
+    if (!redCircle || !greenCircle) return;
+    
+    // Reset vote balance
+    voteBalance = 0;
+    
+    // Red circle voting - shifts balance toward red
+    const voteRed = () => {
+        voteBalance = Math.max(voteBalance - 1, -20); // Decrease (more red), min -20
+        updateListenerVoteVisuals();
+        
+        // Send vote to server
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'listener_vote',
+                side: 'red',
+                balance: voteBalance
+            }));
+            console.log(`🔴 Red vote: balance = ${voteBalance}`);
+        }
+    };
+    
+    // Green circle voting - shifts balance toward green
+    const voteGreen = () => {
+        voteBalance = Math.min(voteBalance + 1, 20); // Increase (more green), max +20
+        updateListenerVoteVisuals();
+        
+        // Send vote to server
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'listener_vote',
+                side: 'green',
+                balance: voteBalance
+            }));
+            console.log(`🟢 Green vote: balance = ${voteBalance}`);
+        }
+    };
+    
+    // Add click/tap listeners
+    redCircle.addEventListener('click', voteRed);
+    redCircle.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        voteRed();
+    });
+    
+    greenCircle.addEventListener('click', voteGreen);
+    greenCircle.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        voteGreen();
+    });
+    
+    console.log('✅ Listener voting initialized');
+}
+
+// Update visual feedback based on vote balance
+function updateListenerVoteVisuals() {
+    const redCircle = document.getElementById('listenerRedCircle');
+    const greenCircle = document.getElementById('listenerGreenCircle');
+    
+    if (!redCircle || !greenCircle) return;
+    
+    // Convert balance (-20 to +20) to scales
+    // Balance = 0: both at 1.0x
+    // Balance = -20: red at 1.5x, green at 0.5x
+    // Balance = +20: red at 0.5x, green at 1.5x
+    
+    const maxBalance = 20;
+    const normalizedBalance = voteBalance / maxBalance; // -1 to +1
+    
+    // Red scale: 1.5x when balance = -20, 0.5x when balance = +20
+    const redScale = 1.0 - (normalizedBalance * 0.5);
+    
+    // Green scale: 0.5x when balance = -20, 1.5x when balance = +20
+    const greenScale = 1.0 + (normalizedBalance * 0.5);
+    
+    // Apply scales
+    redCircle.style.transform = `scale(${redScale})`;
+    greenCircle.style.transform = `scale(${greenScale})`;
+    
+    // Opacity based on balance
+    const redOpacity = 0.5 + (Math.abs(Math.min(normalizedBalance, 0)) * 0.5);
+    const greenOpacity = 0.5 + (Math.max(normalizedBalance, 0) * 0.5);
+    
+    redCircle.style.opacity = redOpacity.toString();
+    greenCircle.style.opacity = greenOpacity.toString();
+}
 
 // Convert HSB to RGB
 function hsbToRgb(h, s, b) {

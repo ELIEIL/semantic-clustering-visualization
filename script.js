@@ -23,6 +23,7 @@ let timerCompleted = false;
 
 // Clustering animation state
 let clusteringAnimationActive = false;
+let clusteringAnimationLoading = false; // True during spell-check loading
 let clusteringProgress = 0;
 let clusteringAnimationStartTime = 0;
 let clusteringPhase1Done = false;
@@ -927,6 +928,55 @@ function generateClusterLabels() {
             clusterLabels[cluster.id] = label;
         }
     });
+    
+    // Merge clusters with same topicData to eliminate duplicates
+    const topicGroups = new Map();
+    clusterRegistry.clusters.forEach(cluster => {
+        if (!cluster.topicData) return;
+        
+        const topicName = cluster.topicData.name;
+        if (!topicGroups.has(topicName)) {
+            topicGroups.set(topicName, []);
+        }
+        topicGroups.get(topicName).push(cluster);
+    });
+    
+    console.log(`📊 Topic groups found: ${topicGroups.size}`);
+    topicGroups.forEach((clusters, topicName) => {
+        console.log(`   - "${topicName}": ${clusters.length} clusters`);
+    });
+    
+    // Merge duplicate topic clusters
+    const clustersToRemove = [];
+    topicGroups.forEach((clusters, topicName) => {
+        if (clusters.length > 1) {
+            console.log(`🔗 Merging ${clusters.length} clusters for topic "${topicName}"`);
+            
+            // Keep first cluster, merge others into it
+            const mainCluster = clusters[0];
+            for (let i = 1; i < clusters.length; i++) {
+                const mergeCluster = clusters[i];
+                
+                // Move all nodes to main cluster
+                mergeCluster.nodes.forEach(node => {
+                    mainCluster.nodes.push(node);
+                    node.cluster = mainCluster.id;
+                    node.clusterColor = mainCluster.color;
+                });
+                
+                clustersToRemove.push(mergeCluster.id);
+            }
+            
+            console.log(`✅ Merged into cluster ${mainCluster.id} with ${mainCluster.nodes.length} posts`);
+        }
+    });
+    
+    // Remove merged clusters
+    if (clustersToRemove.length > 0) {
+        clusterRegistry.clusters = clusterRegistry.clusters.filter(c => !clustersToRemove.includes(c.id));
+        console.log(`🗑️ Removed ${clustersToRemove.length} duplicate topic clusters`);
+        console.log(`📊 Final cluster count: ${clusterRegistry.clusters.length} unique topics`);
+    }
     
     console.log('🏷️ Cluster labels generated:', clusterLabels);
     
@@ -2190,10 +2240,15 @@ function drawSpeechBubbles() {
     // During clustering animation, the phase-specific code handles all visualization
     if (clusteringEnabled && votingPhaseActive && !clusteringAnimationActive) {
         push();
-        // Group nodes by cluster
+        // Group nodes by cluster (only clusters with topicData)
         const clusterGroups = new Map();
         nodes.forEach(node => {
             const clusterId = node.cluster !== undefined ? node.cluster : 0;
+            
+            // Only include nodes from clusters that have topicData (matched to JSON topics)
+            const cluster = clusterRegistry.clusters.find(c => c.id === clusterId);
+            if (!cluster || !cluster.topicData) return; // Skip rejected clusters
+            
             if (!clusterGroups.has(clusterId)) {
                 clusterGroups.set(clusterId, []);
             }
@@ -2896,9 +2951,11 @@ function assignRolesToClients() {
                 listenersPercent: 40
             },
             clusterName: winningCluster?.label,
-            clusterColor: winningCluster?.color
+            clusterColor: winningCluster?.color,
+            debateArgument: debateQuestion || winningCluster?.label // Send actual debate question
         }));
         console.log('📤 Role assignment request sent to server with cluster:', winningCluster?.label);
+        console.log('📝 Debate argument:', debateQuestion);
     }
 }
 
@@ -3134,6 +3191,16 @@ function connectWebSocket() {
             }
         }
         
+        if (data.type === 'listener_vote_update') {
+            // Update listener vote balance for visual sync
+            const { clientId, side, balance } = data;
+            
+            // Store vote balance
+            window.listenerVoteBalance = balance;
+            
+            console.log(`🗳️ Listener vote update - Balance: ${balance} (${balance < 0 ? 'Red' : 'Green'} winning)`);
+        }
+        
         if (data.type === 'debate_vote_update') {
             // Update vote counts from server
             redVoteCount = data.red;
@@ -3206,17 +3273,67 @@ function connectWebSocket() {
                         node.y = node.originalY;
                     });
                     
-                    console.log('✅ Clustering complete! Starting animation...');
+                    console.log('✅ Clustering complete! Pre-fetching spell corrections...');
                     
-                    // NOW start the animation with clusters already formed
-                    clusteringAnimationActive = true;
-                    clusteringAnimationStartTime = Date.now();
-                    clusteringProgress = 0;
+                    // Set loading flag to prevent cluster rendering during spell-check
+                    clusteringAnimationLoading = true;
                     
-                    // Reset phase flags
-                    clusteringPhase1Done = false;
-                    clusteringPhase2Done = false;
-                    clusteringPhase3Done = false;
+                    // Pre-fetch spell corrections BEFORE starting animation
+                    const postsToCheck = nodes.map(node => ({
+                        id: node.id,
+                        content: node.content
+                    }));
+                    
+                    fetch('http://localhost:3000/api/spell-check-posts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ posts: postsToCheck })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log('✅ Spell-check results received:', data);
+                        
+                        let correctionCount = 0;
+                        
+                        // Store corrected text for each post
+                        if (data.posts && Array.isArray(data.posts)) {
+                            data.posts.forEach(result => {
+                                const node = nodes.find(n => n.id === result.id);
+                                if (node) {
+                                    if (result.correctedText !== result.originalText) {
+                                        node.correctedContent = result.correctedText;
+                                        node.hasCorrection = true;
+                                        correctionCount++;
+                                        console.log(`✏️ Pre-loaded correction: "${result.originalText}" → "${result.correctedText}"`);
+                                    }
+                                }
+                            });
+                        }
+                        
+                        console.log(`📊 Pre-loaded ${correctionCount} corrections out of ${nodes.length} posts`);
+                        
+                        // NOW start the animation with corrections ready
+                        clusteringAnimationLoading = false;
+                        clusteringAnimationActive = true;
+                        clusteringAnimationStartTime = Date.now();
+                        clusteringProgress = 0;
+                        
+                        // Reset phase flags
+                        clusteringPhase1Done = false;
+                        clusteringPhase2Done = false;
+                        clusteringPhase3Done = false;
+                    })
+                    .catch(err => {
+                        console.error('Spell-check error:', err);
+                        // Start animation anyway even if spell-check fails
+                        clusteringAnimationLoading = false;
+                        clusteringAnimationActive = true;
+                        clusteringAnimationStartTime = Date.now();
+                        clusteringProgress = 0;
+                        clusteringPhase1Done = false;
+                        clusteringPhase2Done = false;
+                        clusteringPhase3Done = false;
+                    });
                 })();
             }
         }
@@ -3268,6 +3385,7 @@ function clearAllPosts() {
 // Node class - represents a post in the network
 class Node {
     constructor(content, timestamp, canvasWidth, canvasHeight) {
+        this.id = timestamp; // Use timestamp as unique ID
         this.content = content;
         this.timestamp = timestamp;
         
@@ -3659,39 +3777,55 @@ function draw() {
             typingAnimation.update();
         }
         
+        // Show black screen during spell-check loading
+        if (clusteringAnimationLoading) {
+            background(0);
+            return; // Skip rendering until animation starts
+        }
+        
         // Handle clustering animation - visualize algorithm "thinking"
         if (clusteringAnimationActive) {
             const elapsed = Date.now() - clusteringAnimationStartTime;
             const duration = 30000; // 30 seconds
             clusteringProgress = min(elapsed / duration, 1);
             
-            // NEW ANIMATION FLOW:
-            // Phase 1 (0-33%): Evaluate clusters with labels and percentages
-            // Phase 2 (33-66%): Live typing grammar correction of cluster labels
-            // Phase 3 (66-100%): Pull posts together to form clusters (visual effect)
+            // NEW ANIMATION FLOW (4 PHASES):
+            // Phase 1 (0-25%): Evaluate individual posts with quality circles
+            // Phase 2 (25-50%): Live typing grammar correction
+            // Phase 3 (50-75%): Pull posts together to form clusters (network nodes)
+            // Phase 4 (75-100%): Filter out clusters without JSON topic match (glitch effect)
             
             let phaseText = 'Evaluating posts...';
             
-            // PHASE 1 (0-33%): Evaluate individual posts with colored circles and percentages
-            if (clusteringProgress < 0.33) {
+            // PHASE 1 (0-25%): Evaluate individual posts with colored circles and percentages
+            if (clusteringProgress < 0.25) {
                 phaseText = 'Evaluating posts...';
                 
                 if (!clusteringPhase1Done) {
                     clusteringPhase1Done = true;
-                    console.log('📊 Phase 1: Evaluating clusters with labels and percentages...');
+                    console.log('📊 Phase 1: Evaluating posts...');
                 }
             }
-            // PHASE 2 - handled below in custom Phase 2 code
-            else if (clusteringProgress < 0.66) {
+            // PHASE 2 (25-50%): Grammar correction - handled below in custom Phase 2 code
+            else if (clusteringProgress < 0.50) {
                 phaseText = 'Correcting grammar...';
             }
-            // PHASE 3 (66-100%): Pull posts together - visual clustering effect
-            else {
+            // PHASE 3 (50-75%): Pull posts together - visual clustering effect
+            else if (clusteringProgress < 0.75) {
                 phaseText = 'Forming clusters...';
                 
                 if (clusteringPhase2Done && !clusteringPhase3Done) {
                     clusteringPhase3Done = true;
-                    console.log('🎨 Phase 3: Visual clustering effect...');
+                    console.log('🎨 Phase 3: Forming clusters...');
+                }
+            }
+            // PHASE 4 (75-100%): Filter clusters without topic match
+            else {
+                phaseText = 'Filtering topics...';
+                
+                if (clusteringPhase3Done && !clusteringPhase4Done) {
+                    clusteringPhase4Done = true;
+                    console.log('🔍 Phase 4: Filtering non-matching clusters...');
                 }
                 
                 // End animation when complete
@@ -3707,15 +3841,37 @@ function draw() {
                             type: 'clustering_complete'
                         }));
                         
-                        const clustersToSend = clusterRegistry.clusters.map(cluster => ({
+                        // Only send clusters that have topicData AND were not rejected in Phase 4
+                        const rejectedClusterIds = window.phase4RejectedClusters || [];
+                        console.log(`📤 Sending clusters to mobile: ${clusterRegistry.clusters.length} total, ${rejectedClusterIds.length} rejected`);
+                        
+                        let clustersToSend = clusterRegistry.clusters
+                            .filter(cluster => cluster.topicData && !rejectedClusterIds.includes(cluster.id))
+                            .map(cluster => ({
                             id: cluster.id,
                             label: clusterLabels[cluster.id] || `Cluster ${cluster.id}`,
                             color: cluster.color || { h: 0, s: 70, b: 80 },
                             nodeCount: cluster.nodes.length,
                             votes: cluster.votes || 0,
-                            topicData: cluster.topicData, // Include matched topic data for debate statements
+                            topicData: cluster.topicData,
                             keywords: cluster.keywords
                         }));
+                        
+                        // FINAL SAFETY CHECK: Remove any duplicate topic names
+                        const seenTopics = new Set();
+                        clustersToSend = clustersToSend.filter(cluster => {
+                            if (seenTopics.has(cluster.label)) {
+                                console.log(`⚠️ Removing duplicate topic: "${cluster.label}"`);
+                                return false;
+                            }
+                            seenTopics.add(cluster.label);
+                            return true;
+                        });
+                        
+                        console.log(`📤 Final filtered to ${clustersToSend.length} unique clusters for voting:`);
+                        clustersToSend.forEach(c => {
+                            console.log(`   - ${c.label} (${c.nodeCount} posts)`);
+                        });
                         
                         ws.send(JSON.stringify({
                             type: 'update_clusters',
@@ -3723,6 +3879,14 @@ function draw() {
                             uncategorizedPosts: []
                         }));
                     }
+                    
+                    // Clean up all phase state variables AFTER sending clusters
+                    window.phase2LoggedCorrections = null;
+                    window.phase2CorrectionsApplied = null;
+                    window.phase3Entered = null;
+                    window.phase3Reclustered = null;
+                    window.phase4RejectedClusters = null;
+                    window.phase4GlitchTimings = null;
                 }
             }
             
@@ -3740,8 +3904,8 @@ function draw() {
                 headlineDisplay.style.display = 'none';
             }
             
-            // PHASE 1 (0-33%): Evaluating posts with percentage indicators
-            if (clusteringProgress < 0.33) {
+            // PHASE 1 (0-25%): Evaluating posts with percentage indicators
+            if (clusteringProgress < 0.25) {
                 background(0);
                 
                 // Enable gentle floating physics
@@ -3816,60 +3980,67 @@ function draw() {
                     pop();
                 });
             }
-            // PHASE 2 (33-66%): Grammar correction with typing animations on posts
-            else if (clusteringProgress < 0.66) {
+            // PHASE 2 (25-50%): Grammar correction with typing animations on posts
+            else if (clusteringProgress < 0.50) {
                 background(0);
                 
                 // Enable gentle floating physics
                 nodes.forEach(node => node.update());
                 
-                // Initialize spell-checking on phase start
+                // Log phase start (corrections already pre-fetched)
                 if (!clusteringPhase2Done) {
                     clusteringPhase2Done = true;
-                    console.log('📝 Phase 2: Starting grammar correction...');
+                    console.log('📝 Phase 2: Grammar correction animation (corrections pre-loaded)');
+                }
+                
+                // At end of Phase 2, apply corrections to actual node content
+                const phase2Progress = (clusteringProgress - 0.25) / 0.25;
+                if (phase2Progress > 0.99 && !window.phase2CorrectionsApplied) {
+                    window.phase2CorrectionsApplied = true;
                     
-                    // Send posts to spell-check API
-                    const postsToCheck = nodes.map(node => ({
-                        id: node.id,
-                        content: node.content
-                    }));
-                    
-                    fetch('http://localhost:3000/api/spell-check-posts', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ posts: postsToCheck })
-                    })
-                    .then(res => {
-                        if (!res.ok) {
-                            throw new Error(`HTTP ${res.status}`);
-                        }
-                        return res.json();
-                    })
-                    .then(data => {
-                        console.log('✅ Spell-check results:', data);
-                        
-                        let correctionCount = 0;
-                        
-                        // Store corrected text for each post
-                        if (data.posts && Array.isArray(data.posts)) {
-                            data.posts.forEach(result => {
-                                const node = nodes.find(n => n.id === result.id);
-                                if (node) {
-                                    if (result.correctedText !== result.originalText) {
-                                        node.correctedContent = result.correctedText;
-                                        node.hasCorrection = true;
-                                        correctionCount++;
-                                        console.log(`✏️ Correcting: "${result.originalText}" → "${result.correctedText}"`);
-                                    } else {
-                                        console.log(`✓ No correction needed: "${result.originalText}"`);
-                                    }
+                    let appliedCount = 0;
+                    nodes.forEach(node => {
+                        if (node.hasCorrection && node.correctedContent) {
+                            // Apply correction to actual content
+                            node.content = node.correctedContent;
+                            
+                            // Update text lines for rendering
+                            const maxCharsPerLine = 50;
+                            const words = node.content.split(' ');
+                            node.lines = [];
+                            let currentLine = '';
+                            
+                            words.forEach(word => {
+                                if ((currentLine + word).length > maxCharsPerLine && currentLine.length > 0) {
+                                    node.lines.push(currentLine.trim());
+                                    currentLine = word + ' ';
+                                } else {
+                                    currentLine += word + ' ';
                                 }
                             });
+                            if (currentLine.trim().length > 0) {
+                                node.lines.push(currentLine.trim());
+                            }
+                            
+                            // Re-extract keywords from corrected content
+                            node.keywords = node.extractKeywords(node.content);
+                            
+                            appliedCount++;
                         }
-                        
-                        console.log(`📊 Total corrections: ${correctionCount} out of ${nodes.length} posts`);
-                    })
-                    .catch(err => console.error('Spell-check error:', err));
+                    });
+                    
+                    console.log(`✅ Phase 2 complete: Applied ${appliedCount} corrections to actual content`);
+                    console.log('🔄 Ready for Phase 3 re-clustering with corrected text');
+                }
+                
+                // Log correction status once per phase
+                if (!window.phase2LoggedCorrections) {
+                    window.phase2LoggedCorrections = true;
+                    const postsWithCorrections = nodes.filter(n => n.hasCorrection);
+                    console.log(`🎬 Phase 2 animation: ${postsWithCorrections.length} posts with corrections`);
+                    postsWithCorrections.forEach(n => {
+                        console.log(`   - "${n.content}" → "${n.correctedContent}"`);
+                    });
                 }
                 
                 // Draw posts with typing animation for corrections
@@ -3884,7 +4055,7 @@ function draw() {
                     
                     // Show typing animation if post has correction
                     if (node.hasCorrection && node.correctedContent) {
-                        const progress = (clusteringProgress - 0.33) / 0.33; // 0-1 within Phase 2
+                        const progress = (clusteringProgress - 0.25) / 0.25; // 0-1 within Phase 2
                         const speedMultiplier = 3;
                         const adjustedProgress = Math.min(progress * speedMultiplier, 1);
                         
@@ -3913,11 +4084,153 @@ function draw() {
                     pop();
                 });
             }
-            // PHASE 3 (66-100%): Cluster circles appear, posts move together (NETWORK NODES AESTHETIC)
-            else {
+            // PHASE 3 (50-75%): Cluster circles appear, posts move together (NETWORK NODES AESTHETIC)
+            else if (clusteringProgress < 0.75) {
                 background(0);
                 
-                const visualProgress = (clusteringProgress - 0.66) / 0.34; // 0-1 within Phase 3
+                const visualProgress = (clusteringProgress - 0.50) / 0.25; // 0-1 within Phase 3
+                
+                // Log Phase 3 entry once
+                if (!window.phase3Entered) {
+                    window.phase3Entered = true;
+                    console.log(`🎬 PHASE 3 STARTED - visualProgress will range from 0 to 1`);
+                }
+                
+                // Re-cluster with corrected content at start of Phase 3
+                if (!window.phase3Reclustered) {
+                    console.log(`⏱️ Phase 3 visualProgress: ${visualProgress.toFixed(3)} (waiting for < 0.05)`);
+                }
+                
+                if (visualProgress < 0.05 && !window.phase3Reclustered) {
+                    window.phase3Reclustered = true;
+                    
+                    console.log('🔄🔄🔄 Phase 3: RE-CLUSTERING WITH CORRECTED CONTENT...');
+                    console.log(`📊 Clusters before clearing: ${clusterRegistry.clusters.length}`);
+                    
+                    // Clear old clusters completely
+                    clusterRegistry.clusters.length = 0; // Clear array in place
+                    clusterRegistry.nextId = 0;
+                    
+                    console.log(`📊 Clusters after clearing: ${clusterRegistry.clusters.length}`);
+                    
+                    nodes.forEach(node => {
+                        node.cluster = undefined;
+                        node.clusterColor = undefined;
+                    });
+                    
+                    // Re-run clustering algorithm with corrected content
+                    nodes.forEach(node => {
+                        // Keywords already updated from corrected content in Phase 2
+                        const match = clusterRegistry.findBestCluster(node, 0.5);
+                        
+                        if (match && match.cluster) {
+                            clusterRegistry.addToCluster(match.cluster, node);
+                            node.cluster = match.cluster.id;
+                            node.clusterColor = match.cluster.color;
+                        } else {
+                            const newCluster = clusterRegistry.createCluster(node.keywords, node);
+                            node.cluster = newCluster.id;
+                            node.clusterColor = newCluster.color;
+                        }
+                    });
+                    
+                    // Clean up and optimize clusters
+                    clusterRegistry.pruneEmptyClusters();
+                    clusterRegistry.mergeSimilarClusters(0.7);
+                    clusterRegistry.filterLowQualityClusters(0.35);
+                    
+                    // Generate labels and match to JSON topics
+                    generateClusterLabels();
+                    
+                    // Match clusters to JSON topics
+                    if (clusterRegistry.clusters.length > 0) {
+                        clusterRegistry.clusters.forEach(cluster => {
+                            const clusterKeywords = cluster.keywords || [];
+                            let bestMatch = null;
+                            let bestScore = 0;
+                            
+                            debateTopics.forEach(topic => {
+                                const topicKeywords = topic.keywords.map(k => k.toLowerCase());
+                                const matchCount = clusterKeywords.filter(ck => 
+                                    topicKeywords.some(tk => tk.includes(ck.toLowerCase()) || ck.toLowerCase().includes(tk))
+                                ).length;
+                                
+                                if (matchCount > bestScore) {
+                                    bestScore = matchCount;
+                                    bestMatch = topic;
+                                }
+                            });
+                            
+                            if (bestMatch && bestScore > 0) {
+                                cluster.topicData = bestMatch;
+                                clusterLabels[cluster.id] = bestMatch.name;
+                                console.log(`✅ Re-matched cluster ${cluster.id} to topic: "${bestMatch.name}"`);
+                            } else {
+                                console.log(`⚠️ Cluster ${cluster.id} has no topic match (will be filtered in Phase 4)`);
+                            }
+                        });
+                        
+                        // Merge clusters with same topicData to avoid duplicate topics
+                        console.log(`📊 Before merge: ${clusterRegistry.clusters.length} total clusters`);
+                        clusterRegistry.clusters.forEach(c => {
+                            console.log(`   - Cluster ${c.id}: "${clusterLabels[c.id]}" (${c.nodes.length} posts, topicData: ${c.topicData ? 'YES' : 'NO'})`);
+                        });
+                        
+                        const topicGroups = new Map();
+                        clusterRegistry.clusters.forEach(cluster => {
+                            if (!cluster.topicData) return;
+                            
+                            const topicName = cluster.topicData.name;
+                            if (!topicGroups.has(topicName)) {
+                                topicGroups.set(topicName, []);
+                            }
+                            topicGroups.get(topicName).push(cluster);
+                        });
+                        
+                        console.log(`📊 Topic groups found: ${topicGroups.size}`);
+                        topicGroups.forEach((clusters, topicName) => {
+                            console.log(`   - "${topicName}": ${clusters.length} clusters`);
+                        });
+                        
+                        // Merge duplicate topic clusters
+                        const clustersToRemove = [];
+                        topicGroups.forEach((clusters, topicName) => {
+                            if (clusters.length > 1) {
+                                console.log(`🔗 Merging ${clusters.length} clusters for topic "${topicName}"`);
+                                
+                                // Keep first cluster, merge others into it
+                                const mainCluster = clusters[0];
+                                for (let i = 1; i < clusters.length; i++) {
+                                    const mergeCluster = clusters[i];
+                                    
+                                    // Move all nodes to main cluster
+                                    mergeCluster.nodes.forEach(node => {
+                                        mainCluster.nodes.push(node);
+                                        node.cluster = mainCluster.id;
+                                        node.clusterColor = mainCluster.color;
+                                    });
+                                    
+                                    clustersToRemove.push(mergeCluster.id);
+                                }
+                                
+                                console.log(`✅ Merged into cluster ${mainCluster.id} with ${mainCluster.nodes.length} posts`);
+                            }
+                        });
+                        
+                        // Remove merged clusters
+                        if (clustersToRemove.length > 0) {
+                            clusterRegistry.clusters = clusterRegistry.clusters.filter(c => !clustersToRemove.includes(c.id));
+                            console.log(`🗑️ Removed ${clustersToRemove.length} duplicate topic clusters`);
+                        }
+                        
+                        console.log(`📊 After merge: ${clusterRegistry.clusters.length} total clusters`);
+                        clusterRegistry.clusters.forEach(c => {
+                            console.log(`   - Cluster ${c.id}: "${clusterLabels[c.id]}" (${c.nodes.length} posts)`);
+                        });
+                    }
+                    
+                    console.log(`✅ Re-clustering complete: ${clusterRegistry.clusters.length} unique topic clusters formed`);
+                }
                 
                 // Smooth fade in at start (0-10%) and fade out at end (90-100%)
                 let networkFade = 1;
@@ -4057,8 +4370,181 @@ function draw() {
                     });
                 }
             }
+            // PHASE 4 (75-100%): Filter clusters without topic match (glitch effect)
+            else {
+                background(0);
+                
+                const phase4Progress = (clusteringProgress - 0.75) / 0.25; // 0-1 within Phase 4
+                
+                // Enable physics
+                nodes.forEach(node => node.update());
+                
+                // Identify clusters to remove (no topicData)
+                if (!window.phase4RejectedClusters) {
+                    window.phase4RejectedClusters = [];
+                    window.phase4GlitchTimings = new Map();
+                    
+                    if (clusterRegistry && clusterRegistry.clusters.length > 0) {
+                        clusterRegistry.clusters.forEach((cluster, index) => {
+                            if (!cluster.topicData) {
+                                window.phase4RejectedClusters.push(cluster.id);
+                                // Stagger glitch timing: each cluster glitches at different time
+                                const glitchStart = index * 0.15; // Stagger by 15% each
+                                const glitchDuration = 0.05; // 5% of phase (quick glitch)
+                                window.phase4GlitchTimings.set(cluster.id, {
+                                    start: glitchStart,
+                                    end: glitchStart + glitchDuration
+                                });
+                            }
+                        });
+                        console.log(`🗑️ Phase 4: Removing ${window.phase4RejectedClusters.length} clusters without topic match`);
+                    }
+                }
+                
+                // Draw all posts
+                nodes.forEach(node => {
+                    if (!node.cluster) return;
+                    
+                    const cluster = clusterRegistry.clusters.find(c => c.id === node.cluster);
+                    if (!cluster) return;
+                    
+                    const isRejected = window.phase4RejectedClusters.includes(cluster.id);
+                    const timing = window.phase4GlitchTimings.get(cluster.id);
+                    
+                    let glitchActive = false;
+                    let shouldHide = false;
+                    
+                    if (isRejected && timing) {
+                        if (phase4Progress >= timing.start && phase4Progress < timing.end) {
+                            glitchActive = true; // Currently glitching
+                        } else if (phase4Progress >= timing.end) {
+                            shouldHide = true; // Already glitched out
+                        }
+                    }
+                    
+                    if (shouldHide) return; // Don't draw removed clusters
+                    
+                    push();
+                    
+                    // Apply glitch effect
+                    if (glitchActive) {
+                        // Random jitter position
+                        const jitterX = random(-5, 5);
+                        const jitterY = random(-5, 5);
+                        translate(jitterX, jitterY);
+                        
+                        // RGB channel separation effect
+                        const offset = 3;
+                        
+                        // Red channel
+                        fill(255, 0, 0, 150);
+                        textAlign(LEFT, TOP);
+                        textSize(24);
+                        if (customFontMedium) textFont(customFontMedium);
+                        node.lines.forEach((line, i) => {
+                            text(line, node.x - offset, node.y + i * 30);
+                        });
+                        
+                        // Blue channel
+                        fill(0, 0, 255, 150);
+                        node.lines.forEach((line, i) => {
+                            text(line, node.x + offset, node.y + i * 30);
+                        });
+                        
+                        // Green channel (center)
+                        fill(0, 255, 0, 150);
+                        node.lines.forEach((line, i) => {
+                            text(line, node.x, node.y + i * 30);
+                        });
+                    } else {
+                        // Normal rendering
+                        fill(255);
+                        textAlign(LEFT, TOP);
+                        textSize(24);
+                        if (customFontMedium) textFont(customFontMedium);
+                        node.lines.forEach((line, i) => {
+                            text(line, node.x, node.y + i * 30);
+                        });
+                    }
+                    
+                    pop();
+                });
+                
+                // Draw cluster circles (only for non-rejected clusters)
+                if (clusterRegistry && clusterRegistry.clusters.length > 0) {
+                    clusterRegistry.clusters.forEach(cluster => {
+                        if (!cluster.nodes || cluster.nodes.length === 0) return;
+                        
+                        const isRejected = window.phase4RejectedClusters.includes(cluster.id);
+                        const timing = window.phase4GlitchTimings.get(cluster.id);
+                        
+                        let shouldHide = false;
+                        if (isRejected && timing && phase4Progress >= timing.end) {
+                            shouldHide = true;
+                        }
+                        
+                        if (shouldHide) return; // Don't draw removed cluster circles
+                        
+                        const xs = cluster.nodes.map(n => n.x);
+                        const ys = cluster.nodes.map(n => n.y);
+                        const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+                        const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+                        
+                        const radius = Math.max(
+                            (Math.max(...xs) - Math.min(...xs)) / 2,
+                            (Math.max(...ys) - Math.min(...ys)) / 2
+                        ) + 60;
+                        
+                        push();
+                        noFill();
+                        colorMode(HSB);
+                        stroke(cluster.color.h, cluster.color.s, cluster.color.b, 200);
+                        strokeWeight(3);
+                        drawingContext.setLineDash([10, 10]);
+                        ellipse(centerX, centerY, radius * 2, radius * 2);
+                        drawingContext.setLineDash([]);
+                        
+                        // Cluster label
+                        fill(cluster.color.h, cluster.color.s, cluster.color.b);
+                        textAlign(CENTER, CENTER);
+                        textSize(28);
+                        if (customFontSemibold) textFont(customFontSemibold);
+                        const label = clusterLabels[cluster.id] || `Cluster ${cluster.id}`;
+                        text(label, centerX, centerY - radius - 50);
+                        
+                        colorMode(RGB);
+                        pop();
+                    });
+                }
+                
+                // Draw network lines between posts in same cluster (fade out at end)
+                const lineFade = phase4Progress > 0.8 ? (1 - (phase4Progress - 0.8) / 0.2) : 1;
+                
+                if (lineFade > 0) {
+                    nodes.forEach((node, i) => {
+                        if (!node.cluster) return;
+                        const isRejected = window.phase4RejectedClusters.includes(node.cluster);
+                        if (isRejected) return; // Don't draw lines for rejected clusters
+                        
+                        nodes.forEach((otherNode, j) => {
+                            if (i >= j || otherNode.cluster !== node.cluster) return;
+                            
+                            const cluster = clusterRegistry.clusters.find(c => c.id === node.cluster);
+                            if (!cluster) return;
+                            
+                            push();
+                            colorMode(HSB);
+                            stroke(cluster.color.h, cluster.color.s, cluster.color.b, 100 * lineFade);
+                            strokeWeight(2);
+                            line(node.x, node.y, otherNode.x, otherNode.y);
+                            colorMode(RGB);
+                            pop();
+                        });
+                    });
+                }
+            }
             
-            // Draw loading screen with phase indicator (fade out in last 10% of Phase 3)
+            // Draw loading screen with phase indicator (fade out in last 10% of Phase 4)
             const uiFade = clusteringProgress > 0.9 ? (1 - (clusteringProgress - 0.9) / 0.1) : 1;
             
             if (uiFade > 0) {
@@ -5419,33 +5905,173 @@ function drawRoleAssignmentScreen() {
     }
 }
 
+// Draw listener voting circles synced with mobile controller
+// Red votes = Group 1, Green votes = Group 2
+function drawListenerVotingCircles() {
+    const balance = window.listenerVoteBalance || 0; // -20 to +20
+    
+    // Base circle size
+    const baseSize = 400;
+    
+    // Convert balance to scales (same as mobile)
+    // Balance = 0: both at 1.0x
+    // Balance = -20: Group 1 at 1.5x, Group 2 at 0.5x
+    // Balance = +20: Group 1 at 0.5x, Group 2 at 1.5x
+    const maxBalance = 20;
+    const normalizedBalance = balance / maxBalance; // -1 to +1
+    
+    const group1Scale = 1.0 - (normalizedBalance * 0.5);
+    const group2Scale = 1.0 + (normalizedBalance * 0.5);
+    
+    // Circle positions
+    const leftX = width * 0.3;
+    const rightX = width * 0.7;
+    const circleY = height / 2 - 20;
+    
+    // Switch to RGB color mode
+    colorMode(RGB, 255);
+    
+    // Draw Group 1 (Red) circle with timer segments
+    push();
+    const group1Size = baseSize * group1Scale;
+    
+    // Dashed circle outline
+    noFill();
+    stroke(220, 53, 69);
+    strokeWeight(4);
+    drawingContext.setLineDash([15, 15]);
+    circle(leftX, circleY, group1Size);
+    drawingContext.setLineDash([]);
+    
+    // Timer segments (if it's Group 1's turn)
+    if (debateTimerActive && currentTurn === 1) {
+        const progress = turnTimeRemaining / 30;
+        const totalSegments = 40;
+        const remainingSegments = Math.ceil(progress * totalSegments);
+        const segmentAngle = TWO_PI / totalSegments;
+        const segmentLength = segmentAngle * 0.6;
+        const outerRadius = group1Size / 2 + 15;
+        
+        noFill();
+        stroke(220, 53, 69);
+        strokeWeight(6);
+        strokeCap(SQUARE);
+        
+        for (let i = 0; i < remainingSegments; i++) {
+            const startAngle = -HALF_PI + (i * segmentAngle);
+            const endAngle = startAngle + segmentLength;
+            arc(leftX, circleY, outerRadius * 2, outerRadius * 2, startAngle, endAngle);
+        }
+    }
+    
+    // Group 1 label
+    fill(220, 53, 69);
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    if (customFont) textFont(customFont);
+    text('Group 1', leftX, circleY - 50);
+    
+    // Status text
+    textSize(20);
+    fill(255);
+    if (debateTimerActive && currentTurn === 1) {
+        text('Your turn', leftX, circleY - 15);
+        
+        // Timer display
+        textSize(48);
+        const minutes = Math.floor(turnTimeRemaining / 60);
+        const seconds = Math.floor(turnTimeRemaining % 60);
+        text(`${minutes}:${seconds.toString().padStart(2, '0')}`, leftX, circleY + 30);
+    } else {
+        text('Listen...', leftX, circleY - 15);
+        text('- - : - -', leftX, circleY + 30);
+    }
+    pop();
+    
+    // Draw Group 2 (Green) circle with timer segments
+    push();
+    const group2Size = baseSize * group2Scale;
+    
+    // Dashed circle outline
+    noFill();
+    stroke(40, 167, 69);
+    strokeWeight(4);
+    drawingContext.setLineDash([15, 15]);
+    circle(rightX, circleY, group2Size);
+    drawingContext.setLineDash([]);
+    
+    // Timer segments (if it's Group 2's turn)
+    if (debateTimerActive && currentTurn === 2) {
+        const progress = turnTimeRemaining / 30;
+        const totalSegments = 40;
+        const remainingSegments = Math.ceil(progress * totalSegments);
+        const segmentAngle = TWO_PI / totalSegments;
+        const segmentLength = segmentAngle * 0.6;
+        const outerRadius = group2Size / 2 + 15;
+        
+        noFill();
+        stroke(40, 167, 69);
+        strokeWeight(6);
+        strokeCap(SQUARE);
+        
+        for (let i = 0; i < remainingSegments; i++) {
+            const startAngle = -HALF_PI + (i * segmentAngle);
+            const endAngle = startAngle + segmentLength;
+            arc(rightX, circleY, outerRadius * 2, outerRadius * 2, startAngle, endAngle);
+        }
+    }
+    
+    // Group 2 label
+    fill(40, 167, 69);
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    if (customFont) textFont(customFont);
+    text('Group 2', rightX, circleY - 50);
+    
+    // Status text
+    textSize(20);
+    fill(255);
+    if (debateTimerActive && currentTurn === 2) {
+        text('Your turn', rightX, circleY - 15);
+        
+        // Timer display
+        textSize(48);
+        const minutes = Math.floor(turnTimeRemaining / 60);
+        const seconds = Math.floor(turnTimeRemaining % 60);
+        text(`${minutes}:${seconds.toString().padStart(2, '0')}`, rightX, circleY + 30);
+    } else {
+        text('Listen...', rightX, circleY - 15);
+        text('- - : - -', rightX, circleY + 30);
+    }
+    pop();
+    
+    // Draw topic at bottom
+    push();
+    fill(255, 215, 0); // Yellow for topic name
+    textAlign(CENTER, CENTER);
+    textSize(28);
+    if (customFont) textFont(customFont);
+    text(winningCluster?.label || 'Climate Change', width / 2, height - 120);
+    
+    // Debate question
+    fill(255);
+    textSize(22);
+    const maxWidth = width * 0.8;
+    text(debateQuestion || 'Should fossil fuels be banned entirely?', width / 2 - maxWidth/2, height - 70, maxWidth);
+    pop();
+    
+    // Reset color mode
+    colorMode(HSB, 360, 100, 100);
+}
+
 // Draw debate voting screen with live vote visualization
 function drawDebateVotingScreen() {
     background(0);
     
-    // Draw topic at top
-    if (winningCluster) {
-        push();
-        fill(255);
-        textAlign(CENTER, TOP);
-        textSize(24);
-        if (customFont) textFont(customFont);
-        text(winningCluster.label || 'Politics and governance', width / 2, 60);
-        pop();
-    }
-    
-    // Draw debate question prominently underneath topic
-    if (debateQuestion) {
-        push();
-        fill(220);
-        textAlign(CENTER, TOP);
-        textSize(22);
-        if (customFont) textFont(customFont);
-        
-        // Wrap text if too long
-        const maxWidth = width * 0.8;
-        text(debateQuestion, width / 2 - maxWidth/2, 110, maxWidth);
-        pop();
+    // Draw listener voting circles if listener balance exists
+    if (window.listenerVoteBalance !== undefined) {
+        drawListenerVotingCircles();
+        return; // Show only listener circles when listener is voting
     }
     
     // Calculate circle sizes based on active holds (each person adds 50px)

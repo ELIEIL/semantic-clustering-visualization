@@ -1,84 +1,77 @@
-// Spell-checking module using nspell
-const nspell = require('nspell');
-const fs = require('fs');
-const path = require('path');
+// Spell-checking module using LanguageTool API
+const LANGUAGETOOL_API = 'https://api.languagetool.org/v2/check';
 
-let spellChecker = null;
-
-// Initialize spell checker
+// Initialize spell checker (no-op for LanguageTool API)
 async function initializeSpellChecker() {
+    console.log('✅ Spell checker initialized (LanguageTool API)');
+}
+
+/**
+ * Correct spelling in a cluster label using LanguageTool API
+ * Example: "Cliamte And Change" → "Climate And Change"
+ */
+async function correctLabel(label) {
+    if (!label) return label;
+    
     try {
-        // Load dictionary files directly from node_modules
-        const dictPath = path.join(__dirname, '../node_modules/dictionary-en');
-        const aff = fs.readFileSync(path.join(dictPath, 'index.aff'), 'utf-8');
-        const dic = fs.readFileSync(path.join(dictPath, 'index.dic'), 'utf-8');
+        const response = await fetch(LANGUAGETOOL_API, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                text: label,
+                language: 'en-US'
+            })
+        });
         
-        spellChecker = nspell({ aff, dic });
-        console.log('✅ Spell checker initialized');
+        if (!response.ok) {
+            console.warn('⚠️ LanguageTool API error, returning original text');
+            return label;
+        }
+        
+        const data = await response.json();
+        
+        // Apply corrections from end to start to preserve offsets
+        let correctedText = label;
+        const matches = data.matches || [];
+        
+        // Sort by offset descending
+        matches.sort((a, b) => b.offset - a.offset);
+        
+        matches.forEach(match => {
+            if (match.replacements && match.replacements.length > 0) {
+                const replacement = match.replacements[0].value;
+                const before = correctedText.substring(0, match.offset);
+                const after = correctedText.substring(match.offset + match.length);
+                correctedText = before + replacement + after;
+                
+                const original = label.substring(match.offset, match.offset + match.length);
+                console.log(`📝 LanguageTool correction: "${original}" → "${replacement}"`);
+            }
+        });
+        
+        return correctedText;
+        
     } catch (error) {
-        console.error('⚠️ Spell-checker initialization failed:', error.message);
-        // Don't throw - allow server to continue without spell-checking
+        console.error('⚠️ LanguageTool API error:', error.message);
+        return label;
     }
 }
 
 /**
- * Correct spelling in a cluster label
- * Example: "Cliamte And Change" → "Climate And Change"
+ * Correct spelling in individual posts using LanguageTool API
  */
-function correctLabel(label) {
-    if (!spellChecker || !label) return label;
-    
-    const words = label.split(/\s+/);
-    const correctedWords = words.map(word => {
-        // Preserve capitalization pattern
-        const isCapitalized = word[0] === word[0].toUpperCase();
-        const isAllCaps = word === word.toUpperCase();
-        
-        // Check lowercase version
-        const lowerWord = word.toLowerCase();
-        
-        // If word is correct, keep it
-        if (spellChecker.correct(lowerWord)) {
-            return word;
-        }
-        
-        // Get suggestions
-        const suggestions = spellChecker.suggest(lowerWord);
-        
-        if (suggestions && suggestions.length > 0) {
-            let corrected = suggestions[0];
-            
-            // Restore capitalization
-            if (isAllCaps) {
-                corrected = corrected.toUpperCase();
-            } else if (isCapitalized) {
-                corrected = corrected.charAt(0).toUpperCase() + corrected.slice(1);
-            }
-            
-            console.log(`📝 Spell correction: "${word}" → "${corrected}"`);
-            return corrected;
-        }
-        
-        // No suggestions, keep original
-        return word;
-    });
-    
-    return correctedWords.join(' ');
-}
-
-/**
- * Correct spelling in individual posts
- */
-function correctPosts(posts) {
-    if (!spellChecker || !posts || !Array.isArray(posts)) {
+async function correctPosts(posts) {
+    if (!posts || !Array.isArray(posts)) {
         return posts;
     }
     
-    return posts.map(post => {
-        const corrected = correctLabel(post.content);
+    const correctedPosts = await Promise.all(posts.map(async post => {
+        const corrected = await correctLabel(post.content);
         
         if (post.content !== corrected) {
-            console.log(`📝 Spell correction: "${post.content}" → "${corrected}"`);
+            console.log(`📝 Post correction: "${post.content}" → "${corrected}"`);
         }
         
         return {
@@ -86,26 +79,30 @@ function correctPosts(posts) {
             originalText: post.content,
             correctedText: corrected
         };
-    });
+    }));
+    
+    return correctedPosts;
 }
 
 /**
- * Correct spelling in multiple cluster labels
+ * Correct spelling in multiple cluster labels using LanguageTool API
  */
-function correctClusterLabels(clusters) {
+async function correctClusterLabels(clusters) {
     if (!Array.isArray(clusters)) return clusters;
     
-    return clusters.map(cluster => {
+    const correctedClusters = await Promise.all(clusters.map(async cluster => {
         if (cluster.label) {
             const originalLabel = cluster.label;
-            cluster.label = correctLabel(cluster.label);
+            cluster.label = await correctLabel(cluster.label);
             
             if (originalLabel !== cluster.label) {
                 console.log(`🔧 Cluster label corrected: "${originalLabel}" → "${cluster.label}"`);
             }
         }
         return cluster;
-    });
+    }));
+    
+    return correctedClusters;
 }
 
 module.exports = {

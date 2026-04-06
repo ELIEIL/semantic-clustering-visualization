@@ -405,28 +405,28 @@ wss.on('connection', (ws) => {
                 // Store cluster data for role assignment
                 const clusterName = data.clusterName;
                 const clusterColor = data.clusterColor;
+                const debateArgument = data.debateArgument || clusterName; // Use debate argument if provided
                 console.log('📦 Role assignment with cluster:', clusterName);
+                console.log('📝 Debate argument:', debateArgument);
                 
-                // TESTING MODE: Always assign as debater, alternating between groups
+                // TESTING MODE: Always assign as listener for testing listener path
                 // TODO: Revert to random distribution for actual testing
                 clientRoles.clear();
                 debaterReadyState.clear();
                 
                 for (let i = 0; i < clientIds.length; i++) {
                     const id = clientIds[i];
-                    const group = (i % 2) + 1; // Alternate between Group 1 and Group 2
                     
-                    clientRoles.set(id, { role: 'debater', group: group });
-                    debaterReadyState.set(id, false); // Initialize as not ready
+                    clientRoles.set(id, { role: 'listener' });
                     
                     const client = mobileClients.get(id);
                     if (client && client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                             type: 'role_assignment',
-                            role: 'debater',
-                            group: group,
+                            role: 'listener',
                             clusterName: clusterName,
-                            clusterColor: clusterColor
+                            clusterColor: clusterColor,
+                            debateArgument: debateArgument
                         }));
                     }
                 }
@@ -440,33 +440,51 @@ wss.on('connection', (ws) => {
                     }
                 });
                 
-                const totalDebaters = clientIds.length;
-                const group1Debaters = Math.ceil(totalDebaters / 2);
-                const group2Debaters = Math.floor(totalDebaters / 2);
-                console.log(`🎭 TESTING MODE - All debaters: ${group1Debaters} Group 1, ${group2Debaters} Group 2`);
+                console.log(`🎭 TESTING MODE - All ${clientIds.length} users assigned as listeners`);
                 return;
             }
             
-            if (data.type === 'debater_ready') {
+            if (data.type === 'listener_vote') {
                 const clientId = ws.clientId;
+                const { side, balance } = data;
+                
                 if (!clientId) return;
                 
-                // Mark debater as ready
-                debaterReadyState.set(clientId, true);
+                console.log(`🗳️ Listener ${clientId} voted ${side}: balance = ${balance}`);
                 
-                // Count ready debaters
-                let readyCount = 0;
-                let totalDebaters = 0;
-                clientRoles.forEach((roleInfo, id) => {
-                    if (roleInfo.role === 'debater') {
-                        totalDebaters++;
-                        if (debaterReadyState.get(id)) {
-                            readyCount++;
-                        }
+                // Broadcast vote balance to all display clients for visual sync
+                displayClients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'listener_vote_update',
+                            clientId: clientId,
+                            side: side,
+                            balance: balance
+                        }));
                     }
                 });
                 
-                console.log(`✅ Debater ready: ${readyCount}/${totalDebaters}`);
+                return;
+            }
+            
+            if (data.type === 'user_ready' || data.type === 'debater_ready') {
+                const clientId = ws.clientId;
+                if (!clientId) return;
+                
+                // Mark user as ready (works for both debaters and listeners)
+                debaterReadyState.set(clientId, true);
+                
+                // Count ready users
+                let readyCount = 0;
+                let totalUsers = 0;
+                clientRoles.forEach((roleInfo, id) => {
+                    totalUsers++;
+                    if (debaterReadyState.get(id)) {
+                        readyCount++;
+                    }
+                });
+                
+                console.log(`✅ User ready: ${readyCount}/${totalUsers}`);
                 
                 // Broadcast ready count to all displays
                 displayClients.forEach(client => {
@@ -474,14 +492,14 @@ wss.on('connection', (ws) => {
                         client.send(JSON.stringify({
                             type: 'debater_ready_update',
                             readyCount: readyCount,
-                            totalDebaters: totalDebaters
+                            totalDebaters: totalUsers
                         }));
                     }
                 });
                 
-                // If all debaters are ready, start debate voting
-                if (readyCount === totalDebaters && totalDebaters > 0) {
-                    console.log('🎤 All debaters ready! Starting debate voting...');
+                // If all users are ready, start debate voting
+                if (readyCount === totalUsers && totalUsers > 0) {
+                    console.log('🎤 All users ready! Starting debate voting...');
                     
                     // Broadcast start debate voting to all clients
                     wss.clients.forEach(client => {
@@ -492,7 +510,6 @@ wss.on('connection', (ws) => {
                         }
                     });
                 }
-                
                 return;
             }
             
@@ -1207,7 +1224,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const { posts } = JSON.parse(body);
-                const correctedPosts = correctPosts(posts);
+                const correctedPosts = await correctPosts(posts);
                 
                 res.writeHead(200, { 
                     'Content-Type': 'application/json',
@@ -1230,7 +1247,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const { clusters } = JSON.parse(body);
-                const correctedClusters = correctClusterLabels(clusters);
+                const correctedClusters = await correctClusterLabels(clusters);
                 
                 res.writeHead(200, { 
                     'Content-Type': 'application/json',
