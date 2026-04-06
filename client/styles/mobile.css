@@ -129,6 +129,38 @@ body {
     font-style: italic;
 }
 
+/* Mobile Controller Styles */
+
+/* Idle/Welcome Screen */
+.idle-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+    background: white;
+}
+
+.idle-content {
+    text-align: center;
+}
+
+.idle-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 1rem;
+}
+
+.idle-subtitle {
+    font-family: 'Space Mono', monospace;
+    font-size: 1rem;
+    color: #666;
+    margin: 0;
+}
+
 /* Main Container */
 .mobile-container {
     padding: 30px;
@@ -725,10 +757,10 @@ body {
 
 /* Input Section */
 .input-section {
+    display: none; /* Hidden by default until experience starts */
     position: relative;
     width: 100%;
     max-width: 100%;
-    display: flex;
     flex-direction: column;
     height: 100%;
 }
@@ -950,15 +982,17 @@ body {
     margin: 0 0 30px 0;
 }
 
-.listener-argument-label {
+.listener-argument-label,
+.debate-argument-label {
     font-family: 'MD Thermochrome', sans-serif;
     font-size: 20px;
     font-weight: bold;
     color: #FF0000;
-    margin: 0 0 10px 0;
+    margin: 20px 0 10px 0;
 }
 
-.listener-argument-text {
+.listener-argument-text,
+.debate-argument-text {
     font-family: 'MD Thermochrome', sans-serif;
     font-size: 18px;
     color: #000;

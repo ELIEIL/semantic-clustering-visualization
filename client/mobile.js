@@ -86,6 +86,22 @@ function connect() {
             updatePostVoteDisplay(data.postId, data.upvotes, data.downvotes);
         }
         
+        if (data.type === 'refresh_page') {
+            // Main display refreshed - reload mobile page
+            console.log('🔄 Main display refreshed - reloading page');
+            window.location.reload();
+        }
+        
+        if (data.type === 'experience_start') {
+            // Hide idle screen and show input section
+            console.log('🎬 Experience started - showing input section');
+            const idleSection = document.getElementById('idleSection');
+            const inputSection = document.getElementById('inputSection');
+            
+            if (idleSection) idleSection.style.display = 'none';
+            if (inputSection) inputSection.style.display = 'flex';
+        }
+        
         if (data.type === 'countdown_update') {
             // Sync countdown timer with server
             updateCountdownFromServer(data.time);
@@ -224,6 +240,20 @@ function connect() {
                 window.debateQuestion = data.debateQuestion;
                 window.group1Position = data.group1Position;
                 window.group2Position = data.group2Position;
+                
+                // Update argument text for both listeners and debaters
+                const listenerArgumentText = document.getElementById('listenerArgumentText');
+                const debateArgumentText = document.getElementById('debateArgumentText');
+                
+                if (listenerArgumentText) {
+                    listenerArgumentText.textContent = data.debateQuestion;
+                    console.log('📝 Updated listener argument text:', data.debateQuestion);
+                }
+                
+                if (debateArgumentText) {
+                    debateArgumentText.textContent = data.debateQuestion;
+                    console.log('📝 Updated debater argument text:', data.debateQuestion);
+                }
             }
             
             // Store and apply original cluster color to topic box

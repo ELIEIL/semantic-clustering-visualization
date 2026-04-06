@@ -68,6 +68,12 @@ const userPreferences = new Map(); // userId -> { topics, bias, keywords, source
 let countdownTime = 30; // seconds
 let countdownInterval = null;
 
+// Global experience state for mobile sync
+let currentExperienceState = {
+    phase: 'idle', // idle, posting, clustering, voting, reveal, roles, debate, winner
+    data: null // Phase-specific data (clusters, roles, debate info, etc.)
+};
+
 // Initialize ConceptNet client for semantic understanding
 const conceptNet = new ConceptNetClient();
 console.log('ConceptNet client initialized');
@@ -240,7 +246,15 @@ wss.on('connection', (ws) => {
                     clientId: clientId
                 }));
                 
+                // Send current experience state for sync
+                ws.send(JSON.stringify({
+                    type: 'state_sync',
+                    phase: currentExperienceState.phase,
+                    data: currentExperienceState.data
+                }));
+                
                 console.log(`Mobile client registered with ID: ${clientId}`);
+                console.log(`📱 Sent current state: ${currentExperienceState.phase}`);
                 return;
             }
             
@@ -286,6 +300,37 @@ wss.on('connection', (ws) => {
                         timestamp: Date.now()
                     });
                 })();
+                return;
+            }
+            
+            if (data.type === 'display_loaded') {
+                // Main display loaded/refreshed - refresh all mobile clients
+                console.log('🔄 Main display refreshed - refreshing all mobile clients');
+                
+                // Broadcast refresh to all mobile clients
+                mobileClients.forEach((client) => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'refresh_page'
+                        }));
+                    }
+                });
+                return;
+            }
+            
+            if (data.type === 'experience_start') {
+                // Start experience - reset and start countdown timer
+                resetCountdownTimer();
+                console.log('🎬 Experience started - countdown timer started');
+                
+                // Update global state
+                currentExperienceState.phase = 'posting';
+                currentExperienceState.data = { countdownTime };
+                
+                // Broadcast to all clients (mobile and display)
+                broadcastToAll({
+                    type: 'experience_start'
+                });
                 return;
             }
             
@@ -1399,8 +1444,8 @@ server.listen(HTTP_PORT, async () => {
     console.log(`💻 Main display: http://localhost:${HTTP_PORT}/client/pages/index.html`);
     console.log('=================================\n');
     
-    // Start synchronized countdown timer
-    startCountdownTimer();
+    // Don't auto-start timer - wait for Start button press
+    console.log('⏸️  Timer ready - waiting for Start button...\n');
 });
 
 console.log(`WebSocket server running on ws://localhost:${PORT}`);
