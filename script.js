@@ -56,6 +56,12 @@ let totalTurns = 4; // 2 turns per group
 let currentTurnNumber = 0; // 0-3 (4 total turns)
 let debateTimerInterval = null;
 
+// Post-debate state
+let debateOverPhase = 'none'; // 'none', 'debate-over', 'vote-counting', 'winner'
+let finalVoteBalance = 0; // Store final balance when debate ends
+let voteCountAnimation = 0; // Animation counter for vote tallies
+let winnerGroup = null; // 1 or 2
+
 // Role assignment state
 let roleAssignmentActive = false;
 let roleAssignmentPhase = 'idle'; // 'idle', 'fade-out', 'topic-move', 'circles-fade-in', 'static'
@@ -2783,6 +2789,27 @@ function startDebateTimer() {
                 clearInterval(debateTimerInterval);
                 debateTimerInterval = null;
                 console.log('🏁 Debate over!');
+                
+                // Store final vote balance
+                finalVoteBalance = window.listenerVoteBalance || 0;
+                
+                // Start phase 1: Debate Over screen
+                debateOverPhase = 'debate-over';
+                console.log('📺 Phase 1: Debate Over');
+                
+                // After 5 seconds, move to vote counting
+                setTimeout(() => {
+                    debateOverPhase = 'vote-counting';
+                    voteCountAnimation = 0;
+                    console.log('📺 Phase 2: Vote Counting');
+                    
+                    // After 8 seconds, show winner (enough time for slow count)
+                    setTimeout(() => {
+                        debateOverPhase = 'winner';
+                        winnerGroup = finalVoteBalance < 0 ? 1 : 2;
+                        console.log(`📺 Phase 3: Winner - Group ${winnerGroup}`);
+                    }, 8000);
+                }, 5000);
                 
                 // Broadcast debate over state
                 if (ws && ws.readyState === WebSocket.OPEN) {
@@ -5908,6 +5935,20 @@ function drawRoleAssignmentScreen() {
 // Draw listener voting circles synced with mobile controller
 // Red votes = Group 1, Green votes = Group 2
 function drawListenerVotingCircles() {
+    // Check for post-debate phases
+    if (debateOverPhase === 'debate-over') {
+        drawDebateOverScreen();
+        return;
+    }
+    if (debateOverPhase === 'vote-counting') {
+        drawVoteCountingScreen();
+        return;
+    }
+    if (debateOverPhase === 'winner') {
+        drawWinnerScreen();
+        return;
+    }
+    
     const balance = window.listenerVoteBalance || 0; // -20 to +20
     
     // Base circle size
@@ -6061,6 +6102,260 @@ function drawListenerVotingCircles() {
     pop();
     
     // Reset color mode
+    colorMode(HSB, 360, 100, 100);
+}
+
+// Phase 1: Debate Over Screen
+function drawDebateOverScreen() {
+    const baseSize = 400;
+    const maxBalance = 20;
+    const normalizedBalance = finalVoteBalance / maxBalance;
+    
+    const group1Scale = 1.0 - (normalizedBalance * 0.5);
+    const group2Scale = 1.0 + (normalizedBalance * 0.5);
+    
+    const leftX = width * 0.3;
+    const rightX = width * 0.7;
+    const circleY = height / 2 - 20;
+    
+    colorMode(RGB, 255);
+    
+    // Draw Group 1 (Red) circle - frozen at final size
+    push();
+    const group1Size = baseSize * group1Scale;
+    
+    noFill();
+    stroke(220, 53, 69);
+    strokeWeight(4);
+    drawingContext.setLineDash([15, 15]);
+    circle(leftX, circleY, group1Size);
+    drawingContext.setLineDash([]);
+    
+    fill(220, 53, 69);
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    if (customFont) textFont(customFont);
+    text('Group 1', leftX, circleY - 50);
+    
+    textSize(20);
+    fill(255);
+    text('Debate over', leftX, circleY);
+    pop();
+    
+    // Draw Group 2 (Green) circle - frozen at final size
+    push();
+    const group2Size = baseSize * group2Scale;
+    
+    noFill();
+    stroke(40, 167, 69);
+    strokeWeight(4);
+    drawingContext.setLineDash([15, 15]);
+    circle(rightX, circleY, group2Size);
+    drawingContext.setLineDash([]);
+    
+    fill(40, 167, 69);
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    if (customFont) textFont(customFont);
+    text('Group 2', rightX, circleY - 50);
+    
+    textSize(20);
+    fill(255);
+    text('Debate over', rightX, circleY);
+    pop();
+    
+    // Draw topic at bottom
+    push();
+    fill(255, 215, 0);
+    textAlign(CENTER, CENTER);
+    textSize(28);
+    if (customFont) textFont(customFont);
+    text(winningCluster?.label || 'Climate Change', width / 2, height - 120);
+    
+    fill(255);
+    textSize(22);
+    const maxWidth = width * 0.8;
+    text(debateQuestion || 'Should fossil fuels be banned entirely?', width / 2 - maxWidth/2, height - 70, maxWidth);
+    pop();
+    
+    colorMode(HSB, 360, 100, 100);
+}
+
+// Phase 2: Vote Counting Animation
+function drawVoteCountingScreen() {
+    // Calculate actual vote counts from balance
+    const group1Votes = Math.round(20 + Math.abs(Math.min(finalVoteBalance, 0)));
+    const group2Votes = Math.round(20 + Math.max(finalVoteBalance, 0));
+    
+    // Animate vote count slowly (increment by 0.3 per frame for ~60fps = ~5 votes/second)
+    voteCountAnimation += 0.3;
+    const displayGroup1Votes = Math.min(Math.floor(voteCountAnimation), group1Votes);
+    const displayGroup2Votes = Math.min(Math.floor(voteCountAnimation), group2Votes);
+    
+    const baseSize = 400;
+    const maxBalance = 20;
+    const normalizedBalance = finalVoteBalance / maxBalance;
+    
+    const group1Scale = 1.0 - (normalizedBalance * 0.5);
+    const group2Scale = 1.0 + (normalizedBalance * 0.5);
+    
+    const leftX = width * 0.3;
+    const rightX = width * 0.7;
+    const circleY = height / 2 - 20;
+    
+    colorMode(RGB, 255);
+    
+    // Draw Group 1 (Red) circle with vote count
+    push();
+    const group1Size = baseSize * group1Scale;
+    
+    noFill();
+    stroke(220, 53, 69);
+    strokeWeight(4);
+    drawingContext.setLineDash([15, 15]);
+    circle(leftX, circleY, group1Size);
+    drawingContext.setLineDash([]);
+    
+    fill(220, 53, 69);
+    textAlign(CENTER, CENTER);
+    textSize(24);
+    if (customFont) textFont(customFont);
+    text('Votes', leftX, circleY - 30);
+    
+    textSize(64);
+    fill(220, 53, 69);
+    text(displayGroup1Votes, leftX, circleY + 20);
+    pop();
+    
+    // Draw Group 2 (Green) circle with vote count
+    push();
+    const group2Size = baseSize * group2Scale;
+    
+    noFill();
+    stroke(40, 167, 69);
+    strokeWeight(4);
+    drawingContext.setLineDash([15, 15]);
+    circle(rightX, circleY, group2Size);
+    drawingContext.setLineDash([]);
+    
+    fill(40, 167, 69);
+    textAlign(CENTER, CENTER);
+    textSize(24);
+    if (customFont) textFont(customFont);
+    text('Votes', rightX, circleY - 30);
+    
+    textSize(64);
+    fill(40, 167, 69);
+    text(displayGroup2Votes, rightX, circleY + 20);
+    pop();
+    
+    // Draw topic at bottom
+    push();
+    fill(255, 215, 0);
+    textAlign(CENTER, CENTER);
+    textSize(28);
+    if (customFont) textFont(customFont);
+    text(winningCluster?.label || 'Climate Change', width / 2, height - 120);
+    
+    fill(255);
+    textSize(22);
+    const maxWidth = width * 0.8;
+    text(debateQuestion || 'Should fossil fuels be banned entirely?', width / 2 - maxWidth/2, height - 70, maxWidth);
+    pop();
+    
+    colorMode(HSB, 360, 100, 100);
+}
+
+// Phase 3: Winner Screen
+function drawWinnerScreen() {
+    // Calculate final vote counts
+    const group1Votes = Math.round(20 + Math.abs(Math.min(finalVoteBalance, 0)));
+    const group2Votes = Math.round(20 + Math.max(finalVoteBalance, 0));
+    const winnerVotes = winnerGroup === 1 ? group1Votes : group2Votes;
+    
+    const baseSize = 400;
+    const maxBalance = 20;
+    const normalizedBalance = finalVoteBalance / maxBalance;
+    
+    // Winner circle scale
+    const winnerScale = winnerGroup === 1 ? (1.0 - (normalizedBalance * 0.5)) : (1.0 + (normalizedBalance * 0.5));
+    
+    const circleX = width * 0.25;
+    const circleY = height / 2;
+    
+    colorMode(RGB, 255);
+    
+    // Draw winner circle on left
+    push();
+    const winnerSize = baseSize * winnerScale;
+    const winnerColor = winnerGroup === 1 ? [220, 53, 69] : [40, 167, 69];
+    
+    noFill();
+    stroke(...winnerColor);
+    strokeWeight(4);
+    drawingContext.setLineDash([15, 15]);
+    circle(circleX, circleY, winnerSize);
+    drawingContext.setLineDash([]);
+    
+    fill(...winnerColor);
+    textAlign(CENTER, CENTER);
+    textSize(24);
+    if (customFont) textFont(customFont);
+    text('Votes', circleX, circleY - 30);
+    
+    textSize(64);
+    text(winnerVotes, circleX, circleY + 20);
+    pop();
+    
+    // Draw summary on right
+    const rightX = width * 0.65;
+    const startY = height * 0.25;
+    
+    push();
+    textAlign(LEFT, TOP);
+    
+    // Debate winner
+    fill(winnerGroup === 1 ? 220 : 40, winnerGroup === 1 ? 53 : 167, winnerGroup === 1 ? 69 : 69);
+    textSize(32);
+    if (customFont) textFont(customFont);
+    text('Debate winner', rightX, startY);
+    
+    fill(255);
+    textSize(28);
+    text(`Group ${winnerGroup}`, rightX, startY + 45);
+    
+    // Stance
+    fill(winnerGroup === 1 ? 220 : 40, winnerGroup === 1 ? 53 : 167, winnerGroup === 1 ? 69 : 69);
+    textSize(32);
+    text('Stance', rightX, startY + 110);
+    
+    fill(255);
+    textSize(28);
+    if (customFontMedium) textFont(customFontMedium);
+    text(winnerGroup === 1 ? 'Against' : 'For', rightX, startY + 155);
+    
+    // Debate topic
+    fill(winnerGroup === 1 ? 220 : 40, winnerGroup === 1 ? 53 : 167, winnerGroup === 1 ? 69 : 69);
+    textSize(32);
+    if (customFont) textFont(customFont);
+    text('Debate topic', rightX, startY + 220);
+    
+    fill(255);
+    textSize(24);
+    text(winningCluster?.label || 'Climate change', rightX, startY + 265);
+    
+    // Argument
+    fill(winnerGroup === 1 ? 220 : 40, winnerGroup === 1 ? 53 : 167, winnerGroup === 1 ? 69 : 69);
+    textSize(32);
+    if (customFont) textFont(customFont);
+    text('Argument', rightX, startY + 330);
+    
+    fill(255);
+    textSize(22);
+    const maxWidth = width * 0.3;
+    text(debateQuestion || 'Should fossil fuels be banned entirely?', rightX, startY + 375, maxWidth);
+    pop();
+    
     colorMode(HSB, 360, 100, 100);
 }
 
