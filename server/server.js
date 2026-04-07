@@ -64,8 +64,8 @@ const postVotes = new Map(); // postId -> { upvotes: 0, downvotes: 0, voters: Se
 const userVotes = new Map(); // userId -> [{ postId, vote, timestamp }]
 const userPreferences = new Map(); // userId -> { topics, bias, keywords, sources }
 
-// Synchronized countdown timer (30 seconds for testing)
-let countdownTime = 30; // seconds
+// Synchronized countdown timer (2 minutes for posting phase)
+let countdownTime = 120; // seconds
 let countdownInterval = null;
 
 // Global experience state for mobile sync
@@ -154,7 +154,7 @@ function startCountdownTimer() {
         clearInterval(countdownInterval);
     }
     
-    countdownTime = 30; // Reset to 30 seconds
+    countdownTime = 120; // Reset to 2 minutes
     
     countdownInterval = setInterval(() => {
         if (countdownTime <= 0) {
@@ -173,7 +173,7 @@ function startCountdownTimer() {
         }
     }, 1000);
     
-    console.log('Countdown timer started (1 minute)');
+    console.log('Countdown timer started (2 minutes)');
 }
 
 function resetCountdownTimer() {
@@ -454,25 +454,81 @@ wss.on('connection', (ws) => {
                 console.log('📦 Role assignment with cluster:', clusterName);
                 console.log('📝 Debate argument:', debateArgument);
                 
-                // TESTING MODE: Always assign as listener for testing listener path
-                // TODO: Revert to random distribution for actual testing
+                // Role distribution: Guarantee at least 1 debater per group, then distribute rest
                 clientRoles.clear();
                 debaterReadyState.clear();
                 
-                for (let i = 0; i < clientIds.length; i++) {
-                    const id = clientIds[i];
+                // Shuffle client IDs for random assignment
+                const shuffledIds = [...clientIds].sort(() => Math.random() - 0.5);
+                
+                const totalClients = shuffledIds.length;
+                
+                // Ensure minimum 1 debater per group
+                let group1Count = Math.max(1, Math.floor(totalClients * 0.25));
+                let group2Count = Math.max(1, Math.floor(totalClients * 0.25));
+                
+                // If we have exactly 2 clients, assign 1 to each group
+                if (totalClients === 2) {
+                    group1Count = 1;
+                    group2Count = 1;
+                }
+                // If we have only 1 client, assign to Group 1
+                else if (totalClients === 1) {
+                    group1Count = 1;
+                    group2Count = 0;
+                }
+                
+                const listenerCount = totalClients - group1Count - group2Count;
+                
+                console.log(`🎭 Assigning roles to ${totalClients} clients:`);
+                console.log(`   Group 1 (Against) debaters: ${group1Count}`);
+                console.log(`   Group 2 (For) debaters: ${group2Count}`);
+                console.log(`   Listeners: ${listenerCount}`);
+                
+                let group1Assigned = 0;
+                let group2Assigned = 0;
+                
+                for (let i = 0; i < shuffledIds.length; i++) {
+                    const id = shuffledIds[i];
+                    let role = 'listener';
+                    let group = null;
+                    let stance = null;
                     
-                    clientRoles.set(id, { role: 'listener' });
+                    // Assign Group 1 (Against)
+                    if (group1Assigned < group1Count) {
+                        role = 'debater';
+                        group = 1;
+                        stance = 'Against';
+                        group1Assigned++;
+                        debaterReadyState.set(id, false);
+                    }
+                    // Assign Group 2 (For)
+                    else if (group2Assigned < group2Count) {
+                        role = 'debater';
+                        group = 2;
+                        stance = 'For';
+                        group2Assigned++;
+                        debaterReadyState.set(id, false);
+                    }
+                    // Rest are listeners
+                    else {
+                        role = 'listener';
+                    }
+                    
+                    clientRoles.set(id, { role, group, stance });
                     
                     const client = mobileClients.get(id);
                     if (client && client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                             type: 'role_assignment',
-                            role: 'listener',
+                            role: role,
+                            group: group,
+                            stance: stance,
                             clusterName: clusterName,
                             clusterColor: clusterColor,
                             debateArgument: debateArgument
                         }));
+                        console.log(`   ✅ Client ${id}: ${role}${group ? ` (Group ${group} - ${stance})` : ''}`);
                     }
                 }
                 
@@ -485,7 +541,7 @@ wss.on('connection', (ws) => {
                     }
                 });
                 
-                console.log(`🎭 TESTING MODE - All ${clientIds.length} users assigned as listeners`);
+                console.log(`🎭 Role assignment complete: ${group1Assigned} Group 1, ${group2Assigned} Group 2, ${listenerCount} Listeners`);
                 return;
             }
             
@@ -516,10 +572,10 @@ wss.on('connection', (ws) => {
                 const clientId = ws.clientId;
                 if (!clientId) return;
                 
-                // Mark user as ready (works for both debaters and listeners)
+                // Mark user as ready
                 debaterReadyState.set(clientId, true);
                 
-                // Count ready users
+                // Count ready users (all users must be ready: debaters + listeners)
                 let readyCount = 0;
                 let totalUsers = 0;
                 clientRoles.forEach((roleInfo, id) => {

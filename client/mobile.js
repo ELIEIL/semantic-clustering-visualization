@@ -189,11 +189,17 @@ function connect() {
                 userGroup = data.group;
             }
             
-            // Update debate argument text for listeners
-            if (data.role === 'listener' && data.debateArgument) {
+            // Update debate argument text for both listeners and debaters
+            if (data.debateArgument) {
                 const listenerArgumentText = document.getElementById('listenerArgumentText');
+                const debateArgumentText = document.getElementById('debateArgumentText');
+                
                 if (listenerArgumentText) {
                     listenerArgumentText.textContent = data.debateArgument;
+                }
+                if (debateArgumentText) {
+                    debateArgumentText.textContent = data.debateArgument;
+                    console.log('📝 Set debater argument text to:', data.debateArgument);
                 }
             }
             
@@ -974,7 +980,10 @@ function showRoleScreen(role, group) {
         if (role === 'debater' && group) {
             if (groupInfo) groupInfo.style.display = 'block';
             if (groupName) {
-                groupName.textContent = `Group ${group}`;
+                const stance = group === 1 ? 'Against' : 'For';
+                const groupStance = document.getElementById('groupStance');
+                
+                groupName.innerHTML = `Group ${group} <span id="groupStance" class="group-stance">${stance}</span>`;
                 groupName.className = 'group-name';
                 groupName.classList.add(`group-${group}`);
             }
@@ -1424,44 +1433,84 @@ function updateDebateTimer(data) {
     const seconds = data.turnTimeRemaining % 60;
     timerCountdown.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     
-    // Determine group name and colors for turn indicators
-    const groupName = data.currentTurn === 1 ? 'Group 1' : 'Group 2';
-    const groupClass = data.currentTurn === 1 ? 'group-1' : 'group-2';
     const isMyTurn = userGroup === data.currentTurn;
     
     console.log(`🔍 Debug - userGroup: ${userGroup}, currentTurn: ${data.currentTurn}, isMyTurn: ${isMyTurn}`);
     
-    // Update group label (changes color based on current turn)
-    timerGroupLabel.textContent = groupName;
-    timerGroupLabel.className = `timer-group-label ${groupClass}`;
-    
-    // Update turn header (changes color based on current turn)
-    if (turnHeader) {
-        if (data.debateOver) {
-            turnHeader.innerHTML = 'Debate<br>Over';
-            turnHeader.className = 'debate-turn-header';
-        } else if (isMyTurn) {
-            turnHeader.innerHTML = `${groupName}<br>Your turn`;
-            turnHeader.className = `debate-turn-header ${groupClass}`;
-        } else {
-            turnHeader.innerHTML = `${groupName}<br>Speaking`;
-            turnHeader.className = `debate-turn-header ${groupClass}`;
+    // For debaters: Show their OWN group label/stance (constant, never changes)
+    if (userRole === 'debater' && userGroup) {
+        const myGroupName = `Group ${userGroup}`;
+        const myGroupClass = userGroup === 1 ? 'group-1' : 'group-2';
+        const myStance = userGroup === 1 ? 'Against' : 'For';
+        
+        // Group label stays constant (always shows debater's own group)
+        timerGroupLabel.textContent = myGroupName;
+        timerGroupLabel.className = `timer-group-label ${myGroupClass}`;
+        
+        // Turn header shows debater's own group WITH STANCE
+        if (turnHeader) {
+            if (data.debateOver) {
+                turnHeader.innerHTML = 'Debate<br>Over';
+                turnHeader.className = 'debate-turn-header';
+            } else if (isMyTurn) {
+                turnHeader.innerHTML = `${myGroupName} <span style="font-style: italic;">${myStance}</span><br>Your turn`;
+                turnHeader.className = `debate-turn-header ${myGroupClass}`;
+            } else {
+                turnHeader.innerHTML = `${myGroupName} <span style="font-style: italic;">${myStance}</span><br>Listen`;
+                turnHeader.className = `debate-turn-header ${myGroupClass}`;
+            }
+        }
+        
+        // Timer circle changes color based on whose turn it is
+        if (circleBase) {
+            if (isMyTurn) {
+                // My turn: use my group color
+                const myColor = userGroup === 1 ? '#DC3545' : '#28A745';
+                circleBase.className = `timer-circle-base ${myGroupClass}`;
+                circleBase.style.stroke = myColor;
+            } else {
+                // Not my turn: gray/inactive
+                circleBase.className = 'timer-circle-base inactive';
+                circleBase.style.stroke = '#999999';
+            }
+        }
+        
+        // Draw timer segments only when it's my turn
+        if (timerSegmentsContainer && !data.debateOver && isMyTurn) {
+            drawTimerSegments(timerSegmentsContainer, data.turnTimeRemaining, userGroup);
+        } else if (timerSegmentsContainer) {
+            timerSegmentsContainer.innerHTML = ''; // Clear segments when not my turn
         }
     }
-    
-    // Topic box color stays constant (original cluster color) - do NOT change
-    // Only set it once when we first get the topic
-    
-    // Update circle base color (changes based on current turn)
-    if (circleBase) {
-        const strokeColor = data.currentTurn === 1 ? '#DC3545' : '#32C864';
-        console.log(`🎨 Setting circle color: ${strokeColor} for turn ${data.currentTurn}`);
-        circleBase.className = `timer-circle-base ${groupClass}`;
-        // Use style.stroke to override CSS with !important priority
-        circleBase.style.stroke = strokeColor;
-        console.log(`🎨 Circle style.stroke set to:`, circleBase.style.stroke);
-    } else {
-        console.error('❌ Circle base element not found!');
+    // For listeners: show current speaker's info (changes based on turn)
+    else {
+        const currentGroupName = data.currentTurn === 1 ? 'Group 1' : 'Group 2';
+        const currentGroupClass = data.currentTurn === 1 ? 'group-1' : 'group-2';
+        
+        timerGroupLabel.textContent = currentGroupName;
+        timerGroupLabel.className = `timer-group-label ${currentGroupClass}`;
+        
+        if (turnHeader) {
+            if (data.debateOver) {
+                turnHeader.innerHTML = 'Debate<br>Over';
+                turnHeader.className = 'debate-turn-header';
+            } else {
+                turnHeader.innerHTML = `${currentGroupName}<br>Speaking`;
+                turnHeader.className = `debate-turn-header ${currentGroupClass}`;
+            }
+        }
+        
+        if (circleBase) {
+            const strokeColor = data.currentTurn === 1 ? '#DC3545' : '#28A745';
+            circleBase.className = `timer-circle-base ${currentGroupClass}`;
+            circleBase.style.stroke = strokeColor;
+        }
+        
+        if (timerSegmentsContainer && !data.debateOver) {
+            drawTimerSegments(timerSegmentsContainer, data.turnTimeRemaining, data.currentTurn);
+        } else if (timerSegmentsContainer) {
+            timerSegmentsContainer.innerHTML = '';
+        }
     }
     
     // Update status text
@@ -1474,19 +1523,12 @@ function updateDebateTimer(data) {
         timerStatusText.textContent = 'Listen...';
     }
     
-    // Draw segmented progress (countdown from full) - always show for current speaker
-    if (timerSegmentsContainer && !data.debateOver) {
-        drawTimerSegments(timerSegmentsContainer, data.turnTimeRemaining, data.currentTurn);
-    } else if (timerSegmentsContainer) {
-        timerSegmentsContainer.innerHTML = ''; // Clear segments when debate is over
-    }
-    
-    console.log(`⏱️ Timer updated: ${groupName} - ${timerCountdown.textContent}`);
+    console.log(`⏱️ Timer updated - My turn: ${isMyTurn}`);
 }
 
 // Draw segmented circular timer
 function drawTimerSegments(container, timeRemaining, currentTurn) {
-    const progress = timeRemaining / 30; // 1 to 0 as time goes down
+    const progress = timeRemaining / 120; // 1 to 0 as time goes down (2 minutes)
     const totalSegments = 40;
     const remainingSegments = Math.ceil(progress * totalSegments);
     const segmentAngle = (2 * Math.PI) / totalSegments;

@@ -55,7 +55,7 @@ let greenVoteCount = 0;
 // Debate timer state
 let debateTimerActive = false;
 let currentTurn = 1; // 1 = Group 1, 2 = Group 2
-let turnTimeRemaining = 30; // seconds
+let turnTimeRemaining = 120; // seconds (2 minutes)
 let totalTurns = 4; // 2 turns per group
 let currentTurnNumber = 0; // 0-3 (4 total turns)
 let debateTimerInterval = null;
@@ -2202,13 +2202,13 @@ function drawSpeechBubbles() {
         const animatedAngle = node.pointerAngle + floatyOffset;
         
         // Calculate text dimensions
-        textSize(24);
+        textSize(28); // Increased from 24
         if (customFontSemibold) {
             textFont(customFontSemibold);
         }
         
-        const lineHeight = 30;
-        const letterSpacing = 24 * 0.25;
+        const lineHeight = 35; // Increased from 30 to match text size
+        const letterSpacing = 28 * 0.25; // Adjusted for new text size
         const padding = 12;
         
         // Measure text width with letter spacing
@@ -2719,7 +2719,7 @@ function startDebateTimer() {
     // Reset timer state
     currentTurnNumber = 0;
     currentTurn = 1; // Start with Group 1
-    turnTimeRemaining = 30;
+    turnTimeRemaining = 120; // 2 minutes per turn
     debateTimerActive = true;
     
     // Clear any existing timer
@@ -2803,7 +2803,7 @@ function startDebateTimer() {
             } else {
                 // Switch turns
                 currentTurn = currentTurn === 1 ? 2 : 1;
-                turnTimeRemaining = 30;
+                turnTimeRemaining = 120; // 2 minutes per turn
                 console.log(`⏱️ Turn ${currentTurnNumber + 1} - Group ${currentTurn}`);
                 
                 // Broadcast turn switch
@@ -6128,26 +6128,24 @@ function drawListenerVotingCircles() {
     }
     pop();
     
-    // Draw topic at bottom
+    // Draw topic at top
     push();
     fill(255, 215, 0); // Yellow for topic name
     textAlign(CENTER, CENTER);
-    textSize(28);
+    textSize(36); // Increased from 28
     if (customFont) textFont(customFont);
-    text(winningCluster?.label || 'Climate Change', width / 2, height - 120);
+    text(winningCluster?.label || 'Climate Change', width / 2, 80);
     
     // Debate question
     fill(255);
-    textSize(24);
+    textSize(28); // Increased from 24
     textAlign(CENTER, CENTER);
     const questionText = debateQuestion || 'Should fossil fuels be banned entirely?';
     console.log('📝 Drawing debate question:', questionText);
-    console.log('   Position:', width / 2, height - 60);
-    console.log('   Canvas height:', height);
     
     // Draw with text wrapping
     const maxWidth = width * 0.7;
-    text(questionText, width / 2 - maxWidth/2, height - 60, maxWidth);
+    text(questionText, width / 2 - maxWidth/2, 130, maxWidth);
     pop();
     
     // Reset color mode
@@ -6213,18 +6211,18 @@ function drawDebateOverScreen() {
     text('Debate over', rightX, circleY);
     pop();
     
-    // Draw topic at bottom
+    // Draw topic and debate question at top
     push();
     fill(255, 215, 0);
     textAlign(CENTER, CENTER);
-    textSize(28);
+    textSize(36); // Increased from 28
     if (customFont) textFont(customFont);
-    text(winningCluster?.label || 'Climate Change', width / 2, height - 120);
+    text(winningCluster?.label || 'Climate Change', width / 2, 80);
     
     fill(255);
-    textSize(22);
-    const maxWidth = width * 0.8;
-    text(debateQuestion || 'Should fossil fuels be banned entirely?', width / 2 - maxWidth/2, height - 70, maxWidth);
+    textSize(28); // Increased from 22
+    const maxWidth = width * 0.7;
+    text(debateQuestion || 'Should fossil fuels be banned entirely?', width / 2 - maxWidth/2, 130, maxWidth);
     pop();
     
     colorMode(HSB, 360, 100, 100);
@@ -6298,18 +6296,18 @@ function drawVoteCountingScreen() {
     text(displayGroup2Votes, rightX, circleY + 20);
     pop();
     
-    // Draw topic at bottom
+    // Draw topic and debate question at top
     push();
     fill(255, 215, 0);
     textAlign(CENTER, CENTER);
-    textSize(28);
+    textSize(36); // Increased from 28
     if (customFont) textFont(customFont);
-    text(winningCluster?.label || 'Climate Change', width / 2, height - 120);
+    text(winningCluster?.label || 'Climate Change', width / 2, 80);
     
     fill(255);
-    textSize(22);
-    const maxWidth = width * 0.8;
-    text(debateQuestion || 'Should fossil fuels be banned entirely?', width / 2 - maxWidth/2, height - 70, maxWidth);
+    textSize(28); // Increased from 22
+    const maxWidth = width * 0.7;
+    text(debateQuestion || 'Should fossil fuels be banned entirely?', width / 2 - maxWidth/2, 130, maxWidth);
     pop();
     
     colorMode(HSB, 360, 100, 100);
@@ -6659,25 +6657,25 @@ function drawDebateVotingScreen() {
     
     pop();
     
-    // Draw topic and debate question at bottom
+    // Draw topic and debate question at top
     push();
     colorMode(RGB, 255);
     fill(255, 215, 0); // Yellow for topic name
     textAlign(CENTER, CENTER);
-    textSize(28);
+    textSize(36); // Increased from 28
     if (customFont) textFont(customFont);
-    text(winningCluster?.label || 'Climate Change', width / 2, height - 120);
+    text(winningCluster?.label || 'Climate Change', width / 2, 80);
     
     // Debate question
     fill(255);
-    textSize(24);
+    textSize(28); // Increased from 24
     textAlign(CENTER, CENTER);
     const questionText = debateQuestion || 'Should fossil fuels be banned entirely?';
     console.log('📝 Drawing debate question:', questionText);
     
     // Draw with text wrapping
     const maxWidth = width * 0.7;
-    text(questionText, width / 2 - maxWidth/2, height - 60, maxWidth);
+    text(questionText, width / 2 - maxWidth/2, 130, maxWidth);
     pop();
     
     // Switch back to HSB for rest of sketch
