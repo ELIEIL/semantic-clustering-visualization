@@ -1528,7 +1528,7 @@ function updateDebateTimer(data) {
 
 // Draw segmented circular timer
 function drawTimerSegments(container, timeRemaining, currentTurn) {
-    const progress = timeRemaining / 120; // 1 to 0 as time goes down (2 minutes)
+    const progress = timeRemaining / 30; // 1 to 0 as time goes down (30 seconds)
     const totalSegments = 40;
     const remainingSegments = Math.ceil(progress * totalSegments);
     const segmentAngle = (2 * Math.PI) / totalSegments;

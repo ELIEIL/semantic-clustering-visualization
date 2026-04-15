@@ -64,8 +64,8 @@ const postVotes = new Map(); // postId -> { upvotes: 0, downvotes: 0, voters: Se
 const userVotes = new Map(); // userId -> [{ postId, vote, timestamp }]
 const userPreferences = new Map(); // userId -> { topics, bias, keywords, sources }
 
-// Synchronized countdown timer (2 minutes for posting phase)
-let countdownTime = 120; // seconds
+// Synchronized countdown timer (30 seconds for posting phase - TESTING)
+let countdownTime = 30; // seconds
 let countdownInterval = null;
 
 // Global experience state for mobile sync
@@ -154,7 +154,7 @@ function startCountdownTimer() {
         clearInterval(countdownInterval);
     }
     
-    countdownTime = 120; // Reset to 2 minutes
+    countdownTime = 30; // Reset to 30 seconds
     
     countdownInterval = setInterval(() => {
         if (countdownTime <= 0) {
@@ -173,7 +173,7 @@ function startCountdownTimer() {
         }
     }, 1000);
     
-    console.log('Countdown timer started (2 minutes)');
+    console.log('Countdown timer started (30 seconds)');
 }
 
 function resetCountdownTimer() {
@@ -454,48 +454,41 @@ wss.on('connection', (ws) => {
                 console.log('📦 Role assignment with cluster:', clusterName);
                 console.log('📝 Debate argument:', debateArgument);
                 
-                // Role distribution: Guarantee at least 1 debater per group, then distribute rest
+                // TEMPORARY FOR TESTING: First client = listener, rest = debaters
+                // TODO: Revert to random assignment for production
                 clientRoles.clear();
                 debaterReadyState.clear();
                 
-                // Shuffle client IDs for random assignment
-                const shuffledIds = [...clientIds].sort(() => Math.random() - 0.5);
+                // Sort client IDs to ensure consistent ordering (first to connect = listener)
+                const sortedIds = [...clientIds].sort((a, b) => a - b);
                 
-                const totalClients = shuffledIds.length;
+                const totalClients = sortedIds.length;
                 
-                // Ensure minimum 1 debater per group
-                let group1Count = Math.max(1, Math.floor(totalClients * 0.25));
-                let group2Count = Math.max(1, Math.floor(totalClients * 0.25));
+                // First client is listener, rest are debaters split between groups
+                const debaterCount = Math.max(0, totalClients - 1);
+                const group1Count = Math.ceil(debaterCount / 2); // Half (rounded up)
+                const group2Count = Math.floor(debaterCount / 2); // Half (rounded down)
                 
-                // If we have exactly 2 clients, assign 1 to each group
-                if (totalClients === 2) {
-                    group1Count = 1;
-                    group2Count = 1;
-                }
-                // If we have only 1 client, assign to Group 1
-                else if (totalClients === 1) {
-                    group1Count = 1;
-                    group2Count = 0;
-                }
-                
-                const listenerCount = totalClients - group1Count - group2Count;
-                
-                console.log(`🎭 Assigning roles to ${totalClients} clients:`);
+                console.log(`🎭 TESTING MODE - Assigning roles to ${totalClients} clients:`);
+                console.log(`   First client (ID ${sortedIds[0]}): Listener`);
                 console.log(`   Group 1 (Against) debaters: ${group1Count}`);
                 console.log(`   Group 2 (For) debaters: ${group2Count}`);
-                console.log(`   Listeners: ${listenerCount}`);
                 
                 let group1Assigned = 0;
                 let group2Assigned = 0;
                 
-                for (let i = 0; i < shuffledIds.length; i++) {
-                    const id = shuffledIds[i];
+                for (let i = 0; i < sortedIds.length; i++) {
+                    const id = sortedIds[i];
                     let role = 'listener';
                     let group = null;
                     let stance = null;
                     
+                    // First client is listener
+                    if (i === 0) {
+                        role = 'listener';
+                    }
                     // Assign Group 1 (Against)
-                    if (group1Assigned < group1Count) {
+                    else if (group1Assigned < group1Count) {
                         role = 'debater';
                         group = 1;
                         stance = 'Against';
@@ -509,10 +502,6 @@ wss.on('connection', (ws) => {
                         stance = 'For';
                         group2Assigned++;
                         debaterReadyState.set(id, false);
-                    }
-                    // Rest are listeners
-                    else {
-                        role = 'listener';
                     }
                     
                     clientRoles.set(id, { role, group, stance });

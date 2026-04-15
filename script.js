@@ -55,7 +55,7 @@ let greenVoteCount = 0;
 // Debate timer state
 let debateTimerActive = false;
 let currentTurn = 1; // 1 = Group 1, 2 = Group 2
-let turnTimeRemaining = 120; // seconds (2 minutes)
+let turnTimeRemaining = 30; // seconds (30s for testing)
 let totalTurns = 4; // 2 turns per group
 let currentTurnNumber = 0; // 0-3 (4 total turns)
 let debateTimerInterval = null;
@@ -2719,7 +2719,7 @@ function startDebateTimer() {
     // Reset timer state
     currentTurnNumber = 0;
     currentTurn = 1; // Start with Group 1
-    turnTimeRemaining = 120; // 2 minutes per turn
+    turnTimeRemaining = 30; // 30 seconds per turn
     debateTimerActive = true;
     
     // Clear any existing timer
@@ -2803,7 +2803,7 @@ function startDebateTimer() {
             } else {
                 // Switch turns
                 currentTurn = currentTurn === 1 ? 2 : 1;
-                turnTimeRemaining = 120; // 2 minutes per turn
+                turnTimeRemaining = 30; // 30 seconds per turn
                 console.log(`⏱️ Turn ${currentTurnNumber + 1} - Group ${currentTurn}`);
                 
                 // Broadcast turn switch
