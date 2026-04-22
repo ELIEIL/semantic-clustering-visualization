@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
     <title>Mobile Controller</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,21 +25,12 @@
         
         <!-- Input Section -->
         <div id="inputSection" class="input-section">
-            <div class="task-header">
-                <h1 class="task-title">Task 1</h1>
-                <p class="task-instruction">Write down something you'd like to discuss</p>
-            </div>
-            
-            <div class="task-guidance">
-                <p class="guidance-title">Be concrete and use keywords</p>
-                <p class="guidance-example"><em>E.g: "I care about climate change"</em></p>
-                <p class="guidance-example"><em>"Recently i have though a lot about politics"</em></p>
-            </div>
+            <h1 class="input-title">WHAT DO YOU CARE ABOUT?</h1>
             
             <textarea 
                 id="textInput" 
                 class="opinion-input" 
-                placeholder="Write here"
+                placeholder="Tap to write..."
                 maxlength="500"
                 autocomplete="off"
             ></textarea>
@@ -53,8 +44,8 @@
         <div id="clusteringLoadingSection" class="clustering-loading-section" style="display: none;">
             <div class="clustering-loading-content">
                 <h1 id="clusteringPhaseText" class="clustering-phase-text">Evaluating posts...</h1>
-                <div class="clustering-progress-container">
-                    <div id="clusteringProgressBar" class="clustering-progress-bar"></div>
+                <div class="clustering-progress-container" id="clusteringProgressContainer">
+                    <!-- Blocks will be generated dynamically -->
                 </div>
             </div>
         </div>
@@ -62,9 +53,8 @@
         <!-- Cluster Results Section (shown after timer ends) -->
         <div id="clusterSection" class="cluster-section" style="display: none;">
             <div class="cluster-header">
-                <h1>Generated Topics</h1>
-                <p class="cluster-subtitle">Vote on a topic you'd like to discuss</p>
-                <div id="votingTimer" class="voting-timer">01:00</div>
+                <h1 class="voting-title">DEBATE TOPICS</h1>
+                <p class="cluster-subtitle">Vote on a topic you would like to debate.</p>
             </div>
             
             <div id="clusterList" class="cluster-list">
@@ -75,8 +65,7 @@
         <!-- Topic Reveal Section (shown after voting ends) -->
         <div id="topicRevealSection" class="topic-reveal-section" style="display: none;">
             <div class="reveal-content">
-                <h1 class="reveal-title">Chosen topic</h1>
-                <p class="reveal-subtitle">Get ready to discuss this topic</p>
+                <h1 class="reveal-title">CHOSEN DEBATE</h1>
                 <div id="revealTopicBox" class="reveal-topic-box">
                     <span id="revealTopicName" class="reveal-topic-name"></span>
                 </div>

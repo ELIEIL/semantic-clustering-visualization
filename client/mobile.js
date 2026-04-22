@@ -40,7 +40,6 @@ function connect() {
         
         if (data.type === 'clusters') {
             // Update cluster list display
-            console.log('📊 Received clusters:', data);
             updateClusterList(data);
         }
         
@@ -76,7 +75,6 @@ function connect() {
         }
         
         if (data.type === 'vote_recorded') {
-            console.log('✅ Vote recorded:', data);
             updateVoteCount(data.totalVotes);
             markPostAsVoted(data.postId);
         }
@@ -163,8 +161,8 @@ function connect() {
         }
         
         if (data.type === 'cluster_vote_update') {
-            // Update vote count for specific cluster
-            updateClusterVotes(data.clusterId, data.voteCount);
+            // Update all cluster votes to show other users' votes
+            updateAllClusterVotes(data.votes);
         }
         
         if (data.type === 'skip_to_reveal') {
@@ -420,19 +418,15 @@ let userPosts = []; // Track posts submitted by this user
 let uncategorizedPosts = [];
 
 function updateClusterList(data) {
-    console.log('🎨 updateClusterList called with:', data);
-    
     // Handle both old format (just clusters array) and new format (object with clusters + posts)
     const clusters = data.clusters || data;
     uncategorizedPosts = data.uncategorizedPosts || [];
     
     if (!clusters || clusters.length === 0) {
-        console.log('⚠️ No clusters to display');
         return;
     }
     
     clusterData = clusters;
-    console.log('✅ Rendering', clusters.length, 'clusters');
     
     // Render all sections
     renderYourPosts();
@@ -698,17 +692,44 @@ function showClusteringLoadingView() {
     if (inputSection && loadingSection) {
         inputSection.style.display = 'none';
         loadingSection.style.display = 'flex';
-        console.log('⏳ Showing clustering loading view');
+        
+        // Initialize progress blocks
+        initializeProgressBlocks(12); // 12 blocks for wider appearance
     }
 }
 
-// Update clustering progress bar and phase text
+// Initialize progress blocks (call once when showing loader)
+function initializeProgressBlocks(numBlocks = 20) {
+    const container = document.getElementById('clusteringProgressContainer');
+    if (!container) return;
+    
+    container.innerHTML = ''; // Clear existing blocks
+    
+    for (let i = 0; i < numBlocks; i++) {
+        const block = document.createElement('div');
+        block.className = 'progress-block';
+        block.dataset.index = i;
+        container.appendChild(block);
+    }
+}
+
+// Update clustering progress bar - fill blocks one by one
 function updateClusteringProgress(progress, phase) {
-    const progressBar = document.getElementById('clusteringProgressBar');
+    const container = document.getElementById('clusteringProgressContainer');
     const phaseText = document.getElementById('clusteringPhaseText');
     
-    if (progressBar) {
-        progressBar.style.width = `${progress * 100}%`;
+    if (container) {
+        const blocks = container.querySelectorAll('.progress-block');
+        const numBlocks = blocks.length;
+        const filledBlocks = Math.floor(progress * numBlocks);
+        
+        blocks.forEach((block, index) => {
+            if (index < filledBlocks) {
+                block.classList.add('filled');
+            } else {
+                block.classList.remove('filled');
+            }
+        });
     }
     
     if (phaseText && phase) {
@@ -724,7 +745,6 @@ function showClusterView() {
     if (loadingSection && clusterSection) {
         loadingSection.style.display = 'none';
         clusterSection.style.display = 'block';
-        console.log('📊 Switched to cluster view');
         
         // Start voting timer
         startVotingTimer();
@@ -738,12 +758,6 @@ function displayClusters(clusters) {
     
     // Store clusters for winner determination
     currentClusters = clusters;
-    console.log('📦 Stored clusters for voting:', clusters.map(c => ({ 
-        id: c.id, 
-        label: c.label, 
-        hasKeywords: !!c.keywords,
-        keywords: c.keywords 
-    })));
     
     clusterList.innerHTML = '';
     
@@ -764,7 +778,9 @@ function displayClusters(clusters) {
         clusterItem.innerHTML = `
             <div class="cluster-box" style="border-color: rgb(${rgb.r}, ${rgb.g}, ${rgb.b}); color: rgb(${rgb.r}, ${rgb.g}, ${rgb.b});">
                 <span class="cluster-label">${cluster.label || 'Cluster ' + cluster.id}</span>
-                <span class="cluster-vote-count">${voteCount}</span>
+                <div class="vote-circles">
+                    <!-- Circle will be added when user votes for this cluster -->
+                </div>
             </div>
         `;
         
@@ -775,34 +791,53 @@ function displayClusters(clusters) {
         
         clusterList.appendChild(clusterItem);
     });
-    
-    console.log(`📊 Displayed ${clusters.length} clusters`);
 }
 
-// Track if user has already voted
-let hasVoted = false;
+// Track current vote
+let currentVote = null;
 
 // Vote for a cluster
 function voteForCluster(clusterId) {
-    // Prevent multiple votes
-    if (hasVoted) {
-        console.log('⚠️ You have already voted');
-        return;
-    }
-    
     if (ws && ws.readyState === WebSocket.OPEN) {
+        // Convert to string for consistent comparison
+        const clusterIdStr = String(clusterId);
+        const currentVoteStr = currentVote ? String(currentVote) : null;
+        
+        // Toggle behavior: if clicking same cluster, remove vote
+        const isTogglingOff = currentVoteStr === clusterIdStr;
+        const newVote = isTogglingOff ? null : clusterIdStr;
+        
         ws.send(JSON.stringify({
             type: 'vote_cluster',
-            clusterId: clusterId,
-            clientId: clientId // Include client ID for server-side tracking
+            clusterId: newVote,
+            clientId: clientId,
+            previousVote: currentVote
         }));
-        hasVoted = true;
-        console.log(`✅ Voted for cluster ${clusterId}`);
         
-        // Disable all cluster items after voting
+        const previousVote = currentVote;
+        currentVote = newVote;
+        
+        // Update UI for all cluster boxes
         document.querySelectorAll('.cluster-item').forEach(item => {
-            item.style.pointerEvents = 'none';
-            item.style.opacity = '0.6';
+            const box = item.querySelector('.cluster-box');
+            const voteCirclesContainer = item.querySelector('.vote-circles');
+            const itemClusterId = String(item.dataset.clusterId || item.getAttribute('data-cluster-id'));
+            
+            // Clear all circles and voted states first
+            box.classList.remove('voted');
+            if (voteCirclesContainer) {
+                voteCirclesContainer.innerHTML = '';
+            }
+            
+            // Add circle only to the currently selected cluster
+            if (newVote && itemClusterId === newVote) {
+                box.classList.add('voted');
+                if (voteCirclesContainer) {
+                    const newCircle = document.createElement('div');
+                    newCircle.className = 'vote-circle user-vote';
+                    voteCirclesContainer.appendChild(newCircle);
+                }
+            }
         });
     }
 }
@@ -820,30 +855,57 @@ function hsbToRgb(h, s, b) {
     };
 }
 
-// Update vote display for a cluster
-function updateClusterVotes(clusterId, voteCount) {
-    const clusterItem = document.querySelector(`[data-cluster-id="${clusterId}"]`);
-    if (!clusterItem) {
-        console.log(`⚠️ Cluster item not found for ID: ${clusterId}`);
-        return;
-    }
+// Update all cluster votes from server (shows other users' votes)
+function updateAllClusterVotes(votesData) {
+    if (!votesData) return;
     
-    const voteCountEl = clusterItem.querySelector('.cluster-vote-count');
+    console.log('📊 Updating votes from server:', votesData);
+    console.log('👤 Current user vote:', currentVote);
     
-    if (voteCountEl) {
-        // Update count with value from server
-        voteCountEl.textContent = `${voteCount}`;
+    // votesData format: { clusterId: voteCount, ... }
+    document.querySelectorAll('.cluster-item').forEach(item => {
+        const itemClusterId = String(item.dataset.clusterId || item.getAttribute('data-cluster-id'));
+        const voteCirclesContainer = item.querySelector('.vote-circles');
+        const box = item.querySelector('.cluster-box');
         
-        // Update stored cluster data
-        const cluster = currentClusters.find(c => c.id === clusterId);
-        if (cluster) {
-            cluster.votes = voteCount;
+        if (!voteCirclesContainer) return;
+        
+        // Get vote count for this cluster from server
+        const serverVoteCount = votesData[itemClusterId] || 0;
+        
+        // Check if this is the user's current vote
+        const isUserVote = currentVote && String(currentVote) === itemClusterId;
+        
+        // Clear existing circles
+        voteCirclesContainer.innerHTML = '';
+        
+        // Total circles to show
+        const totalCircles = serverVoteCount;
+        
+        console.log(`  Cluster ${itemClusterId}: ${totalCircles} circles, user voted: ${isUserVote}`);
+        
+        // Add circles
+        for (let i = 0; i < totalCircles; i++) {
+            const circle = document.createElement('div');
+            circle.className = 'vote-circle';
+            
+            // If this is user's vote, make first circle white, rest colored
+            if (isUserVote && i === 0) {
+                circle.classList.add('user-vote');
+            } else {
+                circle.classList.add('other-vote');
+            }
+            
+            voteCirclesContainer.appendChild(circle);
         }
         
-        console.log(`✅ Updated cluster ${clusterId} to ${voteCount} votes`);
-    } else {
-        console.log(`⚠️ Vote count element not found for cluster ${clusterId}`);
-    }
+        // Keep voted state if user voted for this
+        if (isUserVote) {
+            box.classList.add('voted');
+        } else {
+            box.classList.remove('voted');
+        }
+    });
 }
 
 // Voting timer variables
@@ -1067,9 +1129,8 @@ function showTopicReveal(cluster) {
     const rgb = hsbToRgb(cluster.color.h, cluster.color.s, cluster.color.b);
     const colorString = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
     
-    // Set box border and text color
-    revealTopicBox.style.borderColor = colorString;
-    revealTopicBox.style.color = colorString;
+    // Set box background color (filled box design)
+    revealTopicBox.style.backgroundColor = colorString;
     
     // Set topic name
     revealTopicName.textContent = cluster.label || 'Cluster ' + cluster.id;
@@ -1564,6 +1625,17 @@ function drawTimerSegments(container, timeRemaining, currentTurn) {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     initDebateVoting();
+});
+
+// Handle keyboard appearance - prevent overflow by adjusting layout
+textInput.addEventListener('focus', () => {
+    // Add a class to adjust layout when keyboard is visible
+    document.body.classList.add('keyboard-visible');
+});
+
+textInput.addEventListener('blur', () => {
+    // Remove class when keyboard is hidden
+    document.body.classList.remove('keyboard-visible');
 });
 
 connect();

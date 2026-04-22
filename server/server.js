@@ -358,31 +358,54 @@ wss.on('connection', (ws) => {
             if (data.type === 'vote_cluster') {
                 const clusterId = data.clusterId;
                 const votingClientId = data.clientId;
+                const previousVote = data.previousVote;
                 
-                // Prevent duplicate votes from same client
-                if (clientClusterVotes.has(votingClientId)) {
-                    console.log(`⚠️ Client ${votingClientId} already voted`);
-                    return;
+                console.log(`📊 Vote request: Client ${votingClientId}, New: ${clusterId}, Previous: ${previousVote}`);
+                
+                // Handle vote switching - remove from previous cluster
+                if (previousVote && String(previousVote) !== String(clusterId)) {
+                    const prevVotes = clusterVotes.get(String(previousVote)) || 0;
+                    if (prevVotes > 0) {
+                        clusterVotes.set(String(previousVote), prevVotes - 1);
+                        console.log(`🔄 Removed vote from cluster ${previousVote} (now has ${prevVotes - 1} votes)`);
+                    }
                 }
                 
-                // Find cluster label for logging
-                const cluster = currentClusters.find(c => c.id === clusterId);
-                const clusterLabel = cluster ? cluster.label : 'Unknown';
+                // Handle toggle off (clusterId is null)
+                if (clusterId === null || clusterId === 'null') {
+                    clientClusterVotes.delete(votingClientId);
+                    console.log(`❌ Client ${votingClientId} removed their vote`);
+                } else {
+                    // Find cluster label for logging
+                    const cluster = currentClusters.find(c => String(c.id) === String(clusterId));
+                    const clusterLabel = cluster ? cluster.label : 'Unknown';
+                    
+                    // Record new vote
+                    clientClusterVotes.set(votingClientId, String(clusterId));
+                    const currentVotes = clusterVotes.get(String(clusterId)) || 0;
+                    clusterVotes.set(String(clusterId), currentVotes + 1);
+                    
+                    console.log(`✅ Vote recorded for cluster ${clusterId} "${clusterLabel}" (now has ${currentVotes + 1} votes)`);
+                }
                 
-                // Record vote
-                clientClusterVotes.set(votingClientId, clusterId);
-                const currentVotes = clusterVotes.get(clusterId) || 0;
-                clusterVotes.set(clusterId, currentVotes + 1);
+                // Log all current votes
+                console.log('📊 Current vote totals:');
+                currentClusters.forEach(cluster => {
+                    const votes = clusterVotes.get(String(cluster.id)) || 0;
+                    console.log(`   ${cluster.label}: ${votes} votes`);
+                });
                 
-                console.log(`✅ Vote recorded for cluster ${clusterId} "${clusterLabel}" (now has ${currentVotes + 1} votes)`);
+                // Broadcast all vote counts to all clients
+                const allVotes = {};
+                currentClusters.forEach(cluster => {
+                    allVotes[String(cluster.id)] = clusterVotes.get(String(cluster.id)) || 0;
+                });
                 
-                // Broadcast updated vote count to all clients
                 wss.clients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                             type: 'cluster_vote_update',
-                            clusterId: clusterId,
-                            voteCount: currentVotes + 1
+                            votes: allVotes
                         }));
                     }
                 });
@@ -691,8 +714,8 @@ wss.on('connection', (ws) => {
                 
                 // Initialize vote counts for new clusters
                 currentClusters.forEach(cluster => {
-                    if (!clusterVotes.has(cluster.id)) {
-                        clusterVotes.set(cluster.id, 0);
+                    if (!clusterVotes.has(String(cluster.id))) {
+                        clusterVotes.set(String(cluster.id), 0);
                     }
                 });
                 
@@ -720,7 +743,7 @@ wss.on('connection', (ws) => {
                 console.log('   Current clusters:', currentClusters.map(c => `${c.id}:"${c.label}"`).join(', '));
                 console.log('   Vote counts:');
                 currentClusters.forEach(cluster => {
-                    const votes = clusterVotes.get(cluster.id) || 0;
+                    const votes = clusterVotes.get(String(cluster.id)) || 0;
                     console.log(`      Cluster ${cluster.id} "${cluster.label}": ${votes} votes`);
                 });
                 
@@ -728,7 +751,7 @@ wss.on('connection', (ws) => {
                 let maxVotes = 0;
                 
                 currentClusters.forEach(cluster => {
-                    const votes = clusterVotes.get(cluster.id) || 0;
+                    const votes = clusterVotes.get(String(cluster.id)) || 0;
                     if (votes > maxVotes) {
                         maxVotes = votes;
                         winningCluster = cluster;

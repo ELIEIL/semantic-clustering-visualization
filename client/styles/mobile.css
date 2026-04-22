@@ -5,6 +5,13 @@
 }
 
 @font-face {
+    font-family: 'MD Thermochrome 0.4 Trial';
+    src: url('../fonts/MDThermochrome0.4-Regular-Trial.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
     font-family: 'MD Primer Trail';
     src: local('MD Primer Trail');
     font-weight: normal;
@@ -85,6 +92,26 @@ body {
 
 .status-dot.disconnected {
     background: #f44336;
+}
+
+/* Input Title */
+.input-title {
+    font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: 0.15em;
+    color: #000;
+    margin: 0 0 20px 0;
+    text-align: left;
+    line-height: 1.1;
+    flex-shrink: 0;
+    transition: all 0.3s ease;
+}
+
+/* Adjust title when keyboard is visible */
+body.keyboard-visible .input-title {
+    font-size: 26px;
+    margin: 0 0 12px 0;
 }
 
 /* Task Header */
@@ -170,8 +197,15 @@ body {
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
-    height: 100vh;
-    overflow: hidden;
+    min-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: padding 0.3s ease;
+}
+
+/* Reduce padding when keyboard is visible */
+body.keyboard-visible .mobile-container {
+    padding: 20px 30px;
 }
 
 /* Cluster Results Section */
@@ -196,23 +230,24 @@ body {
     background: transparent;
 }
 
+/* Voting Title - same style as input title */
+.voting-title {
+    font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace !important;
+    font-size: 32px !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.15em !important;
+    margin: 0 0 20px 0 !important;
+}
+
 .cluster-subtitle {
     font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 16px;
+    font-size: 18px;
     color: #999;
-    margin: 0;
+    margin: 0 0 30px 0;
     font-weight: 300;
     background: transparent;
 }
 
-.voting-timer {
-    font-family: 'DS-Digital', 'Courier New', monospace;
-    font-size: 32px;
-    font-weight: 400;
-    color: #000;
-    margin-top: 20px;
-    text-align: center;
-}
 
 .cluster-list {
     display: flex;
@@ -233,11 +268,11 @@ body {
 .cluster-box {
     background: #fff;
     border: 4px solid;
-    border-radius: 8px;
+    border-radius: 0;
     padding: 20px 24px;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 12px;
     transition: all 0.2s ease;
 }
 
@@ -245,20 +280,58 @@ body {
     transform: translateX(4px);
 }
 
-.cluster-label {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 20px;
-    font-weight: 600;
-    text-transform: capitalize;
-    flex: 1;
+/* Filled state when voted */
+.cluster-box.voted {
+    background: currentColor;
 }
 
-.cluster-vote-count {
+.cluster-box.voted .cluster-label {
+    color: #fff;
+}
+
+.cluster-label {
     font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 24px;
-    font-weight: 600;
-    min-width: 40px;
-    text-align: right;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+/* Vote circles container */
+.vote-circles {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-height: 16px;
+}
+
+.vote-circle {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* User's own vote - white circle */
+.vote-circle.user-vote {
+    background: #fff;
+    border: 2px solid #fff;
+}
+
+/* Other users' votes - colored circle matching box border */
+.vote-circle.other-vote {
+    background: currentColor;
+    border: 2px solid currentColor;
+}
+
+/* When voted, user's circle is white */
+.cluster-box.voted .vote-circle.user-vote {
+    background: #fff;
+    border-color: #fff;
+}
+
+/* Hide vote count number */
+.cluster-vote-count {
+    display: none;
 }
 
 /* Clustering Loading Section */
@@ -293,41 +366,27 @@ body {
 .clustering-progress-container {
     width: 100%;
     height: 20px;
-    background: #fff;
+    background: transparent;
     border: 2px solid #000;
     border-radius: 0;
     overflow: visible;
     position: relative;
     display: flex;
-    gap: 2px;
-    padding: 2px;
+    gap: 6px;
+    padding: 4px;
 }
 
-.clustering-progress-bar {
+/* Individual progress blocks */
+.progress-block {
+    flex: 1;
     height: 100%;
-    background: #000;
-    width: 0%;
-    transition: width 0.1s linear;
-    position: relative;
+    background: transparent;
+    border: none;
+    transition: background-color 0.2s ease;
 }
 
-/* Segmented progress bar effect */
-.clustering-progress-container::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: repeating-linear-gradient(
-        to right,
-        transparent 0px,
-        transparent calc(5% - 2px),
-        #fff 2px,
-        #fff calc(5%)
-    );
-    pointer-events: none;
-    z-index: 1;
+.progress-block.filled {
+    background: #000;
 }
 
 /* Topic Reveal Section */
@@ -355,25 +414,19 @@ body {
 }
 
 .reveal-title {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 40px;
-    font-weight: 400;
+    font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: 0.15em;
     color: #000;
-    margin: 0 0 8px 0;
+    margin: 0 0 40px 0;
 }
 
-.reveal-subtitle {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 16px;
-    font-weight: 400;
-    color: #666;
-    margin: 0 0 60px 0;
-}
 
 .reveal-topic-box {
-    background: transparent;
-    border: 4px dashed;
-    border-radius: 40px;
+    background: #000;
+    border: none;
+    border-radius: 0;
     padding: 20px 40px;
     display: inline-block;
 }
@@ -381,8 +434,9 @@ body {
 .reveal-topic-name {
     font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 24px;
-    font-weight: 600;
+    font-weight: 500;
     text-transform: capitalize;
+    color: #fff;
     margin: 0;
     line-height: 1.3;
 }
@@ -762,16 +816,17 @@ body {
     width: 100%;
     max-width: 100%;
     flex-direction: column;
-    height: 100%;
+    min-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .opinion-input {
     width: 100%;
-    height: auto;
-    min-height: 200px;
-    max-height: calc(100vh - 150px);
+    flex: 1;
+    min-height: 120px;
     padding: 0;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     font-size: 56px;
     font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
     border: none;
@@ -786,8 +841,9 @@ body {
 }
 
 .opinion-input::placeholder {
-    color: #ccc;
+    color: #999;
     font-weight: 300;
+    font-size: 18px;
 }
 
 .bottom-controls {
@@ -796,14 +852,16 @@ body {
     align-items: center;
     width: 100%;
     gap: 20px;
+    flex-shrink: 0;
+    margin-top: auto;
 }
 
 .countdown-timer {
     font-family: 'DS-Digital', 'Courier New', monospace;
-    font-size: 42px;
+    font-size: 32px;
     font-weight: 400;
     color: #000;
-    letter-spacing: 4px;
+    letter-spacing: 3px;
     user-select: none;
 }
 
@@ -811,7 +869,7 @@ body {
     background: #000;
     border: none;
     color: #fff;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 400;
     cursor: pointer;
     padding: 10px 20px;

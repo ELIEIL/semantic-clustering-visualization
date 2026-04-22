@@ -1158,31 +1158,78 @@ function positionNodesInClusters() {
     const centerY = height / 2;
     const clusterRadius = Math.min(width, height) * 0.35; // Distance from center
     
+    // Store cluster centers for collision detection
+    const clusterCenters = [];
+    
     let clusterIndex = 0;
     clusterGroups.forEach((clusterNodes, clusterId) => {
-        // Calculate cluster center position
+        // Calculate initial cluster center position
         const angle = (clusterIndex / numClusters) * TWO_PI;
-        const clusterCenterX = centerX + cos(angle) * clusterRadius;
-        const clusterCenterY = centerY + sin(angle) * clusterRadius;
+        let clusterCenterX = centerX + cos(angle) * clusterRadius;
+        let clusterCenterY = centerY + sin(angle) * clusterRadius;
         
-        // Position nodes in a tight group around cluster center
+        // Store cluster center with size info
+        const clusterSize = Math.sqrt(clusterNodes.length) * 60 + 100; // Estimate cluster circle size
+        clusterCenters.push({ x: clusterCenterX, y: clusterCenterY, size: clusterSize, nodes: clusterNodes });
+        
+        clusterIndex++;
+    });
+    
+    // Apply collision detection to cluster centers (prevent overlap)
+    const iterations = 50; // Number of physics iterations
+    for (let iter = 0; iter < iterations; iter++) {
+        clusterCenters.forEach((cluster, i) => {
+            let fx = 0, fy = 0;
+            
+            // Repulsion from other clusters
+            clusterCenters.forEach((other, j) => {
+                if (i === j) return;
+                
+                const dx = other.x - cluster.x;
+                const dy = other.y - cluster.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < 1) return;
+                
+                // Minimum distance = sum of radii + padding
+                const minDist = (cluster.size + other.size) / 2 + 50;
+                
+                if (dist < minDist) {
+                    const overlap = minDist - dist;
+                    const force = overlap / minDist * 2.0;
+                    fx -= (dx / dist) * force;
+                    fy -= (dy / dist) * force;
+                }
+            });
+            
+            // Apply forces
+            cluster.x += fx;
+            cluster.y += fy;
+            
+            // Keep within bounds
+            const margin = cluster.size / 2 + 50;
+            cluster.x = constrain(cluster.x, margin, width - margin);
+            cluster.y = constrain(cluster.y, margin, height - margin);
+        });
+    }
+    
+    // Position nodes based on adjusted cluster centers
+    clusterCenters.forEach(cluster => {
         const spreadRadius = 80; // How spread out nodes are within cluster
-        clusterNodes.forEach((node, i) => {
-            const nodeAngle = (i / clusterNodes.length) * TWO_PI;
+        cluster.nodes.forEach((node, i) => {
+            const nodeAngle = (i / cluster.nodes.length) * TWO_PI;
             const nodeRadius = random(20, spreadRadius);
             
-            node.x = clusterCenterX + cos(nodeAngle) * nodeRadius;
-            node.y = clusterCenterY + sin(nodeAngle) * nodeRadius;
+            node.x = cluster.x + cos(nodeAngle) * nodeRadius;
+            node.y = cluster.y + sin(nodeAngle) * nodeRadius;
             
             // Reset velocities
             node.vx = 0;
             node.vy = 0;
         });
-        
-        clusterIndex++;
     });
     
-    console.log(`📍 Positioned ${nodes.length} nodes into ${numClusters} spatial clusters`);
+    console.log(`📍 Positioned ${nodes.length} nodes into ${numClusters} spatial clusters (with collision detection)`);
 }
 
 // Recalculate similarities using selected database
@@ -3559,6 +3606,30 @@ class Node {
             fy += (dyHeadline / distToHeadline) * repelForce;
         }
         
+        // BASIC COLLISION DETECTION - Always active to prevent overlapping
+        nodes.forEach(other => {
+            if (other === this) return;
+            
+            const dx = other.x - this.x;
+            const dy = other.y - this.y;
+            const dist = sqrt(dx * dx + dy * dy);
+            
+            if (dist < 1) return;
+            
+            // Calculate collision radius based on post size
+            const thisRadius = max(this.boxWidth, this.boxHeight) / 2;
+            const otherRadius = max(other.boxWidth, other.boxHeight) / 2;
+            const minDistance = thisRadius + otherRadius + 20; // 20px padding
+            
+            // Collision repulsion - always active
+            if (dist < minDistance) {
+                const overlap = minDistance - dist;
+                const repelForce = (overlap / minDistance) * 0.5;
+                fx -= (dx / dist) * repelForce;
+                fy -= (dy / dist) * repelForce;
+            }
+        });
+        
         // CLUSTERING PHYSICS - Only active after timer completes
         if (clusteringEnabled) {
             // Attraction to similar nodes, strong repulsion between different clusters
@@ -4624,20 +4695,34 @@ function draw() {
                 if (customFontSemibold) textFont(customFontSemibold);
                 text(phaseText, width / 2, height / 2);
                 
-                // Progress bar
+                // Progress bar - block by block style
                 const barWidth = 400;
                 const barHeight = 20;
                 const barX = width / 2 - barWidth / 2;
                 const barY = height / 2 + 60;
+                const numBlocks = 12; // Reduced from 20 for wider blocks
+                const gapSize = 6; // Increased spacing between blocks
+                const padding = 4; // Padding inside container
+                const blockWidth = (barWidth - padding * 2 - (numBlocks - 1) * gapSize) / numBlocks;
+                const filledBlocks = Math.floor(clusteringProgress * numBlocks);
                 
+                // Draw container outline
                 noFill();
                 stroke(255, 255 * uiFade);
                 strokeWeight(2);
                 rect(barX, barY, barWidth, barHeight);
                 
-                noStroke();
-                fill(255, 255 * uiFade);
-                rect(barX, barY, barWidth * clusteringProgress, barHeight);
+                // Draw individual blocks
+                for (let i = 0; i < numBlocks; i++) {
+                    const blockX = barX + padding + i * (blockWidth + gapSize);
+                    
+                    // Only draw filled blocks
+                    if (i < filledBlocks) {
+                        noStroke();
+                        fill(255, 255 * uiFade);
+                        rect(blockX, barY + padding, blockWidth, barHeight - padding * 2);
+                    }
+                }
                 pop();
             }
             
@@ -4693,50 +4778,49 @@ function draw() {
                 const c = color(h, s, b);
                 colorMode(RGB, 255);
 
-                // Draw "Chosen topic" title - MD IO font (using Regular as placeholder)
+                // Draw "CHOSEN DEBATE" title - MD Thermochrome (same as DEBATE TOPICS)
                 fill(255, fadeProgress * 255);
                 textAlign(CENTER, CENTER);
-                textSize(64);
-                if (customFont) {
-                    textFont(customFont); // TODO: Replace with MD IO font when available
-                }
-                text('Chosen topic', width / 2, height / 2 - 180);
-
-                // Draw subtitle - MD Primer font (using Medium as placeholder)
-                fill(150, fadeProgress * 255);
-                textSize(24);
-                if (customFontMedium) {
-                    textFont(customFontMedium); // TODO: Replace with MD Primer font when available
-                }
-                text('Get ready for a debate!', width / 2, height / 2 - 120);
-
-                // Draw topic name in dashed outline - MD Thermochrome Semibold
-                push();
-                noFill();
-                stroke(red(c), green(c), blue(c), fadeProgress * 255);
-                strokeWeight(4);
-                drawingContext.setLineDash([10, 10]);
-
-                // Calculate text width for rounded rectangle
-                textSize(36);
+                textSize(56);
                 if (customFontSemibold) {
                     textFont(customFontSemibold);
                 }
+                text('CHOSEN DEBATE', width / 2, height / 2 - 120);
+
+                // Draw topic name in filled box - MD Primer
+                push();
+                
+                // Calculate text width for box
+                textSize(36);
+                if (customFontMedium) {
+                    textFont(customFontMedium);
+                }
                 const topicText = winningCluster.label || 'Discussion';
                 const textW = textWidth(topicText);
-                const boxW = textW + 120;
-                const boxH = 90;
+                const boxW = textW + 60;
+                const boxH = 60;
                 const boxX = width / 2;
-                const boxY = height / 2 + 20;
+                const boxY = height / 2 + 10;
 
-                // Draw rounded rectangle
+                // Draw filled rectangle with cluster color
                 rectMode(CENTER);
-                rect(boxX, boxY, boxW, boxH, 45);
-                drawingContext.setLineDash([]);
-
-                // Draw topic text
                 fill(red(c), green(c), blue(c), fadeProgress * 255);
                 noStroke();
+                rect(boxX, boxY, boxW, boxH);
+
+                // Calculate brightness to determine text color (white or black)
+                const r = red(c);
+                const g = green(c);
+                const bl = blue(c);
+                const brightness = (r * 0.299 + g * 0.587 + bl * 0.114);
+                
+                // Use black text for bright colors, white text for dark colors
+                if (brightness > 128) {
+                    fill(0, fadeProgress * 255); // Black text
+                } else {
+                    fill(255, fadeProgress * 255); // White text
+                }
+                
                 textAlign(CENTER, CENTER);
                 text(topicText, boxX, boxY);
 
