@@ -75,6 +75,10 @@ let circlesFadeProgress = 0;
 let roleAssignmentAutoTriggered = false; // Flag to prevent multiple auto-triggers
 let readyCount = 0;
 let totalDebaters = 0;
+let group1Ready = 0;
+let group1Total = 0;
+let group2Ready = 0;
+let group2Total = 0;
 
 // Opposing headlines for debate
 let opposingHeadlines = null; // Stores { position1, position2 }
@@ -3036,7 +3040,14 @@ async function startRoleAssignment() {
     }
     
     roleAssignmentActive = true;
-    roleAssignmentPhase = 'fade-out';
+    roleAssignmentPhase = 'topic-dissolve';
+    
+    // Notify mobile clients to start their loading animation (synced)
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'start_role_assignment_animation'
+        }));
+    }
     
     // Assign roles to connected clients
     assignRolesToClients();
@@ -3066,45 +3077,54 @@ function assignRolesToClients() {
     }
 }
 
-// Animate role assignment transition: fade out reveal -> move topic up -> fade in circles
+// Animate role assignment transition: topic dissolve -> emoji loading -> icons push out -> fade to circles
 function animateRoleAssignmentTransition() {
     const startTime = Date.now();
-    const fadeOutDuration = 800; // 0.8s fade to black
-    const holdDuration = 200; // 0.2s hold
-    const topicMoveDuration = 1000; // 1s topic moves to top
-    const circlesFadeDuration = 800; // 0.8s circles fade in
+    const topicDissolveDuration = 1000; // 1s topic box dissolves and moves
+    const emojiLoadingDuration = 4500; // 4.5s emoji loads block by block (slower)
+    const iconPushOutDuration = 5000; // 5s icons push out and stay visible longer
+    const fadeToCirclesDuration = 1500; // 1.5s fade to circles with easingal screen
     
     function animate() {
         const elapsed = Date.now() - startTime;
         
-        if (elapsed < fadeOutDuration) {
-            // Phase 1: Fade reveal screen to black
-            const progress = elapsed / fadeOutDuration;
-            window.roleAssignmentFadeProgress = progress;
-            roleAssignmentPhase = 'fade-out';
+        if (elapsed < topicDissolveDuration) {
+            // Phase 1: Topic box dissolves and moves to top-right corner
+            const progress = elapsed / topicDissolveDuration;
+            topicMoveProgress = progress;
+            roleAssignmentPhase = 'topic-dissolve';
             requestAnimationFrame(animate);
-        } else if (elapsed < fadeOutDuration + holdDuration) {
-            // Phase 2: Hold black
-            window.roleAssignmentFadeProgress = 1;
-            roleAssignmentPhase = 'fade-out';
+        } else if (elapsed < topicDissolveDuration + emojiLoadingDuration) {
+            // Phase 2: People emoji loading animation (block by block from bottom)
+            const loadingElapsed = elapsed - topicDissolveDuration;
+            const loadingProgress = loadingElapsed / emojiLoadingDuration;
+            window.emojiLoadingProgress = loadingProgress;
+            topicMoveProgress = 1; // Topic fully moved
+            roleAssignmentPhase = 'emoji-loading';
             requestAnimationFrame(animate);
-        } else if (elapsed < fadeOutDuration + holdDuration + topicMoveDuration) {
-            // Phase 3: Topic moves to top
-            const moveElapsed = elapsed - fadeOutDuration - holdDuration;
-            topicMoveProgress = moveElapsed / topicMoveDuration;
-            roleAssignmentPhase = 'topic-move';
+        } else if (elapsed < topicDissolveDuration + emojiLoadingDuration + iconPushOutDuration) {
+            // Phase 3: Icons push out from center
+            const iconElapsed = elapsed - topicDissolveDuration - emojiLoadingDuration;
+            const iconProgress = iconElapsed / iconPushOutDuration;
+            window.emojiLoadingProgress = 1; // Emoji fully loaded
+            window.iconPushOutProgress = iconProgress;
+            roleAssignmentPhase = 'icons-push-out';
             requestAnimationFrame(animate);
-        } else if (elapsed < fadeOutDuration + holdDuration + topicMoveDuration + circlesFadeDuration) {
-            // Phase 4: Circles fade in
-            const circlesElapsed = elapsed - fadeOutDuration - holdDuration - topicMoveDuration;
-            circlesFadeProgress = circlesElapsed / circlesFadeDuration;
-            topicMoveProgress = 1; // Topic stays at top
-            roleAssignmentPhase = 'circles-fade-in';
+        } else if (elapsed < topicDissolveDuration + emojiLoadingDuration + iconPushOutDuration + fadeToCirclesDuration) {
+            // Phase 4: Slow dissolve/fade to role assignment circles screen
+            const fadeElapsed = elapsed - topicDissolveDuration - emojiLoadingDuration - iconPushOutDuration;
+            const fadeProgress = fadeElapsed / fadeToCirclesDuration;
+            window.iconPushOutProgress = 1; // Icons fully pushed out
+            window.circlesFadeInProgress = fadeProgress;
+            circlesFadeProgress = fadeProgress;
+            roleAssignmentPhase = 'fade-to-circles';
             requestAnimationFrame(animate);
         } else {
-            // Phase 5: Static display
+            // Phase 5: Static display - show final role assignment screen
             topicMoveProgress = 1;
             circlesFadeProgress = 1;
+            window.emojiLoadingProgress = 1;
+            window.circlesFadeInProgress = 1;
             roleAssignmentPhase = 'static';
             console.log('🎭 Role assignment animation complete');
         }
@@ -3289,10 +3309,14 @@ function connectWebSocket() {
         }
         
         if (data.type === 'debater_ready_update') {
-            // Update ready count
+            // Update ready count (total and per-group)
             readyCount = data.readyCount;
             totalDebaters = data.totalDebaters;
-            console.log(`✅ Ready update: ${readyCount}/${totalDebaters}`);
+            group1Ready = data.group1Ready || 0;
+            group1Total = data.group1Total || 0;
+            group2Ready = data.group2Ready || 0;
+            group2Total = data.group2Total || 0;
+            console.log(`✅ Ready update: ${readyCount}/${totalDebaters} (Group 1: ${group1Ready}/${group1Total}, Group 2: ${group2Ready}/${group2Total})`);
             
             // When all debaters are ready, generate debate question and start debate
             if (readyCount === totalDebaters && totalDebaters > 0 && !debateVotingActive) {
@@ -4778,27 +4802,26 @@ function draw() {
                 const c = color(h, s, b);
                 colorMode(RGB, 255);
 
-                // Draw "CHOSEN DEBATE" title - MD Thermochrome (same as DEBATE TOPICS)
+                // Draw "CHOSEN DEBATE" title - MD Thermochrome
                 fill(255, fadeProgress * 255);
                 textAlign(CENTER, CENTER);
-                textSize(56);
+                textSize(48);
                 if (customFontSemibold) {
                     textFont(customFontSemibold);
                 }
-                text('CHOSEN DEBATE', width / 2, height / 2 - 120);
+                text('CHOSEN DEBATE', width / 2, height / 2 - 100);
 
-                // Draw topic name in filled box - MD Primer
+                // Draw topic name in filled box - MD Primer Regular
                 push();
                 
                 // Calculate text width for box
-                textSize(36);
-                if (customFontMedium) {
-                    textFont(customFontMedium);
-                }
+                textSize(32);
+                // Use default font (MD Primer from CSS)
+                textFont('MD Primer Trail');
                 const topicText = winningCluster.label || 'Discussion';
                 const textW = textWidth(topicText);
-                const boxW = textW + 60;
-                const boxH = 60;
+                const boxW = textW + 50;
+                const boxH = 55;
                 const boxX = width / 2;
                 const boxY = height / 2 + 10;
 
@@ -5889,173 +5912,326 @@ function drawRoleAssignmentScreen() {
     
     if (!winningCluster) return;
     
-    const fadeProgress = window.roleAssignmentFadeProgress || 0;
+    // Get cluster color
+    const h = revealClusterColor?.h || winningCluster.color.h;
+    const s = revealClusterColor?.s || winningCluster.color.s;
+    const b = revealClusterColor?.b || winningCluster.color.b;
     
-    // Phase 1: Fade out reveal screen
-    if (roleAssignmentPhase === 'fade-out') {
-        // Draw reveal screen fading to black
-        if (revealClusterColor) {
-            push();
-            
-            const h = revealClusterColor.h;
-            const s = revealClusterColor.s;
-            const b = revealClusterColor.b;
-            
-            colorMode(HSB, 360, 100, 100);
-            const c = color(h, s, b);
-            colorMode(RGB, 255);
-            
-            const alpha = (1 - fadeProgress) * 255;
-            
-            // Draw fading reveal content
+    colorMode(HSB, 360, 100, 100);
+    const clusterColor = color(h, s, b);
+    colorMode(RGB, 255);
+    
+    // Phase 1: Topic box slowly dissolves (fade out)
+    if (roleAssignmentPhase === 'topic-dissolve') {
+        push();
+        
+        // Fade out alpha (1 to 0)
+        const alpha = (1 - topicMoveProgress) * 255;
+        
+        // Draw "CHOSEN DEBATE" title (fading out)
+        fill(255, alpha);
+        textAlign(CENTER, CENTER);
+        textSize(48);
+        if (customFontSemibold) textFont(customFontSemibold);
+        text('CHOSEN DEBATE', width / 2, height / 2 - 100);
+        
+        // Draw topic box (fading out)
+        const topicText = winningCluster.label || 'Discussion';
+        textSize(32);
+        textFont('MD Primer Trail');
+        const textW = textWidth(topicText);
+        const boxW = textW + 50;
+        const boxH = 55;
+        const boxX = width / 2;
+        const boxY = height / 2 + 10;
+        
+        // Draw filled box
+        rectMode(CENTER);
+        fill(red(clusterColor), green(clusterColor), blue(clusterColor), alpha);
+        noStroke();
+        rect(boxX, boxY, boxW, boxH);
+        
+        // Calculate brightness for text color
+        const r = red(clusterColor);
+        const g = green(clusterColor);
+        const bl = blue(clusterColor);
+        const brightness = (r * 0.299 + g * 0.587 + bl * 0.114);
+        
+        // Draw text
+        if (brightness > 128) {
+            fill(0, alpha);
+        } else {
             fill(255, alpha);
-            textAlign(CENTER, CENTER);
-            textSize(64);
-            if (customFont) textFont(customFont);
-            text('Chosen topic', width / 2, height / 2 - 180);
-            
-            fill(150, alpha);
-            textSize(24);
-            if (customFontMedium) textFont(customFontMedium);
-            text('Get ready for a debate!', width / 2, height / 2 - 120);
-            
-            // Topic box
-            push();
-            noFill();
-            stroke(red(c), green(c), blue(c), alpha);
-            strokeWeight(4);
-            drawingContext.setLineDash([10, 10]);
-            
-            textSize(36);
-            if (customFontSemibold) textFont(customFontSemibold);
-            const topicText = winningCluster.label || 'Discussion';
-            const textW = textWidth(topicText);
-            const boxW = textW + 120;
-            const boxH = 90;
-            
-            rectMode(CENTER);
-            rect(width / 2, height / 2 + 20, boxW, boxH, 45);
-            drawingContext.setLineDash([]);
-            
-            fill(red(c), green(c), blue(c), alpha);
-            noStroke();
-            text(topicText, width / 2, height / 2 + 20);
-            
-            pop();
-            pop();
         }
+        textAlign(CENTER, CENTER);
+        text(topicText, boxX, boxY);
+        
+        pop();
         return;
     }
     
-    // Phase 2 & 3: Topic moves to top
-    if (roleAssignmentPhase === 'topic-move' || roleAssignmentPhase === 'circles-fade-in' || roleAssignmentPhase === 'static') {
-        if (revealClusterColor) {
-            push();
-            
-            const h = revealClusterColor.h;
-            const s = revealClusterColor.s;
-            const b = revealClusterColor.b;
-            
-            colorMode(HSB, 360, 100, 100);
-            const c = color(h, s, b);
-            colorMode(RGB, 255);
-            
-            // Interpolate topic position from center to top
-            const startY = height / 2 + 20;
-            const endY = 100;
-            const currentY = startY + (endY - startY) * topicMoveProgress;
-            
-            // Draw topic at moving position
-            textSize(36);
-            if (customFontSemibold) textFont(customFontSemibold);
-            const topicText = winningCluster.label || 'Discussion';
-            const textW = textWidth(topicText);
-            const boxW = textW + 120;
-            const boxH = 90;
-            
-            // Topic box
-            push();
-            noFill();
-            stroke(red(c), green(c), blue(c));
-            strokeWeight(4);
-            drawingContext.setLineDash([10, 10]);
-            rectMode(CENTER);
-            rect(width / 2, currentY, boxW, boxH, 45);
-            drawingContext.setLineDash([]);
-            
-            fill(red(c), green(c), blue(c));
-            noStroke();
-            textAlign(CENTER, CENTER);
-            text(topicText, width / 2, currentY);
-            pop();
-            
-            pop();
-        }
-    }
-    
-    // Phase 3 & 4: Circles fade in
-    if (roleAssignmentPhase === 'circles-fade-in' || roleAssignmentPhase === 'static') {
-        const alpha = circlesFadeProgress * 255;
-        
-        // Calculate circle positions with equal horizontal spacing
-        const circleRadius = Math.min(width, height) * 0.3; // 30% of screen
-        const spacing = width * 0.1; // 10% spacing in middle
-        const leftCircleX = width / 2 - spacing / 2 - circleRadius;
-        const rightCircleX = width / 2 + spacing / 2 + circleRadius;
-        const circleY = height / 2 + 100;
-        
+    // Phase 2: People emoji loading animation (block by block)
+    if (roleAssignmentPhase === 'emoji-loading') {
         push();
         
-        // Group 1 circle (red)
-        noFill();
-        stroke(220, 50, 50, alpha); // Red
-        strokeWeight(6);
-        drawingContext.setLineDash([15, 15]);
-        circle(leftCircleX, circleY, circleRadius * 2);
-        drawingContext.setLineDash([]);
+        const loadingProgress = window.emojiLoadingProgress || 0;
         
-        fill(220, 50, 50, alpha);
+        // Draw "ASSIGNING ROLES" text
+        fill(255);
         textAlign(CENTER, CENTER);
-        textSize(48);
-        if (customFont) textFont(customFont);
-        text('Group 1', leftCircleX, circleY - 40);
-        textSize(32);
-        if (customFontMedium) textFont(customFontMedium);
-        text('Stand here', leftCircleX, circleY + 20);
+        textSize(40);
+        if (customFontSemibold) textFont(customFontSemibold);
+        text('ASSIGNING ROLES', width / 2, height / 2 - 140);
         
-        // Ready count in Group 1 circle
-        if (totalDebaters > 0) {
-            textSize(64);
-            fill(220, 50, 50, alpha);
-            text(`${readyCount}/${totalDebaters}`, leftCircleX, circleY);
+        // Draw people emoji with block-by-block reveal
+        const emojiSize = 150;
+        const emojiX = width / 2;
+        const emojiY = height / 2;
+        
+        // Number of horizontal slices (blocks) to reveal
+        const numBlocks = 15;
+        const visibleBlocks = Math.floor(loadingProgress * numBlocks);
+        
+        // Draw emoji with clipping for each block
+        push();
+        drawingContext.save();
+        
+        // Create clipping path that reveals blocks from bottom to top
+        drawingContext.beginPath();
+        for (let i = 0; i < visibleBlocks; i++) {
+            const blockHeight = emojiSize / numBlocks;
+            const blockY = emojiY + emojiSize / 2 - blockHeight * (i + 1);
+            drawingContext.rect(emojiX - emojiSize / 2, blockY, emojiSize, blockHeight);
         }
+        drawingContext.clip();
         
-        // Group 2 circle (green)
-        noFill();
-        stroke(50, 200, 100, alpha); // Green
-        strokeWeight(6);
-        drawingContext.setLineDash([15, 15]);
-        circle(rightCircleX, circleY, circleRadius * 2);
-        drawingContext.setLineDash([]);
-        
-        fill(50, 200, 100, alpha);
+        // Draw the people emoji
+        fill(255);
         textAlign(CENTER, CENTER);
-        textSize(48);
-        if (customFont) textFont(customFont);
-        text('Group 2', rightCircleX, circleY - 40);
-        textSize(32);
-        if (customFontMedium) textFont(customFontMedium);
-        text('Stand here', rightCircleX, circleY + 20);
+        textSize(emojiSize);
+        if (customFontSemibold) textFont(customFontSemibold);
+        text('👥', emojiX, emojiY);
         
-        // Ready count in Group 2 circle
-        if (totalDebaters > 0) {
-            textSize(64);
-            fill(50, 200, 100, alpha);
-            text(`${readyCount}/${totalDebaters}`, rightCircleX, circleY);
-        }
+        drawingContext.restore();
+        pop();
         
         pop();
+        return;
     }
+    
+    // Phase 3: Icons push out from center
+    if (roleAssignmentPhase === 'icons-push-out') {
+        const progress = window.iconPushOutProgress || 0;
+        
+        // Animation happens in first 40% of duration, then stays static
+        const animProgress = Math.min(progress / 0.4, 1);
+        const eased = easeOutCubic(animProgress);
+        const alpha = Math.min(progress * 2, 1) * 255; // Fade in quickly
+        
+        // Draw "ROLES ASSIGNED" text centered above icons
+        fill(255, alpha);
+        textAlign(CENTER, CENTER);
+        textSize(24);
+        if (customFontSemibold) textFont(customFontSemibold);
+        text('ROLES ASSIGNED', width / 2, height / 2 - 100);
+        
+        // Icon positions - all horizontally aligned, push out from center
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const spacing = 120 * eased; // Icons spread out horizontally
+        
+        // Use MD Thermochrome font for icons
+        if (customFontSemibold) textFont(customFontSemibold);
+        textAlign(CENTER, CENTER);
+        textSize(80);
+        
+        // Group 1 icon (red speech bubble) - moves left
+        fill(220, 50, 50, alpha);
+        text('💬', centerX - spacing * 1.5, centerY);
+        
+        // Listener icon (green person) - stays in center
+        fill(40, 200, 100, alpha);
+        text('👤', centerX, centerY);
+        
+        // Group 2 icon (blue speech bubble) - moves right  
+        fill(50, 100, 220, alpha);
+        text('💬', centerX + spacing * 1.5, centerY);
+        
+        return;
+    }
+    
+    // Phase 4: Fade to circles (dissolve icons, fade in final screen)
+    if (roleAssignmentPhase === 'fade-to-circles') {
+        const fadeProgress = window.circlesFadeInProgress || 0;
+        
+        // Use easeInOut for smoother transition
+        const easeInOut = t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        const easedProgress = easeInOut(fadeProgress);
+        
+        const iconsAlpha = (1 - easedProgress) * 255;
+        const circlesAlpha = easedProgress * 255;
+        
+        // Fade out "ROLES ASSIGNED" text and icons
+        push();
+        fill(255, iconsAlpha);
+        textAlign(CENTER, CENTER);
+        textSize(24);
+        if (customFontSemibold) textFont(customFontSemibold);
+        text('ROLES ASSIGNED', width / 2, height / 2 - 100);
+        
+        // Icon positions (static, fully spread out, all horizontally aligned)
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const spacing = 120; // Final spacing from icons phase
+        
+        textSize(80);
+        
+        // Group 1 icon (red speech bubble) - left
+        fill(220, 50, 50, iconsAlpha);
+        text('💬', centerX - spacing * 1.5, centerY);
+        
+        // Listener icon (green person) - center
+        fill(40, 200, 100, iconsAlpha);
+        text('👤', centerX, centerY);
+        
+        // Group 2 icon (blue speech bubble) - right
+        fill(50, 100, 220, iconsAlpha);
+        text('💬', centerX + spacing * 1.5, centerY);
+        pop();
+        
+        // Fade in final screen elements
+        drawFinalRoleAssignmentScreen(circlesAlpha);
+        return;
+    }
+    
+    // Phase 5: Static - show final role assignment screen
+    if (roleAssignmentPhase === 'static') {
+        drawFinalRoleAssignmentScreen(255);
+        return;
+    }
+}
+
+// Draw the final role assignment screen with topic, question, and circles
+function drawFinalRoleAssignmentScreen(alpha) {
+    if (!winningCluster) return;
+    
+    push();
+    
+    // Get cluster color
+    const h = revealClusterColor?.h || winningCluster.color.h;
+    const s = revealClusterColor?.s || winningCluster.color.s;
+    const b = revealClusterColor?.b || winningCluster.color.b;
+    
+    colorMode(HSB, 360, 100, 100);
+    const clusterColor = color(h, s, b);
+    colorMode(RGB, 255);
+    
+    // Draw topic name at top (in cluster color, uppercase, MD Thermochrome - smaller)
+    fill(red(clusterColor), green(clusterColor), blue(clusterColor), alpha);
+    textAlign(CENTER, CENTER);
+    textSize(38);
+    if (customFontSemibold) textFont(customFontSemibold);
+    const topicText = (winningCluster.label || 'Discussion').toUpperCase();
+    text(topicText, width / 2, 60);
+    
+    // Draw debate question below topic (sans-serif, smaller)
+    fill(255, alpha);
+    textSize(24);
+    textFont('sans-serif');
+    const questionText = debateQuestion || 'Should we discuss this topic?';
+    text(questionText, width / 2, 100);
+    
+    // Calculate circle positions - ensure they don't clip screen
+    const circleRadius = Math.min(width, height) * 0.32; // Slightly smaller to avoid clipping
+    const spacing = width * 0.1; // More spacing
+    const leftCircleX = width / 2 - spacing / 2 - circleRadius;
+    const rightCircleX = width / 2 + spacing / 2 + circleRadius;
+    const circleY = height / 2 + 100; // Centered vertically
+    
+    // Scale animation for circles (start at 90%, grow to 100%)
+    const fadeInProgress = alpha / 255;
+    const scaleProgress = 0.9 + (fadeInProgress * 0.1);
+    
+    // Rotating dash animation - offset increases over time (much slower)
+    const dashOffset = (millis() * 0.01) % 30; // Rotate speed - very slow
+    
+    // Group 1 circle (red, dashed, rotating)
+    push();
+    translate(leftCircleX, circleY);
+    scale(scaleProgress);
+    translate(-leftCircleX, -circleY);
+    
+    noFill();
+    stroke(220, 50, 50, alpha);
+    strokeWeight(6);
+    drawingContext.setLineDash([15, 15]);
+    drawingContext.lineDashOffset = -dashOffset; // Negative for clockwise rotation
+    circle(leftCircleX, circleY, circleRadius * 2);
+    drawingContext.setLineDash([]);
+    drawingContext.lineDashOffset = 0;
+    pop();
+    
+    // Group 1 text - all tightly stacked in center (sans-serif, LEFT-aligned, smaller)
+    fill(220, 50, 50, alpha);
+    textAlign(LEFT, CENTER);
+    textSize(48);
+    textFont('sans-serif');
+    text('Group 1', leftCircleX - 80, circleY - 50);
+    
+    // Group 1 instruction - very close to title (sans-serif, gray, smaller, LEFT-aligned)
+    fill(160, 160, 160, alpha);
+    textSize(16);
+    textFont('sans-serif');
+    text('Press "ready up" when', leftCircleX - 80, circleY - 5);
+    text('you\'re ready to start the', leftCircleX - 80, circleY + 13);
+    text('debate!', leftCircleX - 80, circleY + 31);
+    
+    // Group 1 ready count - very close to instructions (MD Thermochrome, LEFT-aligned, smaller)
+    fill(220, 50, 50, alpha);
+    textAlign(LEFT, CENTER);
+    textSize(64);
+    if (customFontSemibold) textFont(customFontSemibold);
+    text(`${group1Ready}/${group1Total}`, leftCircleX - 80, circleY + 80);
+    
+    // Group 2 circle (blue, dashed, rotating)
+    push();
+    translate(rightCircleX, circleY);
+    scale(scaleProgress);
+    translate(-rightCircleX, -circleY);
+    
+    noFill();
+    stroke(50, 100, 220, alpha);
+    strokeWeight(6);
+    drawingContext.setLineDash([15, 15]);
+    drawingContext.lineDashOffset = -dashOffset; // Same rotation as Group 1
+    circle(rightCircleX, circleY, circleRadius * 2);
+    drawingContext.setLineDash([]);
+    drawingContext.lineDashOffset = 0;
+    pop();
+    
+    // Group 2 text - all tightly stacked in center (sans-serif, RIGHT-aligned, smaller)
+    fill(50, 100, 220, alpha);
+    textAlign(RIGHT, CENTER);
+    textSize(48);
+    textFont('sans-serif');
+    text('Group 2', rightCircleX + 80, circleY - 50);
+    
+    // Group 2 instruction - very close to title (sans-serif, gray, smaller, RIGHT-aligned)
+    fill(160, 160, 160, alpha);
+    textSize(16);
+    textFont('sans-serif');
+    text('Press "ready up" when', rightCircleX + 80, circleY - 5);
+    text('you\'re ready to start the', rightCircleX + 80, circleY + 13);
+    text('debate!', rightCircleX + 80, circleY + 31);
+    
+    // Group 2 ready count - very close to instructions (MD Thermochrome, RIGHT-aligned, smaller)
+    fill(50, 100, 220, alpha);
+    textAlign(RIGHT, CENTER);
+    textSize(64);
+    if (customFontSemibold) textFont(customFontSemibold);
+    text(`${group2Ready}/${group2Total}`, rightCircleX + 80, circleY + 80);
+    
+    pop();
 }
 
 // Draw listener voting circles synced with mobile controller
@@ -6886,4 +7062,9 @@ function handleDebateVote(voteColor) {
             redVotes: redVotes
         }));
     }
+}
+
+// Easing function for smooth icon animation
+function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
 }

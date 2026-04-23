@@ -461,6 +461,19 @@ wss.on('connection', (ws) => {
                 return;
             }
             
+            if (data.type === 'start_role_assignment_animation') {
+                // Broadcast to all mobile clients to start loading animation
+                console.log('🎬 Broadcasting start role assignment animation to mobile clients');
+                mobileClients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'start_role_assignment_animation'
+                        }));
+                    }
+                });
+                return;
+            }
+            
             if (data.type === 'assign_roles') {
                 // Assign roles with distribution: 30% Group 1, 30% Group 2, 40% Listeners
                 const clientIds = Array.from(mobileClients.keys());
@@ -587,17 +600,35 @@ wss.on('connection', (ws) => {
                 // Mark user as ready
                 debaterReadyState.set(clientId, true);
                 
-                // Count ready users (all users must be ready: debaters + listeners)
+                // Count ready users per group (only debaters, not listeners)
                 let readyCount = 0;
-                let totalUsers = 0;
+                let totalDebaters = 0;
+                let group1Ready = 0;
+                let group1Total = 0;
+                let group2Ready = 0;
+                let group2Total = 0;
+                
                 clientRoles.forEach((roleInfo, id) => {
-                    totalUsers++;
-                    if (debaterReadyState.get(id)) {
-                        readyCount++;
+                    // Only count debaters
+                    if (roleInfo.role === 'debater') {
+                        totalDebaters++;
+                        const isReady = debaterReadyState.get(id);
+                        if (isReady) {
+                            readyCount++;
+                        }
+                        
+                        // Count per group
+                        if (roleInfo.group === 1) {
+                            group1Total++;
+                            if (isReady) group1Ready++;
+                        } else if (roleInfo.group === 2) {
+                            group2Total++;
+                            if (isReady) group2Ready++;
+                        }
                     }
                 });
                 
-                console.log(`✅ User ready: ${readyCount}/${totalUsers}`);
+                console.log(`✅ User ready: ${readyCount}/${totalDebaters} (Group 1: ${group1Ready}/${group1Total}, Group 2: ${group2Ready}/${group2Total})`);
                 
                 // Broadcast ready count to all displays
                 displayClients.forEach(client => {
@@ -605,13 +636,17 @@ wss.on('connection', (ws) => {
                         client.send(JSON.stringify({
                             type: 'debater_ready_update',
                             readyCount: readyCount,
-                            totalDebaters: totalUsers
+                            totalDebaters: totalDebaters,
+                            group1Ready: group1Ready,
+                            group1Total: group1Total,
+                            group2Ready: group2Ready,
+                            group2Total: group2Total
                         }));
                     }
                 });
                 
-                // If all users are ready, start debate voting
-                if (readyCount === totalUsers && totalUsers > 0) {
+                // If all debaters are ready, start debate voting
+                if (readyCount === totalDebaters && totalDebaters > 0) {
                     console.log('🎤 All users ready! Starting debate voting...');
                     
                     // Broadcast start debate voting to all clients

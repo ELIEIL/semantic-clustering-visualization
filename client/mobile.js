@@ -177,9 +177,45 @@ function connect() {
             console.log(`📱 Assigned client ID: ${clientId}`);
         }
         
+        if (data.type === 'start_role_assignment_animation') {
+            // Show loading animation synced with main display
+            console.log('🎬 Starting role assignment animation');
+            showAssigningRolesLoading();
+        }
+        
         if (data.type === 'role_assignment') {
-            // Display role screen based on assignment
+            // Store role data but don't show yet - wait for animation to complete
+            const roleData = {
+                role: data.role,
+                group: data.group,
+                stance: data.stance,
+                clusterName: data.clusterName,
+                clusterColor: data.clusterColor,
+                debateArgument: data.debateArgument
+            };
+            
             console.log(`🎭 Role assigned: ${data.role}, group: ${data.group || 'none'}`);
+            
+            // Wait for loading animation to complete before showing role screen
+            setTimeout(() => {
+                // Remove loading screen
+                const loadingScreen = document.getElementById('assigningRolesLoading');
+                if (loadingScreen) {
+                    loadingScreen.classList.add('fade-out-view');
+                    setTimeout(() => {
+                        loadingScreen.remove();
+                    }, 500);
+                }
+                
+                // Now show role assignment screen
+                displayRoleAssignment(roleData);
+            }, 6000); // 4.5s animation + 1.5s fade
+            
+            return; // Don't execute the rest of the role assignment code yet
+        }
+        
+        // This code below will be called by displayRoleAssignment after delay
+        function displayRoleAssignment(data) {
             
             // Store user's role and group
             userRole = data.role;
@@ -187,39 +223,47 @@ function connect() {
                 userGroup = data.group;
             }
             
-            // Update debate argument text for both listeners and debaters
-            if (data.debateArgument) {
-                const listenerArgumentText = document.getElementById('listenerArgumentText');
-                const debateArgumentText = document.getElementById('debateArgumentText');
+            // First show role reveal screen (colored background with icon)
+            showRoleRevealScreen(data.role, data.group);
+            
+            // Then after 5s (matching main display icon duration), show detailed role screen
+            setTimeout(() => {
+                removeRoleRevealScreen();
                 
-                if (listenerArgumentText) {
-                    listenerArgumentText.textContent = data.debateArgument;
+                // Update debate argument text for both listeners and debaters
+                if (data.debateArgument) {
+                    const listenerArgumentText = document.getElementById('listenerArgumentText');
+                    const debateArgumentText = document.getElementById('debateArgumentText');
+                    
+                    if (listenerArgumentText) {
+                        listenerArgumentText.textContent = data.debateArgument;
+                    }
+                    if (debateArgumentText) {
+                        debateArgumentText.textContent = data.debateArgument;
+                        console.log('📝 Set debater argument text to:', data.debateArgument);
+                    }
                 }
-                if (debateArgumentText) {
-                    debateArgumentText.textContent = data.debateArgument;
-                    console.log('📝 Set debater argument text to:', data.debateArgument);
+                
+                // Update debate topic box with cluster name
+                if (data.clusterName) {
+                    const debateStatement = document.getElementById('debateStatement');
+                    if (debateStatement) {
+                        debateStatement.textContent = data.clusterName;
+                        console.log('📝 Set debate topic to:', data.clusterName);
+                    }
                 }
-            }
-            
-            // Update debate topic box with cluster name
-            if (data.clusterName) {
-                const debateStatement = document.getElementById('debateStatement');
-                if (debateStatement) {
-                    debateStatement.textContent = data.clusterName;
-                    console.log('📝 Set debate topic to:', data.clusterName);
+                
+                // Update topic box color
+                if (data.clusterColor) {
+                    const topicBox = document.getElementById('debateTopicBox');
+                    if (topicBox) {
+                        const rgb = hsbToRgb(data.clusterColor.h, data.clusterColor.s, data.clusterColor.b);
+                        topicBox.style.borderColor = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+                    }
                 }
-            }
-            
-            // Update topic box color
-            if (data.clusterColor) {
-                const topicBox = document.getElementById('debateTopicBox');
-                if (topicBox) {
-                    const rgb = hsbToRgb(data.clusterColor.h, data.clusterColor.s, data.clusterColor.b);
-                    topicBox.style.borderColor = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
-                }
-            }
-            
-            showRoleScreen(data.role, data.group);
+                
+                showRoleScreen(data.role, data.group);
+            }, 5000); // 5s to match main display icon duration
         }
         
         if (data.type === 'start_debate_voting') {
@@ -277,6 +321,11 @@ function connect() {
         if (data.type === 'debate_timer_update') {
             // Update timer display on mobile
             updateDebateTimer(data);
+        }
+        
+        if (data.type === 'debater_ready_update') {
+            // Update listener ready counters
+            updateListenerReadyCounters(data.group1Ready, data.group1Total, data.group2Ready, data.group2Total);
         }
     };
     
@@ -1008,63 +1057,360 @@ function showRoleScreen(role, group) {
     if (clusterSection) clusterSection.style.display = 'none';
     if (revealSection) revealSection.style.display = 'none';
     
-    // Show role section
-    if (roleSection) {
-        roleSection.style.display = 'flex';
-        
-        const roleBox = document.getElementById('roleBox');
-        const roleName = document.getElementById('roleName');
-        const roleIcon = document.getElementById('roleIcon');
-        const groupInfo = document.getElementById('groupInfo');
-        const groupName = document.getElementById('groupName');
-        const groupInstruction = document.getElementById('groupInstruction');
-        
-        // Set role name
-        if (roleName) {
-            roleName.textContent = role === 'debater' ? 'Debater' : 'Listener';
-        }
-        
-        // Set box color based on role
-        if (roleBox) {
-            if (role === 'listener') {
-                roleBox.classList.add('listener');
-            } else {
-                roleBox.classList.remove('listener');
-            }
-        }
-        
-        // Generate role icon (simplified circles/rows)
-        if (roleIcon) {
-            roleIcon.innerHTML = generateRoleIcon(role, group);
-        }
-        
-        // Set group info
-        if (role === 'debater' && group) {
-            if (groupInfo) groupInfo.style.display = 'block';
-            if (groupName) {
-                const stance = group === 1 ? 'Against' : 'For';
-                const groupStance = document.getElementById('groupStance');
-                
-                groupName.innerHTML = `Group ${group} <span id="groupStance" class="group-stance">${stance}</span>`;
-                groupName.className = 'group-name';
-                groupName.classList.add(`group-${group}`);
-            }
-            if (groupInstruction) {
-                groupInstruction.textContent = 'Place yourselves in the circle in your circle and get ready';
-            }
-        } else {
-            // Listener
-            if (groupInfo) groupInfo.style.display = 'block';
-            if (groupName) {
-                groupName.textContent = '';
-                groupName.style.display = 'none';
-            }
-            if (groupInstruction) {
-                groupInstruction.textContent = 'Stay seated, or place yourselves in the stair seats';
-                groupInstruction.style.color = '#666';
-            }
-        }
+    // For debaters, show new full-screen colored UI
+    if (role === 'debater') {
+        showDebaterReadyScreen(group);
+    } else {
+        // For listeners, show new waiting screen with ready counters
+        showListenerWaitingScreen();
     }
+}
+
+// Update listener ready counters
+function updateListenerReadyCounters(group1Ready, group1Total, group2Ready, group2Total) {
+    const group1Counter = document.getElementById('listenerGroup1Counter');
+    const group2Counter = document.getElementById('listenerGroup2Counter');
+    
+    if (group1Counter) {
+        group1Counter.textContent = `${group1Ready}/${group1Total}`;
+    }
+    if (group2Counter) {
+        group2Counter.textContent = `${group2Ready}/${group2Total}`;
+    }
+}
+
+// Show listener waiting screen with ready counters
+function showListenerWaitingScreen() {
+    // Remove existing listener screen if any
+    const existing = document.getElementById('listenerWaitingScreen');
+    if (existing) existing.remove();
+    
+    // Create full-screen listener UI
+    const listenerScreen = document.createElement('div');
+    listenerScreen.id = 'listenerWaitingScreen';
+    
+    listenerScreen.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #F5F5F5;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 40px 30px;
+        z-index: 10000;
+        box-sizing: border-box;
+    `;
+    
+    // Top section: Title and instructions
+    const topSection = document.createElement('div');
+    topSection.style.cssText = `
+        width: 100%;
+        text-align: left;
+    `;
+    
+    const title = document.createElement('div');
+    title.textContent = 'LISTENER';
+    title.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+        font-size: 48px;
+        font-weight: 900;
+        color: #000;
+        margin-bottom: 20px;
+        letter-spacing: 0.1em;
+    `;
+    topSection.appendChild(title);
+    
+    const instructions = document.createElement('div');
+    instructions.textContent = 'Decide the winner of the debate by voting for the group you agree with. Use the buttons on the mobile controller to cast your vote.';
+    instructions.style.cssText = `
+        font-family: sans-serif;
+        font-size: 16px;
+        color: #000;
+        line-height: 1.5;
+    `;
+    topSection.appendChild(instructions);
+    
+    listenerScreen.appendChild(topSection);
+    
+    // Middle section: Waiting text and ready counters
+    const middleSection = document.createElement('div');
+    middleSection.style.cssText = `
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+    `;
+    
+    const waitingText = document.createElement('div');
+    waitingText.textContent = 'Waiting for debaters to be ready...';
+    waitingText.style.cssText = `
+        font-family: sans-serif;
+        font-size: 18px;
+        color: #999;
+        font-style: italic;
+        margin-bottom: 10px;
+    `;
+    middleSection.appendChild(waitingText);
+    
+    // Ready counters container
+    const countersContainer = document.createElement('div');
+    countersContainer.style.cssText = `
+        display: flex;
+        gap: 60px;
+        align-items: center;
+    `;
+    
+    // Group 1 counter (red)
+    const group1Counter = document.createElement('div');
+    group1Counter.id = 'listenerGroup1Counter';
+    group1Counter.textContent = '0/0';
+    group1Counter.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+        font-size: 64px;
+        font-weight: 900;
+        color: #DC3545;
+        letter-spacing: 0.05em;
+    `;
+    countersContainer.appendChild(group1Counter);
+    
+    // Group 2 counter (blue)
+    const group2Counter = document.createElement('div');
+    group2Counter.id = 'listenerGroup2Counter';
+    group2Counter.textContent = '0/0';
+    group2Counter.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+        font-size: 64px;
+        font-weight: 900;
+        color: #0000FE;
+        letter-spacing: 0.05em;
+    `;
+    countersContainer.appendChild(group2Counter);
+    
+    middleSection.appendChild(countersContainer);
+    listenerScreen.appendChild(middleSection);
+    
+    // Bottom section: Topic and debate question
+    const bottomSection = document.createElement('div');
+    bottomSection.style.cssText = `
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    `;
+    
+    // Topic header (orange/red)
+    const topicHeader = document.createElement('div');
+    topicHeader.textContent = window.clusterName || 'CLIMATE CHANGE';
+    topicHeader.style.cssText = `
+        background-color: #FF6B35;
+        color: #FFF;
+        padding: 15px 20px;
+        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+        font-size: 20px;
+        font-weight: 900;
+        text-align: center;
+        border: 3px solid #000;
+        letter-spacing: 0.1em;
+    `;
+    bottomSection.appendChild(topicHeader);
+    
+    // Debate question box (yellow)
+    const questionBox = document.createElement('div');
+    questionBox.textContent = window.debateQuestion || 'Should fossil fuels be banned entirely?';
+    questionBox.style.cssText = `
+        background-color: #FFE66D;
+        color: #000;
+        padding: 25px 20px;
+        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+        font-size: 24px;
+        font-weight: 900;
+        text-align: center;
+        border: 3px solid #000;
+        border-top: none;
+        letter-spacing: 0.05em;
+        line-height: 1.3;
+    `;
+    bottomSection.appendChild(questionBox);
+    
+    listenerScreen.appendChild(bottomSection);
+    
+    document.body.appendChild(listenerScreen);
+}
+
+// Show new debater ready screen with colored background
+function showDebaterReadyScreen(group) {
+    // Remove existing debater screen if any
+    const existing = document.getElementById('debaterReadyScreen');
+    if (existing) existing.remove();
+    
+    // Create full-screen debater UI
+    const debaterScreen = document.createElement('div');
+    debaterScreen.id = 'debaterReadyScreen';
+    
+    const bgColor = group === 1 ? '#DC3545' : '#0000FE'; // Red for Group 1, Blue for Group 2
+    const stance = group === 1 ? 'FOR' : 'AGAINST';
+    const stanceColor = group === 1 ? '#4CAF50' : '#DC3545'; // Green for FOR, Red for AGAINST
+    
+    debaterScreen.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: ${bgColor};
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 40px 30px;
+        z-index: 10000;
+        box-sizing: border-box;
+    `;
+    
+    // Top section: Title and instructions
+    const topSection = document.createElement('div');
+    topSection.style.cssText = `
+        width: 100%;
+        text-align: left;
+    `;
+    
+    const title = document.createElement('div');
+    title.textContent = 'DEBATER';
+    title.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+        font-size: 48px;
+        font-weight: 900;
+        color: #FFF;
+        margin-bottom: 20px;
+        letter-spacing: 0.1em;
+    `;
+    topSection.appendChild(title);
+    
+    const instructions = document.createElement('div');
+    instructions.textContent = 'Read your instructions and press "ready up" when you\'re ready to start the debate!';
+    instructions.style.cssText = `
+        font-family: sans-serif;
+        font-size: 18px;
+        color: #FFF;
+        line-height: 1.4;
+    `;
+    topSection.appendChild(instructions);
+    
+    debaterScreen.appendChild(topSection);
+    
+    // Middle section: Debate question and stance boxes
+    const middleSection = document.createElement('div');
+    middleSection.style.cssText = `
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    `;
+    
+    // Yellow debate question box
+    const questionBox = document.createElement('div');
+    questionBox.textContent = window.debateQuestion || 'Should fossil fuels be banned entirely?';
+    questionBox.style.cssText = `
+        background-color: #FFE66D;
+        color: #000;
+        padding: 30px 20px;
+        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+        font-size: 28px;
+        font-weight: 900;
+        text-align: center;
+        border: 3px solid #000;
+        letter-spacing: 0.05em;
+        line-height: 1.3;
+    `;
+    middleSection.appendChild(questionBox);
+    
+    // Stance box (green for FOR, red for AGAINST)
+    const stanceBox = document.createElement('div');
+    stanceBox.textContent = `STANCE: ${stance}`;
+    stanceBox.style.cssText = `
+        background-color: ${stanceColor};
+        color: #000;
+        padding: 20px;
+        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+        font-size: 24px;
+        font-weight: 900;
+        text-align: center;
+        border: 3px solid #000;
+        border-top: none;
+        letter-spacing: 0.1em;
+    `;
+    middleSection.appendChild(stanceBox);
+    
+    debaterScreen.appendChild(middleSection);
+    
+    // Bottom section: Ready button
+    const readyButton = document.createElement('button');
+    readyButton.textContent = 'PRESS WHEN READY';
+    readyButton.id = 'debaterReadyButton';
+    readyButton.style.cssText = `
+        background-color: #FFF;
+        color: #000;
+        padding: 18px 20px;
+        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+        font-size: 14px;
+        font-weight: 900;
+        border: 3px solid #000;
+        border-bottom: 8px solid #999;
+        cursor: pointer;
+        letter-spacing: 0.05em;
+        width: 60%;
+        max-width: 280px;
+        transition: all 0.1s ease;
+        position: relative;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    `;
+    
+    // Press animation on mousedown
+    readyButton.addEventListener('mousedown', () => {
+        readyButton.style.transform = 'translateY(4px)';
+        readyButton.style.borderBottomWidth = '4px';
+    });
+    
+    readyButton.addEventListener('mouseup', () => {
+        readyButton.style.transform = 'translateY(0)';
+        readyButton.style.borderBottomWidth = '8px';
+    });
+    
+    readyButton.addEventListener('mouseleave', () => {
+        readyButton.style.transform = 'translateY(0)';
+        readyButton.style.borderBottomWidth = '8px';
+    });
+    
+    // Ready button click handler
+    readyButton.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'user_ready'
+            }));
+            
+            // Change button state to ready (green with darker bottom border)
+            readyButton.style.backgroundColor = '#4CAF50';
+            readyButton.style.borderBottomColor = '#2E7D32';
+            readyButton.textContent = 'READY';
+            readyButton.disabled = true;
+            readyButton.style.cursor = 'not-allowed';
+            readyButton.style.transform = 'translateY(0)';
+            readyButton.style.borderBottomWidth = '8px';
+            
+            console.log('✅ Marked as ready');
+        }
+    });
+    
+    debaterScreen.appendChild(readyButton);
+    
+    document.body.appendChild(debaterScreen);
 }
 
 // Generate role icon SVG
@@ -1148,18 +1494,104 @@ function showTopicReveal(cluster) {
         
         console.log('📺 Topic reveal displayed');
         
-        // Trigger role assignment after a delay
-        setTimeout(() => {
-            console.log('🎯 Requesting role assignment');
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'assign_roles' }));
-            }
-            
-        }, 3500);
+        // Wait for server to trigger role assignment (synced with main display)
+        // The main display will send assign_roles message when ready
         
     }, 800); // Wait for fade-out animation
 }
 
+
+// Show "Assigning Roles" loading screen with emoji animation
+function showAssigningRolesLoading() {
+    const revealSection = document.getElementById('topicRevealSection');
+    
+    if (!revealSection) return;
+    
+    // Fade out topic reveal
+    revealSection.classList.add('fade-out-view');
+    
+    setTimeout(() => {
+        revealSection.style.display = 'none';
+        revealSection.classList.remove('fade-out-view');
+        
+        // Create loading screen
+        const loadingScreen = document.createElement('div');
+        loadingScreen.id = 'assigningRolesLoading';
+        loadingScreen.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        `;
+        
+        // Add text
+        const text = document.createElement('div');
+        text.textContent = 'ASSIGNING ROLES';
+        text.style.cssText = `
+            font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+            font-size: 32px;
+            font-weight: 900;
+            letter-spacing: 0.15em;
+            color: #000;
+            margin-bottom: 40px;
+        `;
+        loadingScreen.appendChild(text);
+        
+        // Add emoji with block animation
+        const emojiContainer = document.createElement('div');
+        emojiContainer.style.cssText = `
+            font-size: 120px;
+            position: relative;
+            width: 120px;
+            height: 120px;
+            overflow: hidden;
+        `;
+        
+        const emoji = document.createElement('div');
+        emoji.textContent = '👥';
+        emoji.style.cssText = `
+            font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            clip-path: inset(100% 0 0 0);
+        `;
+        
+        emojiContainer.appendChild(emoji);
+        loadingScreen.appendChild(emojiContainer);
+        
+        document.body.appendChild(loadingScreen);
+        
+        // Animate emoji reveal (block by block from bottom to top)
+        const duration = 4500;
+        const numBlocks = 15;
+        const startTime = Date.now();
+        
+        function animateEmoji() {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const visibleBlocks = Math.floor(progress * numBlocks);
+            const clipPercent = Math.max(0, 100 - (visibleBlocks / numBlocks) * 100);
+            
+            emoji.style.clipPath = `inset(${clipPercent}% 0 0 0)`;
+            
+            if (progress < 1) {
+                requestAnimationFrame(animateEmoji);
+            }
+        }
+        
+        animateEmoji();
+        
+    }, 800);
+}
 
 // ========================================
 // Ready-up button handler (works for both debaters and listeners)
@@ -1637,6 +2069,111 @@ textInput.addEventListener('blur', () => {
     // Remove class when keyboard is hidden
     document.body.classList.remove('keyboard-visible');
 });
+
+// Show role reveal screen (colored background with icon and role name)
+function showRoleRevealScreen(role, group) {
+    // Remove existing reveal screen if any
+    const existing = document.getElementById('roleRevealScreen');
+    if (existing) existing.remove();
+    
+    // Create reveal screen
+    const revealScreen = document.createElement('div');
+    revealScreen.id = 'roleRevealScreen';
+    
+    // Set background color based on role
+    let bgColor, icon, roleText, textColor;
+    if (role === 'listener') {
+        bgColor = '#FFFFFF';
+        textColor = '#000';
+        icon = '👤';
+        roleText = 'LISTENER';
+    } else if (role === 'debater' && group === 1) {
+        bgColor = '#DC3545'; // Red
+        textColor = '#FFF';
+        icon = '💬';
+        roleText = 'DEBATER<br>GROUP 1';
+    } else if (role === 'debater' && group === 2) {
+        bgColor = '#0000FE'; // Blue
+        textColor = '#FFF';
+        icon = '💬';
+        roleText = 'DEBATER<br>GROUP 2';
+    }
+    
+    revealScreen.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: ${bgColor};
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        animation: fadeIn 0.5s ease;
+    `;
+    
+    // Add icon (emoji with MD Thermochrome font to match main display)
+    const iconEl = document.createElement('div');
+    iconEl.textContent = icon;
+    iconEl.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+        font-size: 100px;
+        margin-bottom: 15px;
+        ${role === 'debater' ? 'filter: brightness(0) invert(1);' : ''}
+    `;
+    revealScreen.appendChild(iconEl);
+    
+    // Add role text
+    const textEl = document.createElement('div');
+    textEl.innerHTML = roleText;
+    textEl.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+        font-size: 36px;
+        font-weight: 900;
+        letter-spacing: 0.15em;
+        text-align: center;
+        color: ${textColor};
+        line-height: 1.3;
+    `;
+    revealScreen.appendChild(textEl);
+    
+    document.body.appendChild(revealScreen);
+}
+
+// Remove role reveal screen with fade out
+function removeRoleRevealScreen() {
+    const revealScreen = document.getElementById('roleRevealScreen');
+    if (revealScreen) {
+        revealScreen.style.animation = 'fadeOut 0.5s ease';
+        setTimeout(() => revealScreen.remove(), 500);
+    }
+}
+
+// TEST FUNCTIONS - Remove these in production
+window.testGroup1 = function() {
+    window.debateQuestion = 'Should fossil fuels be banned entirely?';
+    userRole = 'debater';
+    userGroup = 1;
+    showDebaterReadyScreen(1);
+};
+
+window.testGroup2 = function() {
+    window.debateQuestion = 'Should fossil fuels be banned entirely?';
+    userRole = 'debater';
+    userGroup = 2;
+    showDebaterReadyScreen(2);
+};
+
+window.testListener = function() {
+    window.debateQuestion = 'Should fossil fuels be banned entirely?';
+    window.clusterName = 'CLIMATE CHANGE';
+    userRole = 'listener';
+    showListenerWaitingScreen();
+    // Simulate some ready counts
+    setTimeout(() => updateListenerReadyCounters(2, 5, 1, 3), 1000);
+};
 
 connect();
 textInput.focus();
