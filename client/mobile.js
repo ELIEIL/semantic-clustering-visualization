@@ -26,12 +26,25 @@ function connect() {
         isConnected = true;
         submitBtn.disabled = false;
         
+        // Check if we have a stored session ID (for reconnects/refreshes)
+        const storedSessionId = localStorage.getItem('sessionId');
+        
         // Register as mobile client and get unique ID
-        ws.send(JSON.stringify({ type: 'register_mobile' }));
+        ws.send(JSON.stringify({ 
+            type: 'register_mobile',
+            sessionId: storedSessionId // Send existing session ID if we have one
+        }));
     };
     
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        
+        // Handle state sync on connect/reconnect
+        if (data.type === 'state_sync') {
+            console.log(`🔄 State sync received - phase: ${data.phase}`);
+            handleStateSync(data.phase, data.data);
+            return;
+        }
         
         if (data.type === 'headline') {
             // Headline received but not displayed on this simplified controller
@@ -174,7 +187,14 @@ function connect() {
         if (data.type === 'client_id') {
             // Store assigned client ID
             clientId = data.clientId;
-            console.log(`📱 Assigned client ID: ${clientId}`);
+            
+            // Store session ID in localStorage for reconnects/refreshes
+            if (data.sessionId) {
+                localStorage.setItem('sessionId', data.sessionId);
+                console.log(`📱 Assigned client ID: ${clientId}, session ID: ${data.sessionId}`);
+            } else {
+                console.log(`📱 Assigned client ID: ${clientId}`);
+            }
         }
         
         if (data.type === 'start_role_assignment_animation') {
@@ -321,6 +341,11 @@ function connect() {
         if (data.type === 'debate_timer_update') {
             // Update timer display on mobile
             updateDebateTimer(data);
+            
+            // Check if debate is over
+            if (data.debateOver) {
+                showDebateOverScreen();
+            }
         }
         
         if (data.type === 'debater_ready_update') {
@@ -1773,9 +1798,14 @@ function showDebateVoting() {
     const listenerSection = document.getElementById('listenerVotingSection');
     const roleSection = document.getElementById('roleAssignmentSection');
     const revealSection = document.getElementById('topicRevealSection');
+    const debaterReadyScreen = document.getElementById('debaterReadyScreen');
+    const listenerWaitingScreen = document.getElementById('listenerWaitingScreen');
     
+    // Hide all other sections
     if (roleSection) roleSection.style.display = 'none';
     if (revealSection) revealSection.style.display = 'none';
+    if (debaterReadyScreen) debaterReadyScreen.style.display = 'none';
+    if (listenerWaitingScreen) listenerWaitingScreen.style.display = 'none';
     
     // Check if user is a listener
     if (userRole === 'listener') {
@@ -1791,9 +1821,9 @@ function showDebateVoting() {
         if (listenerSection) listenerSection.style.display = 'none';
         if (debateSection) {
             debateSection.style.display = 'flex';
-            initDebateVoting();
+            // No need to init - timer updates will be sent via WebSocket
         }
-        console.log('🎤 Debate voting screen displayed');
+        console.log('🎤 Debater voting screen displayed');
     }
 }
 
@@ -1807,16 +1837,16 @@ let voteBalance = 0; // Range: -20 to +20
 
 // Initialize listener voting interface
 function initListenerVoting() {
-    const redCircle = document.getElementById('listenerRedCircle');
-    const greenCircle = document.getElementById('listenerGreenCircle');
+    const group1Circle = document.getElementById('listenerVoteGroup1');
+    const group2Circle = document.getElementById('listenerVoteGroup2');
     
-    if (!redCircle || !greenCircle) return;
+    if (!group1Circle || !group2Circle) return;
     
     // Reset vote balance
     voteBalance = 0;
     
-    // Red circle voting - shifts balance toward red
-    const voteRed = () => {
+    // Group 1 (Red) voting - shifts balance toward red
+    const voteGroup1 = () => {
         voteBalance = Math.max(voteBalance - 1, -20); // Decrease (more red), min -20
         updateListenerVoteVisuals();
         
@@ -1827,13 +1857,17 @@ function initListenerVoting() {
                 side: 'red',
                 balance: voteBalance
             }));
-            console.log(`🔴 Red vote: balance = ${voteBalance}`);
+            console.log(`🔴 Group 1 vote: balance = ${voteBalance}`);
         }
+        
+        // Add voting class for pulse animation
+        group1Circle.classList.add('voting');
+        setTimeout(() => group1Circle.classList.remove('voting'), 500);
     };
     
-    // Green circle voting - shifts balance toward green
-    const voteGreen = () => {
-        voteBalance = Math.min(voteBalance + 1, 20); // Increase (more green), max +20
+    // Group 2 (Blue) voting - shifts balance toward blue
+    const voteGroup2 = () => {
+        voteBalance = Math.min(voteBalance + 1, 20); // Increase (more blue), max +20
         updateListenerVoteVisuals();
         
         // Send vote to server
@@ -1843,21 +1877,25 @@ function initListenerVoting() {
                 side: 'green',
                 balance: voteBalance
             }));
-            console.log(`🟢 Green vote: balance = ${voteBalance}`);
+            console.log(`� Group 2 vote: balance = ${voteBalance}`);
         }
+        
+        // Add voting class for pulse animation
+        group2Circle.classList.add('voting');
+        setTimeout(() => group2Circle.classList.remove('voting'), 500);
     };
     
     // Add click/tap listeners
-    redCircle.addEventListener('click', voteRed);
-    redCircle.addEventListener('touchend', (e) => {
+    group1Circle.addEventListener('click', voteGroup1);
+    group1Circle.addEventListener('touchend', (e) => {
         e.preventDefault();
-        voteRed();
+        voteGroup1();
     });
     
-    greenCircle.addEventListener('click', voteGreen);
-    greenCircle.addEventListener('touchend', (e) => {
+    group2Circle.addEventListener('click', voteGroup2);
+    group2Circle.addEventListener('touchend', (e) => {
         e.preventDefault();
-        voteGreen();
+        voteGroup2();
     });
     
     console.log('✅ Listener voting initialized');
@@ -1865,35 +1903,9 @@ function initListenerVoting() {
 
 // Update visual feedback based on vote balance
 function updateListenerVoteVisuals() {
-    const redCircle = document.getElementById('listenerRedCircle');
-    const greenCircle = document.getElementById('listenerGreenCircle');
-    
-    if (!redCircle || !greenCircle) return;
-    
-    // Convert balance (-20 to +20) to scales
-    // Balance = 0: both at 1.0x
-    // Balance = -20: red at 1.5x, green at 0.5x
-    // Balance = +20: red at 0.5x, green at 1.5x
-    
-    const maxBalance = 20;
-    const normalizedBalance = voteBalance / maxBalance; // -1 to +1
-    
-    // Red scale: 1.5x when balance = -20, 0.5x when balance = +20
-    const redScale = 1.0 - (normalizedBalance * 0.5);
-    
-    // Green scale: 0.5x when balance = -20, 1.5x when balance = +20
-    const greenScale = 1.0 + (normalizedBalance * 0.5);
-    
-    // Apply scales
-    redCircle.style.transform = `scale(${redScale})`;
-    greenCircle.style.transform = `scale(${greenScale})`;
-    
-    // Opacity based on balance
-    const redOpacity = 0.5 + (Math.abs(Math.min(normalizedBalance, 0)) * 0.5);
-    const greenOpacity = 0.5 + (Math.max(normalizedBalance, 0) * 0.5);
-    
-    redCircle.style.opacity = redOpacity.toString();
-    greenCircle.style.opacity = greenOpacity.toString();
+    // Visual feedback is now handled by CSS animations (breathe, votePulse)
+    // No need to manually scale circles - they have subtle breathing animation
+    // Vote balance is tracked and sent to server
 }
 
 // Convert HSB to RGB
@@ -1911,115 +1923,96 @@ function hsbToRgb(h, s, b) {
 
 // Update debate timer display on mobile
 function updateDebateTimer(data) {
-    const timerCountdown = document.getElementById('timerCountdown');
-    const timerGroupLabel = document.getElementById('timerGroupLabel');
-    const timerStatusText = document.getElementById('timerStatusText');
-    const turnHeader = document.getElementById('debateTurnHeader');
-    const topicBox = document.getElementById('debateTopicBox');
-    const circleBase = document.querySelector('.timer-circle-base');
-    const timerSegmentsContainer = document.getElementById('timerSegments');
+    const debateSection = document.getElementById('debateVotingSection');
+    const headerText = document.getElementById('debateHeaderText');
+    const instructionText = document.getElementById('debateInstructionText');
+    const timerText = document.getElementById('debateTimerText');
+    const timerSegmentsContainer = document.getElementById('debateTimerSegments');
     
-    if (!timerCountdown || !timerGroupLabel || !timerStatusText) return;
-    
-    // Update timer countdown
-    const minutes = Math.floor(data.turnTimeRemaining / 60);
-    const seconds = data.turnTimeRemaining % 60;
-    timerCountdown.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    if (!debateSection || !headerText || !instructionText || !timerText) return;
     
     const isMyTurn = userGroup === data.currentTurn;
+    const myGroupColor = userGroup === 1 ? '#DC3545' : '#0000FE'; // Red or Blue
     
     console.log(`🔍 Debug - userGroup: ${userGroup}, currentTurn: ${data.currentTurn}, isMyTurn: ${isMyTurn}`);
     
-    // For debaters: Show their OWN group label/stance (constant, never changes)
-    if (userRole === 'debater' && userGroup) {
-        const myGroupName = `Group ${userGroup}`;
-        const myGroupClass = userGroup === 1 ? 'group-1' : 'group-2';
-        const myStance = userGroup === 1 ? 'Against' : 'For';
-        
-        // Group label stays constant (always shows debater's own group)
-        timerGroupLabel.textContent = myGroupName;
-        timerGroupLabel.className = `timer-group-label ${myGroupClass}`;
-        
-        // Turn header shows debater's own group WITH STANCE
-        if (turnHeader) {
-            if (data.debateOver) {
-                turnHeader.innerHTML = 'Debate<br>Over';
-                turnHeader.className = 'debate-turn-header';
-            } else if (isMyTurn) {
-                turnHeader.innerHTML = `${myGroupName} <span style="font-style: italic;">${myStance}</span><br>Your turn`;
-                turnHeader.className = `debate-turn-header ${myGroupClass}`;
-            } else {
-                turnHeader.innerHTML = `${myGroupName} <span style="font-style: italic;">${myStance}</span><br>Listen`;
-                turnHeader.className = `debate-turn-header ${myGroupClass}`;
-            }
-        }
-        
-        // Timer circle changes color based on whose turn it is
-        if (circleBase) {
-            if (isMyTurn) {
-                // My turn: use my group color
-                const myColor = userGroup === 1 ? '#DC3545' : '#28A745';
-                circleBase.className = `timer-circle-base ${myGroupClass}`;
-                circleBase.style.stroke = myColor;
-            } else {
-                // Not my turn: gray/inactive
-                circleBase.className = 'timer-circle-base inactive';
-                circleBase.style.stroke = '#999999';
-            }
-        }
-        
-        // Draw timer segments only when it's my turn
-        if (timerSegmentsContainer && !data.debateOver && isMyTurn) {
-            drawTimerSegments(timerSegmentsContainer, data.turnTimeRemaining, userGroup);
-        } else if (timerSegmentsContainer) {
-            timerSegmentsContainer.innerHTML = ''; // Clear segments when not my turn
-        }
-    }
-    // For listeners: show current speaker's info (changes based on turn)
-    else {
-        const currentGroupName = data.currentTurn === 1 ? 'Group 1' : 'Group 2';
-        const currentGroupClass = data.currentTurn === 1 ? 'group-1' : 'group-2';
-        
-        timerGroupLabel.textContent = currentGroupName;
-        timerGroupLabel.className = `timer-group-label ${currentGroupClass}`;
-        
-        if (turnHeader) {
-            if (data.debateOver) {
-                turnHeader.innerHTML = 'Debate<br>Over';
-                turnHeader.className = 'debate-turn-header';
-            } else {
-                turnHeader.innerHTML = `${currentGroupName}<br>Speaking`;
-                turnHeader.className = `debate-turn-header ${currentGroupClass}`;
-            }
-        }
-        
-        if (circleBase) {
-            const strokeColor = data.currentTurn === 1 ? '#DC3545' : '#28A745';
-            circleBase.className = `timer-circle-base ${currentGroupClass}`;
-            circleBase.style.stroke = strokeColor;
-        }
-        
-        if (timerSegmentsContainer && !data.debateOver) {
-            drawTimerSegments(timerSegmentsContainer, data.turnTimeRemaining, data.currentTurn);
-        } else if (timerSegmentsContainer) {
-            timerSegmentsContainer.innerHTML = '';
-        }
-    }
+    // Set background color to user's group color
+    debateSection.style.background = myGroupColor;
     
-    // Update status text
+    // Update header and instruction text based on whose turn it is
     if (data.debateOver) {
-        timerStatusText.textContent = 'Complete';
-        timerCountdown.textContent = '0:00';
+        headerText.textContent = 'DEBATE OVER';
+        instructionText.textContent = 'WAITING FOR RESULTS';
+        timerText.textContent = '0:00';
+        if (timerSegmentsContainer) timerSegmentsContainer.innerHTML = '';
     } else if (isMyTurn) {
-        timerStatusText.textContent = 'Opening statement';
+        // YOUR TURN!
+        headerText.textContent = 'YOUR TURN!';
+        instructionText.textContent = 'MAKE YOUR ARGUMENT BEFORE THE TIME IS OVER';
+        
+        // Update timer countdown
+        const minutes = Math.floor(data.turnTimeRemaining / 60);
+        const seconds = data.turnTimeRemaining % 60;
+        timerText.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        // Draw timer segments
+        if (timerSegmentsContainer) {
+            drawDebateTimerSegments(timerSegmentsContainer, data.turnTimeRemaining, userGroup);
+        }
     } else {
-        timerStatusText.textContent = 'Listen...';
+        // WAIT...
+        headerText.textContent = 'WAIT...';
+        instructionText.textContent = 'PREPARE YOUR ARGUMENT WHILE THE OTHER GROUP MAKES THEIRS';
+        timerText.textContent = ''; // No timer when waiting
+        
+        // Clear timer segments
+        if (timerSegmentsContainer) timerSegmentsContainer.innerHTML = '';
     }
     
     console.log(`⏱️ Timer updated - My turn: ${isMyTurn}`);
 }
 
-// Draw segmented circular timer
+// Draw segmented circular timer for debate mobile UI
+function drawDebateTimerSegments(container, timeRemaining, groupNumber) {
+    const progress = timeRemaining / 30; // 1 to 0 as time goes down (30 seconds)
+    const totalSegments = 40;
+    const remainingSegments = Math.ceil(progress * totalSegments);
+    
+    // Clear existing segments
+    container.innerHTML = '';
+    
+    const segmentAngle = (Math.PI * 2) / totalSegments;
+    const segmentLength = segmentAngle * 0.6; // 60% solid, 40% gap
+    const radius = 85; // Match circle radius
+    const centerX = 100;
+    const centerY = 100;
+    
+    // Draw segments
+    for (let i = 0; i < remainingSegments; i++) {
+        const startAngle = -Math.PI / 2 + (i * segmentAngle); // Start at top
+        const endAngle = startAngle + segmentLength;
+        
+        // Create path for segment
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        
+        const x1 = centerX + radius * Math.cos(startAngle);
+        const y1 = centerY + radius * Math.sin(startAngle);
+        const x2 = centerX + radius * Math.cos(endAngle);
+        const y2 = centerY + radius * Math.sin(endAngle);
+        
+        const largeArcFlag = (endAngle - startAngle) > Math.PI ? 1 : 0;
+        
+        const pathData = `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+        
+        path.setAttribute('d', pathData);
+        path.setAttribute('fill', '#FFFFFF');
+        path.setAttribute('stroke', 'none');
+        
+        container.appendChild(path);
+    }
+}
+
+// Draw segmented circular timer (old function for listeners)
 function drawTimerSegments(container, timeRemaining, currentTurn) {
     const progress = timeRemaining / 30; // 1 to 0 as time goes down (30 seconds)
     const totalSegments = 40;
@@ -2056,7 +2049,7 @@ function drawTimerSegments(container, timeRemaining, currentTurn) {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    initDebateVoting();
+    // Debate voting UI is initialized via WebSocket messages
 });
 
 // Handle keyboard appearance - prevent overflow by adjusting layout
@@ -2174,6 +2167,141 @@ window.testListener = function() {
     // Simulate some ready counts
     setTimeout(() => updateListenerReadyCounters(2, 5, 1, 3), 1000);
 };
+
+// Handle state synchronization on connect/reconnect
+function handleStateSync(phase, data) {
+    console.log(`📱 Syncing to phase: ${phase}`, data);
+    
+    // Hide all sections first
+    const idleSection = document.getElementById('idleSection');
+    const inputSection = document.getElementById('inputSection');
+    const clusterSection = document.getElementById('clusterSection');
+    const votingSection = document.getElementById('votingSection');
+    const topicRevealSection = document.getElementById('topicRevealSection');
+    const roleAssignmentSection = document.getElementById('roleAssignmentSection');
+    const debaterReadyScreen = document.getElementById('debaterReadyScreen');
+    const listenerWaitingScreen = document.getElementById('listenerWaitingScreen');
+    const debateVotingSection = document.getElementById('debateVotingSection');
+    const listenerVotingSection = document.getElementById('listenerVotingSection');
+    
+    // Route to correct screen based on phase
+    switch(phase) {
+        case 'idle':
+            // Show idle screen
+            if (idleSection) idleSection.style.display = 'flex';
+            if (inputSection) inputSection.style.display = 'none';
+            console.log('📱 Synced to: Idle screen');
+            break;
+            
+        case 'posting':
+            // Show input section
+            if (idleSection) idleSection.style.display = 'none';
+            if (inputSection) inputSection.style.display = 'flex';
+            console.log('📱 Synced to: Input section');
+            break;
+            
+        case 'clustering':
+            // Show clustering animation
+            if (inputSection) inputSection.style.display = 'none';
+            showClusteringAnimation();
+            console.log('📱 Synced to: Clustering animation');
+            break;
+            
+        case 'voting':
+            // Show cluster voting
+            if (clusterSection) clusterSection.style.display = 'block';
+            if (votingSection) votingSection.style.display = 'block';
+            if (data && data.clusters) {
+                displayClusters(data.clusters);
+            }
+            console.log('📱 Synced to: Cluster voting');
+            break;
+            
+        case 'reveal':
+            // Show topic reveal
+            if (data && data.cluster) {
+                showTopicReveal(data.cluster);
+            }
+            console.log('📱 Synced to: Topic reveal');
+            break;
+            
+        case 'roles':
+            // Show role assignment (if user has role assigned)
+            if (data && data.role) {
+                userRole = data.role;
+                if (data.group) userGroup = data.group;
+                
+                // Show appropriate ready screen
+                if (data.role === 'debater') {
+                    showDebaterReadyScreen(data.group);
+                } else {
+                    showListenerWaitingScreen();
+                }
+            }
+            console.log('📱 Synced to: Role assignment');
+            break;
+            
+        case 'debate':
+            // Show debate screen (debater or listener)
+            if (userRole === 'listener') {
+                if (listenerVotingSection) {
+                    listenerVotingSection.style.display = 'flex';
+                    initListenerVoting();
+                }
+                console.log('📱 Synced to: Listener debate voting');
+            } else if (userRole === 'debater') {
+                if (debateVotingSection) {
+                    debateVotingSection.style.display = 'flex';
+                }
+                console.log('📱 Synced to: Debater debate screen');
+            }
+            break;
+            
+        case 'debate-over':
+            // Show debate over screen
+            showDebateOverScreen();
+            console.log('📱 Synced to: Debate over');
+            break;
+            
+        case 'winner':
+            // Show winner screen (if implemented)
+            console.log('📱 Synced to: Winner announcement');
+            break;
+            
+        default:
+            console.log(`⚠️ Unknown phase: ${phase}`);
+    }
+}
+
+// Show debate over / counting votes screen
+function showDebateOverScreen() {
+    const debateOverSection = document.getElementById('debateOverSection');
+    const debateVotingSection = document.getElementById('debateVotingSection');
+    const listenerVotingSection = document.getElementById('listenerVotingSection');
+    
+    if (!debateOverSection) return;
+    
+    // Hide debate screens
+    if (debateVotingSection) debateVotingSection.style.display = 'none';
+    if (listenerVotingSection) listenerVotingSection.style.display = 'none';
+    
+    // Show debate over screen
+    debateOverSection.style.display = 'flex';
+    
+    // Set background color based on user's role
+    debateOverSection.classList.remove('group-1', 'group-2', 'listener');
+    
+    if (userRole === 'debater' && userGroup === 1) {
+        debateOverSection.classList.add('group-1');
+        console.log('📱 Showing debate over screen - Group 1 (Red)');
+    } else if (userRole === 'debater' && userGroup === 2) {
+        debateOverSection.classList.add('group-2');
+        console.log('📱 Showing debate over screen - Group 2 (Blue)');
+    } else {
+        debateOverSection.classList.add('listener');
+        console.log('📱 Showing debate over screen - Listener (White)');
+    }
+}
 
 connect();
 textInput.focus();

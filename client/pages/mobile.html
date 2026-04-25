@@ -107,81 +107,100 @@
         
         <!-- Debate Voting Section (for debaters) -->
         <div id="debateVotingSection" class="debate-voting-section" style="display: none;">
-            <div class="debate-voting-content">
-                <h2 class="debate-turn-header" id="debateTurnHeader">Group 1<br>Your turn</h2>
+            <!-- Yellow header box -->
+            <div class="debate-header-box">
+                <h1 class="debate-header-text" id="debateHeaderText">YOUR TURN!</h1>
+            </div>
+            
+            <!-- Green instruction box -->
+            <div class="debate-instruction-box">
+                <p class="debate-instruction-text" id="debateInstructionText">MAKE YOUR ARGUMENT BEFORE THE TIME IS OVER</p>
+            </div>
+            
+            <!-- Circular Timer Display -->
+            <div class="debate-timer-circle">
+                <svg class="debate-timer-svg" viewBox="0 0 200 200">
+                    <!-- Dashed circle outline -->
+                    <circle 
+                        class="debate-circle-outline" 
+                        cx="100" 
+                        cy="100" 
+                        r="85"
+                        fill="none"
+                        stroke="#FFFFFF"
+                        stroke-width="4"
+                        stroke-dasharray="15 15"
+                    />
+                    <!-- Segmented progress -->
+                    <g id="debateTimerSegments"></g>
+                </svg>
                 
-                <h3 class="debate-topic-label">Debate topic</h3>
-                <div class="debate-topic-box" id="debateTopicBox">
-                    <p class="debate-statement" id="debateStatement">Politics and Governance</p>
-                </div>
-                
-                <h2 class="debate-argument-label">Argument</h2>
-                <p class="debate-argument-text" id="debateArgumentText">Should fossil fuels be banned entirely?</p>
-                
-                <!-- Circular Timer Display -->
-                <div class="circular-timer-container">
-                    <svg class="circular-timer-svg" viewBox="0 0 200 200">
-                        <!-- Dashed circle outline -->
-                        <circle 
-                            class="timer-circle-base group-1" 
-                            cx="100" 
-                            cy="100" 
-                            r="85"
-                            fill="none"
-                            stroke-width="4"
-                            stroke-dasharray="10 10"
-                        />
-                        <!-- Segmented progress -->
-                        <g id="timerSegments"></g>
-                    </svg>
-                    
-                    <!-- Timer text overlay -->
-                    <div class="timer-text-overlay">
-                        <p class="timer-group-label" id="timerGroupLabel">Group 1</p>
-                        <p class="timer-status-text" id="timerStatusText">Opening statement</p>
-                        <p class="timer-countdown" id="timerCountdown">0:30</p>
-                    </div>
+                <!-- Timer countdown overlay -->
+                <div class="debate-timer-overlay">
+                    <p class="debate-timer-text" id="debateTimerText">0:30</p>
                 </div>
             </div>
         </div>
         
         <!-- Listener Voting Section (for audience) -->
         <div id="listenerVotingSection" class="listener-voting-section" style="display: none;">
-            <div class="listener-voting-content">
-                <!-- Audience Icon -->
-                <div class="listener-icon">
-                    <svg width="80" height="60" viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg">
-                        <!-- Row 1 -->
-                        <rect x="10" y="10" width="20" height="15" rx="3" fill="#FF6B35"/>
-                        <rect x="35" y="10" width="20" height="15" rx="3" fill="#FF6B35"/>
-                        <rect x="60" y="10" width="20" height="15" rx="3" fill="#FF6B35"/>
-                        <rect x="85" y="10" width="20" height="15" rx="3" fill="#FF6B35"/>
-                        <!-- Row 2 -->
-                        <rect x="10" y="32" width="20" height="15" rx="3" fill="#FF6B35"/>
-                        <rect x="35" y="32" width="20" height="15" rx="3" fill="#FF6B35"/>
-                        <rect x="60" y="32" width="20" height="15" rx="3" fill="#FF6B35"/>
-                        <rect x="85" y="32" width="20" height="15" rx="3" fill="#FF6B35"/>
-                        <!-- Row 3 -->
-                        <rect x="10" y="54" width="20" height="15" rx="3" fill="#FF6B35"/>
-                        <rect x="35" y="54" width="20" height="15" rx="3" fill="#FF6B35"/>
-                        <rect x="60" y="54" width="20" height="15" rx="3" fill="#FF6B35"/>
-                        <rect x="85" y="54" width="20" height="15" rx="3" fill="#FF6B35"/>
+            <!-- Orange header box -->
+            <div class="listener-header-box">
+                <h1 class="listener-header-text">VOTE!</h1>
+            </div>
+            
+            <!-- Orange instruction box -->
+            <div class="listener-instruction-box">
+                <p class="listener-instruction-text">VOTE ON THE GROUP YOU AGREE WITH THE MOST, BY PRESSING THE CIRCLES!</p>
+            </div>
+            
+            <!-- Voting Circles with SVG -->
+            <div class="listener-vote-container">
+                <!-- Group 1 Circle -->
+                <div class="listener-vote-item" id="listenerVoteGroup1">
+                    <svg class="listener-vote-svg" viewBox="0 0 200 200">
+                        <circle 
+                            class="listener-circle-outline group-1-listener" 
+                            cx="100" 
+                            cy="100" 
+                            r="85"
+                            fill="none"
+                            stroke="#DC3545"
+                            stroke-width="4"
+                            stroke-dasharray="15 15"
+                        />
                     </svg>
+                    <div class="listener-vote-label">
+                        <p class="listener-group-text group-1-text">Group 1</p>
+                    </div>
                 </div>
                 
-                <p class="listener-role-label">Your role</p>
-                <h1 class="listener-role-name">Audience</h1>
-                
-                <h2 class="listener-argument-label">Argument</h2>
-                <p class="listener-argument-text" id="listenerArgumentText">Should fossil fuels be banned entirely?</p>
-                
-                <p class="listener-instruction">Vote on who you agree with the most by pressing the correct clusters</p>
-                
-                <!-- Voting Circles -->
-                <div class="listener-voting-circles">
-                    <div class="listener-vote-circle red" id="listenerRedCircle"></div>
-                    <div class="listener-vote-circle green" id="listenerGreenCircle"></div>
+                <!-- Group 2 Circle -->
+                <div class="listener-vote-item" id="listenerVoteGroup2">
+                    <svg class="listener-vote-svg" viewBox="0 0 200 200">
+                        <circle 
+                            class="listener-circle-outline group-2-listener" 
+                            cx="100" 
+                            cy="100" 
+                            r="85"
+                            fill="none"
+                            stroke="#0000FE"
+                            stroke-width="4"
+                            stroke-dasharray="15 15"
+                        />
+                    </svg>
+                    <div class="listener-vote-label">
+                        <p class="listener-group-text group-2-text">Group 2</p>
+                    </div>
                 </div>
+            </div>
+        </div>
+        
+        <!-- Debate Over / Counting Votes Screen -->
+        <div id="debateOverSection" class="debate-over-section" style="display: none;">
+            <div class="debate-over-box">
+                <h1 class="debate-over-title">DEBATE OVER</h1>
+                <p class="debate-over-subtitle">COUNTING OVERALL VOTES...</p>
             </div>
         </div>
         

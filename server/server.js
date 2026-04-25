@@ -235,22 +235,65 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'register_mobile') {
-                // Assign unique client ID to mobile device
-                const clientId = nextClientId++;
+                let clientId;
+                let sessionId = data.sessionId;
+                let isReconnect = false;
+                
+                // Check if this is a reconnect (has existing session ID)
+                if (sessionId) {
+                    // Try to find existing client with this session ID
+                    let existingClientId = null;
+                    mobileClients.forEach((client, id) => {
+                        if (client.sessionId === sessionId) {
+                            existingClientId = id;
+                        }
+                    });
+                    
+                    if (existingClientId) {
+                        // Reuse existing client ID
+                        clientId = existingClientId;
+                        isReconnect = true;
+                        console.log(`🔄 Client reconnected with session ${sessionId}, reusing ID ${clientId}`);
+                    } else {
+                        // Session ID provided but not found, assign new ID
+                        clientId = nextClientId++;
+                        console.log(`⚠️ Session ${sessionId} not found, assigning new ID ${clientId}`);
+                    }
+                } else {
+                    // New client, assign new ID and session ID
+                    clientId = nextClientId++;
+                    sessionId = `session_${clientId}_${Date.now()}`;
+                    console.log(`✨ New client, assigned ID ${clientId} and session ${sessionId}`);
+                }
+                
                 ws.clientId = clientId;
+                ws.sessionId = sessionId;
                 mobileClients.set(clientId, ws);
                 
-                // Send client ID back to mobile
+                // Send client ID and session ID back to mobile
                 ws.send(JSON.stringify({
                     type: 'client_id',
-                    clientId: clientId
+                    clientId: clientId,
+                    sessionId: sessionId
                 }));
+                
+                // Get user's role if they have one
+                const roleInfo = clientRoles.get(clientId);
+                let stateData = { ...currentExperienceState.data };
+                
+                // If in roles or debate phase and user has a role, include it in state sync
+                if (roleInfo && (currentExperienceState.phase === 'roles' || currentExperienceState.phase === 'debate')) {
+                    stateData.role = roleInfo.role;
+                    stateData.group = roleInfo.group;
+                    stateData.stance = roleInfo.stance;
+                    console.log(`📱 Sending role info to client ${clientId}: ${roleInfo.role}${roleInfo.group ? ` (Group ${roleInfo.group})` : ''}`);
+                }
                 
                 // Send current experience state for sync
                 ws.send(JSON.stringify({
                     type: 'state_sync',
                     phase: currentExperienceState.phase,
-                    data: currentExperienceState.data
+                    data: stateData
                 }));
                 
                 console.log(`Mobile client registered with ID: ${clientId}`);
@@ -414,6 +457,10 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'start_debate_voting') {
+                // Update global state
+                currentExperienceState.phase = 'debate';
+                currentExperienceState.data = {};
+                
                 // Broadcast start debate voting to all mobile clients
                 wss.clients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
@@ -447,6 +494,10 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'skip_to_reveal') {
+                // Update global state
+                currentExperienceState.phase = 'reveal';
+                currentExperienceState.data = { cluster: data.cluster };
+                
                 // Broadcast skip command to mobile clients
                 wss.clients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
@@ -490,23 +541,21 @@ wss.on('connection', (ws) => {
                 console.log('📦 Role assignment with cluster:', clusterName);
                 console.log('📝 Debate argument:', debateArgument);
                 
-                // TEMPORARY FOR TESTING: First client = listener, rest = debaters
+                // TEMPORARY FOR TESTING: All clients are debaters
                 // TODO: Revert to random assignment for production
                 clientRoles.clear();
                 debaterReadyState.clear();
                 
-                // Sort client IDs to ensure consistent ordering (first to connect = listener)
+                // Sort client IDs to ensure consistent ordering
                 const sortedIds = [...clientIds].sort((a, b) => a - b);
                 
                 const totalClients = sortedIds.length;
                 
-                // First client is listener, rest are debaters split between groups
-                const debaterCount = Math.max(0, totalClients - 1);
-                const group1Count = Math.ceil(debaterCount / 2); // Half (rounded up)
-                const group2Count = Math.floor(debaterCount / 2); // Half (rounded down)
+                // All clients are debaters split between groups
+                const group1Count = Math.ceil(totalClients / 2); // Half (rounded up)
+                const group2Count = Math.floor(totalClients / 2); // Half (rounded down)
                 
-                console.log(`🎭 TESTING MODE - Assigning roles to ${totalClients} clients:`);
-                console.log(`   First client (ID ${sortedIds[0]}): Listener`);
+                console.log(`🎭 TESTING MODE - Assigning roles to ${totalClients} clients (ALL DEBATERS):`);
                 console.log(`   Group 1 (Against) debaters: ${group1Count}`);
                 console.log(`   Group 2 (For) debaters: ${group2Count}`);
                 
@@ -515,17 +564,12 @@ wss.on('connection', (ws) => {
                 
                 for (let i = 0; i < sortedIds.length; i++) {
                     const id = sortedIds[i];
-                    let role = 'listener';
+                    let role = 'debater';
                     let group = null;
                     let stance = null;
                     
-                    // First client is listener
-                    if (i === 0) {
-                        role = 'listener';
-                    }
                     // Assign Group 1 (Against)
-                    else if (group1Assigned < group1Count) {
-                        role = 'debater';
+                    if (group1Assigned < group1Count) {
                         group = 1;
                         stance = 'Against';
                         group1Assigned++;
@@ -533,7 +577,6 @@ wss.on('connection', (ws) => {
                     }
                     // Assign Group 2 (For)
                     else if (group2Assigned < group2Count) {
-                        role = 'debater';
                         group = 2;
                         stance = 'For';
                         group2Assigned++;
@@ -557,6 +600,13 @@ wss.on('connection', (ws) => {
                     }
                 }
                 
+                // Update global state
+                currentExperienceState.phase = 'roles';
+                currentExperienceState.data = {
+                    clusterName: clusterName,
+                    debateArgument: debateArgument
+                };
+                
                 // Broadcast to display clients to trigger role assignment animation
                 displayClients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
@@ -566,7 +616,7 @@ wss.on('connection', (ws) => {
                     }
                 });
                 
-                console.log(`🎭 Role assignment complete: ${group1Assigned} Group 1, ${group2Assigned} Group 2, ${listenerCount} Listeners`);
+                console.log(`🎭 Role assignment complete: ${group1Assigned} Group 1, ${group2Assigned} Group 2`);
                 return;
             }
             
@@ -753,6 +803,10 @@ wss.on('connection', (ws) => {
                         clusterVotes.set(String(cluster.id), 0);
                     }
                 });
+                
+                // Update global state
+                currentExperienceState.phase = 'voting';
+                currentExperienceState.data = { clusters: data.clusters };
                 
                 // Broadcast cluster data to all clients (especially mobile)
                 const clusterMessage = {

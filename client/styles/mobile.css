@@ -595,67 +595,94 @@ body.keyboard-visible .mobile-container {
     max-width: 600px;
 }
 
-/* Debate Voting Section */
+/* Debate Voting Section - New Simplified UI */
 .debate-voting-section {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: #F24822;
+    background: #DC3545; /* Red for Group 1, will be changed dynamically */
     z-index: 3000;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    padding: 40px;
+    justify-content: flex-start;
+    padding: 40px 20px;
+}
+
+/* Yellow header box */
+.debate-header-box {
+    background: #FFD700;
+    border: 3px solid #000;
+    padding: 20px 40px;
+    margin-bottom: 20px;
+    width: 90%;
+    max-width: 400px;
+}
+
+.debate-header-text {
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
+    font-size: 48px;
+    font-weight: bold;
+    color: #000;
+    margin: 0;
+    text-align: center;
+    letter-spacing: 2px;
+}
+
+/* Green instruction box */
+.debate-instruction-box {
+    background: #4CAF50;
+    border: 3px solid #000;
+    padding: 15px 30px;
+    margin-bottom: 60px;
+    width: 90%;
+    max-width: 400px;
+}
+
+.debate-instruction-text {
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
+    font-size: 18px;
+    font-weight: normal;
+    color: #FFF;
+    margin: 0;
+    text-align: center;
+    line-height: 1.4;
+    letter-spacing: 1px;
+}
+
+/* Circular timer */
+.debate-timer-circle {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    margin-top: auto;
+    margin-bottom: 80px;
+}
+
+.debate-timer-svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* Dashed circle outline - styled in HTML via SVG attributes */
+
+.debate-timer-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     text-align: center;
 }
 
-.debate-title {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 64px;
-    font-weight: 400;
-    color: #fff;
-    margin: 0 0 10px 0;
-}
-
-.debate-subtitle {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 20px;
-    font-weight: 300;
-    color: rgba(255, 255, 255, 0.8);
-    margin: 0 0 80px 0;
-}
-
-.debate-buttons {
-    display: flex;
-    gap: 40px;
-    justify-content: center;
-    align-items: center;
-}
-
-.vote-button {
-    width: 200px;
-    height: 200px;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-}
-
-.vote-button:active {
-    transform: scale(1.1);
-    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
-}
-
-.vote-blue {
-    background: #0000FE;
-}
-
-.vote-red {
-    background: #3CB371;
+.debate-timer-text {
+    font-family: 'DS-Digital', 'Courier New', monospace;
+    font-size: 72px;
+    font-weight: bold;
+    color: #FFF;
+    margin: 0;
+    letter-spacing: 8px;
 }
 
 /* Headline Section */
@@ -998,116 +1025,210 @@ body.keyboard-visible .mobile-container {
 }
 
 /* ========================================
-   Listener Voting Section
+   Listener Voting Section - New Simplified UI
    ======================================== */
 
 .listener-voting-section {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
-    height: 100vh;
+    height: 100%;
+    background: #E8E8E8;
+    z-index: 3000;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    background: white;
-    padding: 20px;
+    justify-content: flex-start;
+    padding: 40px 20px;
 }
 
-.listener-voting-content {
-    width: 100%;
-    max-width: 500px;
+/* Orange header box */
+.listener-header-box {
+    background: #FF6B35;
+    border: 3px solid #000;
+    padding: 15px 40px;
+    margin-bottom: 15px;
+    width: 90%;
+    max-width: 400px;
+}
+
+.listener-header-text {
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
+    font-size: 48px;
+    font-weight: bold;
+    color: #FFF;
+    margin: 0;
+    text-align: center;
+    letter-spacing: 4px;
+}
+
+/* Orange instruction box */
+.listener-instruction-box {
+    background: #FF6B35;
+    border: 3px solid #000;
+    padding: 20px 30px;
+    margin-bottom: 60px;
+    width: 90%;
+    max-width: 400px;
+}
+
+.listener-instruction-text {
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
+    font-size: 16px;
+    font-weight: normal;
+    color: #FFF;
+    margin: 0;
+    text-align: center;
+    line-height: 1.5;
+    letter-spacing: 1px;
+}
+
+/* Voting circles container */
+.listener-vote-container {
     display: flex;
     flex-direction: column;
+    gap: 60px;
     align-items: center;
+    width: 100%;
+    margin-top: 20px;
+}
+
+.listener-vote-item {
+    position: relative;
+    width: 250px;
+    height: 250px;
+    cursor: pointer;
+    animation: breathe 3s ease-in-out infinite;
+}
+
+.listener-vote-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.listener-circle-outline {
+    animation: rotateDashes 20s linear infinite;
+    transform-origin: center;
+}
+
+.listener-vote-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.listener-group-text {
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
+    font-size: 36px;
+    font-weight: bold;
+    margin: 0;
     text-align: center;
 }
 
-.listener-icon {
-    margin-bottom: 20px;
+.group-1-text {
+    color: #DC3545;
 }
 
-.listener-role-label {
-    font-family: 'MD Thermochrome', sans-serif;
-    font-size: 16px;
-    color: #666;
-    margin: 0 0 8px 0;
+.group-2-text {
+    color: #0000FE;
 }
 
-.listener-role-name {
-    font-family: 'MD Thermochrome', sans-serif;
-    font-size: 48px;
-    font-weight: bold;
-    color: #000;
-    margin: 0 0 30px 0;
-}
-
-.listener-argument-label,
-.debate-argument-label {
-    font-family: 'MD Thermochrome', sans-serif;
-    font-size: 20px;
-    font-weight: bold;
-    color: #FF0000;
-    margin: 20px 0 10px 0;
-}
-
-.listener-argument-text,
-.debate-argument-text {
-    font-family: 'MD Thermochrome', sans-serif;
-    font-size: 18px;
-    color: #000;
-    margin: 0 0 30px 0;
-    line-height: 1.4;
-}
-
-.listener-instruction {
-    font-family: 'MD Thermochrome', sans-serif;
-    font-size: 14px;
-    color: #000;
-    margin: 0 0 40px 0;
-    max-width: 350px;
-}
-
-.listener-voting-circles {
-    display: flex;
-    gap: 40px;
-    align-items: center;
-    justify-content: center;
-}
-
-.listener-vote-circle {
-    width: 150px;
-    height: 150px;
-    border-radius: 50%;
-    border: 4px dashed;
-    cursor: pointer;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    transform: scale(1);
-    opacity: 1;
-}
-
-.listener-vote-circle.red {
-    border-color: #FF0000;
-}
-
-.listener-vote-circle.green {
-    border-color: #00FF00;
-}
-
-.listener-vote-circle:active {
-    transform: scale(0.95);
-    opacity: 0.8;
-}
-
-.listener-vote-circle.voting {
-    animation: pulse 0.5s infinite;
-}
-
-@keyframes pulse {
+/* Breathing animation - subtle jelly effect */
+@keyframes breathe {
     0%, 100% {
         transform: scale(1);
     }
     50% {
-        transform: scale(1.05);
+        transform: scale(1.03);
     }
+}
+
+/* Rotating dashes animation */
+@keyframes rotateDashes {
+    0% {
+        stroke-dashoffset: 0;
+    }
+    100% {
+        stroke-dashoffset: 188.5; /* Circumference of circle (2 * PI * 85) */
+    }
+}
+
+/* Active/pressed state */
+.listener-vote-item:active {
+    animation: none;
+    transform: scale(0.95);
+}
+
+/* Voting state (when pressed) */
+.listener-vote-item.voting {
+    animation: votePulse 0.5s ease-in-out infinite;
+}
+
+@keyframes votePulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.08);
+    }
+}
+
+/* ========================================
+   Debate Over / Counting Votes Section
+   ======================================== */
+
+.debate-over-section {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 4000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Background color set dynamically via JS based on role */
+}
+
+/* Role-specific background colors (set via JS) */
+.debate-over-section.group-1 {
+    background: #DC3545; /* Red for Group 1 debaters */
+}
+
+.debate-over-section.group-2 {
+    background: #0000FE; /* Blue for Group 2 debaters */
+}
+
+.debate-over-section.listener {
+    background: #FFFFFF; /* White for listeners */
+}
+
+.debate-over-box {
+    background: #FFD700; /* Yellow/gold */
+    border: 3px solid #000;
+    padding: 40px 60px;
+    text-align: center;
+}
+
+.debate-over-title {
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
+    font-size: 48px;
+    font-weight: bold;
+    color: #000;
+    margin: 0 0 15px 0;
+    letter-spacing: 2px;
+}
+
+.debate-over-subtitle {
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
+    font-size: 16px;
+    font-weight: normal;
+    color: #000;
+    margin: 0;
+    letter-spacing: 1px;
 }
 
 /* Voting Section */
