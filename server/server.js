@@ -617,6 +617,23 @@ wss.on('connection', (ws) => {
                 });
                 
                 console.log(`🎭 Role assignment complete: ${group1Assigned} Group 1, ${group2Assigned} Group 2`);
+                
+                // Broadcast initial debater counts to display (all debaters start as not ready)
+                displayClients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'debater_ready_update',
+                            readyCount: 0,
+                            totalDebaters: group1Assigned + group2Assigned,
+                            group1Ready: 0,
+                            group1Total: group1Assigned,
+                            group2Ready: 0,
+                            group2Total: group2Assigned
+                        }));
+                    }
+                });
+                
+                console.log(`📊 Initial debater counts sent: Group 1: 0/${group1Assigned}, Group 2: 0/${group2Assigned}`);
                 return;
             }
             
@@ -797,12 +814,16 @@ wss.on('connection', (ws) => {
                 // Store cluster data for later winner determination
                 currentClusters = data.clusters || [];
                 
+                // Clear all previous votes when new clusters are set
+                clusterVotes.clear();
+                clientClusterVotes.clear();
+                
                 // Initialize vote counts for new clusters
                 currentClusters.forEach(cluster => {
-                    if (!clusterVotes.has(String(cluster.id))) {
-                        clusterVotes.set(String(cluster.id), 0);
-                    }
+                    clusterVotes.set(String(cluster.id), 0);
                 });
+                
+                console.log('🔄 Clusters updated, votes cleared. New clusters:', currentClusters.map(c => `${c.id}:"${c.label}"`).join(', '));
                 
                 // Update global state
                 currentExperienceState.phase = 'voting';

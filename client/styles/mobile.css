@@ -252,48 +252,84 @@ body.keyboard-visible .mobile-container {
 .cluster-list {
     display: flex;
     flex-direction: column;
-    gap: 60px;
+    gap: 40px;
 }
 
 .cluster-item {
-    margin-bottom: 16px;
     cursor: pointer;
-    transition: transform 0.1s ease;
+    position: relative;
+    padding-bottom: 3px; /* Reserve space for press animation */
+    user-select: none; /* Prevent text selection on tap */
+    -webkit-user-select: none;
+    -webkit-touch-callout: none; /* Prevent callout on long press */
 }
 
-.cluster-item:active {
-    transform: scale(0.98);
-}
-
+/* Button container with border outline */
 .cluster-box {
     background: #fff;
-    border: 4px solid;
-    border-radius: 0;
-    padding: 20px 24px;
+    border: 3px solid #000; /* Black border all around */
+    border-bottom: 6px solid #000; /* Thicker bottom border for depth */
+    border-radius: 0.5px;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    transition: all 0.2s ease;
+    transition: transform 0.1s ease, border-bottom 0.1s ease;
+    position: relative;
+    overflow: hidden; /* Ensure inner elements respect border radius */
+    will-change: transform; /* Optimize for animation */
+    backface-visibility: hidden; /* Prevent flickering */
+    -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
 }
 
-.cluster-box:hover {
-    transform: translateX(4px);
+/* Press animation - move down slightly */
+.cluster-item:active .cluster-box {
+    transform: translateY(3px) translateZ(0); /* Use GPU acceleration */
+    border-bottom: 3px solid #000; /* Reduce bottom border when pressed */
 }
 
-/* Filled state when voted */
-.cluster-box.voted {
-    background: currentColor;
-}
-
-.cluster-box.voted .cluster-label {
-    color: #fff;
-}
-
+/* Topic label section */
 .cluster-label {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 24px;
-    font-weight: 500;
-    text-transform: capitalize;
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
+    font-size: 28px;
+    font-weight: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 20px 24px;
+    margin: 0;
+    transition: all 0.15s ease;
+    min-height: 70px;
+    display: flex;
+    align-items: center;
+}
+
+/* Unselected state - white background, colored text */
+.cluster-box:not(.voted) .cluster-label {
+    background: #fff;
+    color: currentColor;
+}
+
+/* Selected state - colored background, contrasting text */
+.cluster-box.voted .cluster-label {
+    /* Background set via JavaScript to cluster color */
+    color: #000 !important; /* Black text for better contrast on bright colors */
+}
+
+/* Vote bar section */
+.vote-bar {
+    background: currentColor;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-top: 3px solid #000; /* Black border */
+}
+
+.vote-bar-label {
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
+    font-size: 16px;
+    font-weight: normal;
+    color: #000;
+    letter-spacing: 0.1em;
 }
 
 /* Vote circles container */
@@ -301,32 +337,21 @@ body.keyboard-visible .mobile-container {
     display: flex;
     gap: 8px;
     align-items: center;
-    min-height: 16px;
+    min-height: 20px;
+    background: #fff;
+    padding: 8px 12px;
+    flex: 1;
+    border: 2px solid #000; /* Black border around vote container */
+    border-radius: 0.5px;
 }
 
 .vote-circle {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    border-radius: 0.5px;
     flex-shrink: 0;
-}
-
-/* User's own vote - white circle */
-.vote-circle.user-vote {
-    background: #fff;
-    border: 2px solid #fff;
-}
-
-/* Other users' votes - colored circle matching box border */
-.vote-circle.other-vote {
     background: currentColor;
-    border: 2px solid currentColor;
-}
-
-/* When voted, user's circle is white */
-.cluster-box.voted .vote-circle.user-vote {
-    background: #fff;
-    border-color: #fff;
+    border: 2px solid #000; /* Black border on vote squares */
 }
 
 /* Hide vote count number */

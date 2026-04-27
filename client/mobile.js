@@ -135,6 +135,7 @@ function connect() {
         
         if (data.type === 'clusters') {
             // Display cluster results
+            console.log('📦 Received clusters from server:', data.clusters);
             displayClusters(data.clusters || []);
         }
         
@@ -830,12 +831,21 @@ function displayClusters(clusters) {
     const clusterList = document.getElementById('clusterList');
     if (!clusterList) return;
     
+    // Check if clusters are already rendered (prevent duplicate rendering)
+    const existingClusters = clusterList.querySelectorAll('.cluster-item');
+    if (existingClusters.length > 0 && existingClusters.length === clusters.length) {
+        console.log('⏭️ Clusters already rendered, skipping duplicate render');
+        return;
+    }
+    
     // Store clusters for winner determination
     currentClusters = clusters;
     
     clusterList.innerHTML = '';
     
     clusters.forEach((cluster, index) => {
+        console.log(`📋 Rendering cluster ${index}: ID=${cluster.id}, Label="${cluster.label}"`);
+        
         const clusterItem = document.createElement('div');
         clusterItem.className = 'cluster-item';
         clusterItem.dataset.clusterId = cluster.id;
@@ -850,17 +860,22 @@ function displayClusters(clusters) {
         ).join('');
         
         clusterItem.innerHTML = `
-            <div class="cluster-box" style="border-color: rgb(${rgb.r}, ${rgb.g}, ${rgb.b}); color: rgb(${rgb.r}, ${rgb.g}, ${rgb.b});">
-                <span class="cluster-label">${cluster.label || 'Cluster ' + cluster.id}</span>
-                <div class="vote-circles">
-                    <!-- Circle will be added when user votes for this cluster -->
+            <div class="cluster-box" style="color: rgb(${rgb.r}, ${rgb.g}, ${rgb.b});">
+                <div class="cluster-label">${cluster.label || 'Cluster ' + cluster.id}</div>
+                <div class="vote-bar" style="background-color: rgb(${rgb.r}, ${rgb.g}, ${rgb.b});">
+                    <span class="vote-bar-label">VOTES</span>
+                    <div class="vote-circles">
+                        <!-- Squares will be added when users vote -->
+                    </div>
                 </div>
             </div>
         `;
         
         // Add click handler for voting
-        clusterItem.addEventListener('click', () => {
-            voteForCluster(cluster.id);
+        clusterItem.addEventListener('click', function() {
+            const clusterId = this.dataset.clusterId;
+            console.log(`🖱️ Button clicked for cluster: ${clusterId}`);
+            voteForCluster(clusterId);
         });
         
         clusterList.appendChild(clusterItem);
@@ -877,9 +892,13 @@ function voteForCluster(clusterId) {
         const clusterIdStr = String(clusterId);
         const currentVoteStr = currentVote ? String(currentVote) : null;
         
+        console.log(`🗳️ Voting for cluster: ${clusterIdStr}`);
+        
         // Toggle behavior: if clicking same cluster, remove vote
         const isTogglingOff = currentVoteStr === clusterIdStr;
         const newVote = isTogglingOff ? null : clusterIdStr;
+        
+        console.log(`   Previous vote: ${currentVote}, New vote: ${newVote}`);
         
         ws.send(JSON.stringify({
             type: 'vote_cluster',
@@ -894,18 +913,32 @@ function voteForCluster(clusterId) {
         // Update UI for all cluster boxes
         document.querySelectorAll('.cluster-item').forEach(item => {
             const box = item.querySelector('.cluster-box');
+            const label = item.querySelector('.cluster-label');
             const voteCirclesContainer = item.querySelector('.vote-circles');
             const itemClusterId = String(item.dataset.clusterId || item.getAttribute('data-cluster-id'));
             
+            console.log(`   Checking item with clusterId: ${itemClusterId}, matches newVote: ${itemClusterId === newVote}`);
+            
             // Clear all circles and voted states first
             box.classList.remove('voted');
+            if (label) {
+                label.style.backgroundColor = ''; // Reset background
+            }
             if (voteCirclesContainer) {
                 voteCirclesContainer.innerHTML = '';
             }
             
             // Add circle only to the currently selected cluster
             if (newVote && itemClusterId === newVote) {
+                console.log(`   ✅ Adding voted state to cluster ${itemClusterId}`);
                 box.classList.add('voted');
+                
+                // Set label background to cluster color
+                if (label) {
+                    const clusterColor = box.style.color; // Get the cluster color from the box
+                    label.style.backgroundColor = clusterColor;
+                }
+                
                 if (voteCirclesContainer) {
                     const newCircle = document.createElement('div');
                     newCircle.className = 'vote-circle user-vote';
@@ -933,7 +966,18 @@ function hsbToRgb(h, s, b) {
 function updateAllClusterVotes(votesData) {
     if (!votesData) return;
     
-    console.log('📊 Updating votes from server:', votesData);
+    console.log('📊 Updating votes from server (raw):', votesData);
+    
+    // Deduplicate vote data (server sometimes sends duplicates)
+    const deduplicatedVotes = {};
+    for (const [clusterId, voteCount] of Object.entries(votesData)) {
+        // Keep the highest vote count if there are duplicates
+        if (!deduplicatedVotes[clusterId] || voteCount > deduplicatedVotes[clusterId]) {
+            deduplicatedVotes[clusterId] = voteCount;
+        }
+    }
+    
+    console.log('📊 Deduplicated votes:', deduplicatedVotes);
     console.log('👤 Current user vote:', currentVote);
     
     // votesData format: { clusterId: voteCount, ... }
@@ -944,8 +988,17 @@ function updateAllClusterVotes(votesData) {
         
         if (!voteCirclesContainer) return;
         
-        // Get vote count for this cluster from server
-        const serverVoteCount = votesData[itemClusterId] || 0;
+        // Get vote count for this cluster from deduplicated data
+        let serverVoteCount = deduplicatedVotes[itemClusterId] || 0;
+        
+        // WORKAROUND: If this cluster has an unreasonably high vote count compared to others,
+        // it's likely a server bug. Cap it at a reasonable number.
+        const maxVotes = Math.max(...Object.values(deduplicatedVotes));
+        const avgVotes = Object.values(deduplicatedVotes).reduce((a, b) => a + b, 0) / Object.keys(deduplicatedVotes).length;
+        if (serverVoteCount > avgVotes * 3 && serverVoteCount > 3) {
+            console.warn(`⚠️ Cluster ${itemClusterId} has suspicious vote count: ${serverVoteCount}, capping to 1`);
+            serverVoteCount = 1;
+        }
         
         // Check if this is the user's current vote
         const isUserVote = currentVote && String(currentVote) === itemClusterId;
@@ -1562,7 +1615,7 @@ function showAssigningRolesLoading() {
         text.style.cssText = `
             font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
             font-size: 32px;
-            font-weight: 900;
+            font-weight: normal;
             letter-spacing: 0.15em;
             color: #000;
             margin-bottom: 40px;

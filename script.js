@@ -2362,6 +2362,37 @@ function drawSpeechBubbles() {
             const labelY = votingPhaseActive ? centerY : centerY - radius - 50;
             text(label, centerX, labelY);
             pop();
+            
+            // Draw vote count visualization (white circles) during voting phase
+            if (votingPhaseActive && window.clusterVotes) {
+                const voteCount = window.clusterVotes[String(clusterId)] || 0;
+                if (voteCount > 0) {
+                    push();
+                    colorMode(RGB);
+                    fill(255); // White circles
+                    noStroke();
+                    
+                    const dotSize = 12;
+                    const dotSpacing = 18;
+                    const maxDotsPerRow = 8;
+                    const rows = Math.ceil(voteCount / maxDotsPerRow);
+                    
+                    // Center the dots below the label
+                    const startY = labelY + 35;
+                    
+                    for (let i = 0; i < voteCount; i++) {
+                        const row = Math.floor(i / maxDotsPerRow);
+                        const col = i % maxDotsPerRow;
+                        const dotsInThisRow = Math.min(maxDotsPerRow, voteCount - row * maxDotsPerRow);
+                        const rowWidth = (dotsInThisRow - 1) * dotSpacing;
+                        const dotX = centerX - rowWidth / 2 + col * dotSpacing;
+                        const dotY = startY + row * dotSpacing;
+                        
+                        circle(dotX, dotY, dotSize);
+                    }
+                    pop();
+                }
+            }
         });
         pop();
     }
@@ -3272,6 +3303,12 @@ function connectWebSocket() {
             votingPhaseActive = true;
             votingCountdownTime = 30; // 30 seconds voting timer (for testing)
             console.log('🗳️ Voting phase started');
+        }
+        
+        if (data.type === 'cluster_vote_update') {
+            // Update cluster vote counts for visualization
+            window.clusterVotes = data.votes || {};
+            console.log('📊 Cluster votes updated:', window.clusterVotes);
         }
         
         if (data.type === 'winning_cluster') {
@@ -6000,7 +6037,7 @@ function drawRoleAssignmentScreen() {
         fill(255);
         textAlign(CENTER, CENTER);
         textSize(40);
-        if (customFontSemibold) textFont(customFontSemibold);
+        if (customFont) textFont(customFont); // Use regular weight
         text('ASSIGNING ROLES', width / 2, height / 2 - 140);
         
         // Draw people emoji with block-by-block reveal
@@ -6029,7 +6066,7 @@ function drawRoleAssignmentScreen() {
         fill(255);
         textAlign(CENTER, CENTER);
         textSize(emojiSize);
-        if (customFontSemibold) textFont(customFontSemibold);
+        if (customFont) textFont(customFont); // Use regular weight
         text('👥', emojiX, emojiY);
         
         drawingContext.restore();
