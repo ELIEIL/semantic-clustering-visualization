@@ -49,8 +49,10 @@ let votingCountdownTime = 0; // Countdown time in seconds
 
 // Debate voting state (post-reveal interaction)
 let debateVotingActive = false;
-let redVoteCount = 0;
-let greenVoteCount = 0;
+let redVoteCount = 0;      // Total votes for Group 1 (red)
+let greenVoteCount = 0;    // Total votes for Group 2 (green)
+let redHoldCount = 0;      // Currently holding Group 1 button
+let greenHoldCount = 0;    // Currently holding Group 2 button
 
 // Debate timer state
 let debateTimerActive = false;
@@ -2870,8 +2872,16 @@ function startDebateTimer() {
                     // After 8 seconds, show winner (enough time for slow count)
                     setTimeout(() => {
                         debateOverPhase = 'winner';
-                        winnerGroup = finalVoteBalance < 0 ? 1 : 2;
-                        console.log(`📺 Phase 3: Winner - Group ${winnerGroup}`);
+                        
+                        // Calculate vote counts from balance
+                        const totalListeners = 20;
+                        const balance = finalVoteBalance;
+                        const group1Votes = Math.round((totalListeners - balance) / 2);
+                        const group2Votes = Math.round((totalListeners + balance) / 2);
+                        
+                        // Determine winner based on actual vote counts
+                        winnerGroup = group1Votes > group2Votes ? 1 : 2;
+                        console.log(`📺 Phase 3: Winner - Group ${winnerGroup} (Group 1: ${group1Votes}, Group 2: ${group2Votes})`);
                     }, 8000);
                 }, 5000);
                 
@@ -3377,10 +3387,13 @@ function connectWebSocket() {
         }
         
         if (data.type === 'debate_vote_update') {
-            // Update vote counts from server
-            redVoteCount = data.red;
-            greenVoteCount = data.green;
-            console.log(`📊 Vote update - Red: ${redVoteCount}, Green: ${greenVoteCount}`);
+            // Update vote counts and hold counts from server
+            redVoteCount = data.red || 0;
+            greenVoteCount = data.green || 0;
+            redHoldCount = data.redHolds || 0;
+            greenHoldCount = data.greenHolds || 0;
+            console.log(`📊 Vote update - Red: ${redVoteCount}, Green: ${greenVoteCount} (Holds - Red: ${redHoldCount}, Green: ${greenHoldCount})`);
+            console.log(`   Raw data:`, data);
         }
         
         if (data.type === 'start_debate_voting') {
@@ -6292,7 +6305,7 @@ function drawFinalRoleAssignmentScreen(alpha) {
 }
 
 // Draw listener voting circles synced with mobile controller
-// Red votes = Group 1, Green votes = Group 2
+// Red votes = Group 1, Blue votes = Group 2
 function drawListenerVotingCircles() {
     // Check for post-debate phases
     if (debateOverPhase === 'debate-over') {
@@ -6308,37 +6321,63 @@ function drawListenerVotingCircles() {
         return;
     }
     
+    background(0);
+    
     const balance = window.listenerVoteBalance || 0; // -20 to +20
     
-    // Base circle size
-    const baseSize = 400;
+    // Base circle size (same as vote counting screen)
+    const baseCircleSize = 350;
     
-    // Convert balance to scales (same as mobile)
-    // Balance = 0: both at 1.0x
-    // Balance = -20: Group 1 at 1.5x, Group 2 at 0.5x
-    // Balance = +20: Group 1 at 0.5x, Group 2 at 1.5x
+    // Convert balance to scales
     const maxBalance = 20;
     const normalizedBalance = balance / maxBalance; // -1 to +1
     
     const group1Scale = 1.0 - (normalizedBalance * 0.5);
     const group2Scale = 1.0 + (normalizedBalance * 0.5);
     
-    // Circle positions
+    // Circle positions (same as vote counting screen)
     const leftX = width * 0.3;
     const rightX = width * 0.7;
-    const circleY = height / 2 - 20;
+    const circleY = height / 2 + 50;
     
     // Switch to RGB color mode
     colorMode(RGB, 255);
     
-    // Draw Group 1 (Red) circle with timer segments
+    // Draw topic at top
     push();
-    const group1Size = baseSize * group1Scale;
+    fill(255, 215, 0); // Yellow for topic name
+    textAlign(CENTER, CENTER);
+    textSize(36);
+    if (customFont) textFont(customFont); // MD Thermochrome
+    const topicText = (winningCluster?.label || 'Climate Change').toUpperCase();
+    text(topicText, width / 2, 80);
+    
+    // Debate question
+    fill(255);
+    textSize(28);
+    textFont('sans-serif'); // Clean sans-serif for readability
+    textAlign(CENTER, CENTER);
+    const questionText = debateQuestion || 'Should fossil fuels be banned entirely?';
+    
+    // Draw with text wrapping
+    const maxWidth = width * 0.7;
+    text(questionText, width / 2 - maxWidth/2, 130, maxWidth);
+    pop();
+    
+    // Segment parameters
+    const totalSegments = 40;
+    const segmentAngle = TWO_PI / totalSegments;
+    const segmentLength = segmentAngle * 0.6;
+    
+    // Draw Group 1 (Red) circle
+    push();
+    const group1Size = baseCircleSize * group1Scale;
+    const innerRadius1 = (group1Size) / 2 - 30;
     
     // Dashed circle outline
     noFill();
     stroke(220, 53, 69);
-    strokeWeight(4);
+    strokeWeight(6);
     drawingContext.setLineDash([15, 15]);
     circle(leftX, circleY, group1Size);
     drawingContext.setLineDash([]);
@@ -6346,56 +6385,49 @@ function drawListenerVotingCircles() {
     // Timer segments (if it's Group 1's turn)
     if (debateTimerActive && currentTurn === 1) {
         const progress = turnTimeRemaining / 30;
-        const totalSegments = 40;
         const remainingSegments = Math.ceil(progress * totalSegments);
-        const segmentAngle = TWO_PI / totalSegments;
-        const segmentLength = segmentAngle * 0.6;
-        const outerRadius = group1Size / 2 + 15;
         
         noFill();
         stroke(220, 53, 69);
-        strokeWeight(6);
+        strokeWeight(20);
         strokeCap(SQUARE);
         
         for (let i = 0; i < remainingSegments; i++) {
-            const startAngle = -HALF_PI + (i * segmentAngle);
+            const startAngle = HALF_PI + (i * segmentAngle);
             const endAngle = startAngle + segmentLength;
-            arc(leftX, circleY, outerRadius * 2, outerRadius * 2, startAngle, endAngle);
+            arc(leftX, circleY, innerRadius1 * 2, innerRadius1 * 2, startAngle, endAngle);
         }
     }
     
-    // Group 1 label
+    // Group 1 label and timer
+    noStroke();
     fill(220, 53, 69);
     textAlign(CENTER, CENTER);
     textSize(32);
-    if (customFont) textFont(customFont);
-    text('Group 1', leftX, circleY - 50);
+    if (customFontPrimer) textFont(customFontPrimer); // MD Primer for pixelated style
+    text('Group 1', leftX, circleY - 20);
     
-    // Status text
-    textSize(20);
     fill(255);
+    textSize(48);
+    textFont('DS-Digital, monospace'); // Digital clock font
     if (debateTimerActive && currentTurn === 1) {
-        text('Your turn', leftX, circleY - 15);
-        
-        // Timer display
-        textSize(48);
         const minutes = Math.floor(turnTimeRemaining / 60);
         const seconds = Math.floor(turnTimeRemaining % 60);
         text(`${minutes}:${seconds.toString().padStart(2, '0')}`, leftX, circleY + 30);
     } else {
-        text('Listen...', leftX, circleY - 15);
         text('- - : - -', leftX, circleY + 30);
     }
     pop();
     
-    // Draw Group 2 (Green) circle with timer segments
+    // Draw Group 2 (Blue) circle
     push();
-    const group2Size = baseSize * group2Scale;
+    const group2Size = baseCircleSize * group2Scale;
+    const innerRadius2 = (group2Size) / 2 - 30;
     
     // Dashed circle outline
     noFill();
-    stroke(40, 167, 69);
-    strokeWeight(4);
+    stroke(0, 0, 254); // Blue (same as vote counting)
+    strokeWeight(6);
     drawingContext.setLineDash([15, 15]);
     circle(rightX, circleY, group2Size);
     drawingContext.setLineDash([]);
@@ -6403,66 +6435,38 @@ function drawListenerVotingCircles() {
     // Timer segments (if it's Group 2's turn)
     if (debateTimerActive && currentTurn === 2) {
         const progress = turnTimeRemaining / 30;
-        const totalSegments = 40;
         const remainingSegments = Math.ceil(progress * totalSegments);
-        const segmentAngle = TWO_PI / totalSegments;
-        const segmentLength = segmentAngle * 0.6;
-        const outerRadius = group2Size / 2 + 15;
         
         noFill();
-        stroke(40, 167, 69);
-        strokeWeight(6);
+        stroke(0, 0, 254); // Blue
+        strokeWeight(20);
         strokeCap(SQUARE);
         
         for (let i = 0; i < remainingSegments; i++) {
-            const startAngle = -HALF_PI + (i * segmentAngle);
+            const startAngle = HALF_PI + (i * segmentAngle);
             const endAngle = startAngle + segmentLength;
-            arc(rightX, circleY, outerRadius * 2, outerRadius * 2, startAngle, endAngle);
+            arc(rightX, circleY, innerRadius2 * 2, innerRadius2 * 2, startAngle, endAngle);
         }
     }
     
-    // Group 2 label
-    fill(40, 167, 69);
+    // Group 2 label and timer
+    noStroke();
+    fill(0, 0, 254); // Blue
     textAlign(CENTER, CENTER);
     textSize(32);
-    if (customFont) textFont(customFont);
-    text('Group 2', rightX, circleY - 50);
+    if (customFontPrimer) textFont(customFontPrimer); // MD Primer for pixelated style
+    text('Group 2', rightX, circleY - 20);
     
-    // Status text
-    textSize(20);
     fill(255);
+    textSize(48);
+    textFont('DS-Digital, monospace'); // Digital clock font
     if (debateTimerActive && currentTurn === 2) {
-        text('Your turn', rightX, circleY - 15);
-        
-        // Timer display
-        textSize(48);
         const minutes = Math.floor(turnTimeRemaining / 60);
         const seconds = Math.floor(turnTimeRemaining % 60);
         text(`${minutes}:${seconds.toString().padStart(2, '0')}`, rightX, circleY + 30);
     } else {
-        text('Listen...', rightX, circleY - 15);
         text('- - : - -', rightX, circleY + 30);
     }
-    pop();
-    
-    // Draw topic at top
-    push();
-    fill(255, 215, 0); // Yellow for topic name
-    textAlign(CENTER, CENTER);
-    textSize(36); // Increased from 28
-    if (customFont) textFont(customFont);
-    text(winningCluster?.label || 'Climate Change', width / 2, 80);
-    
-    // Debate question
-    fill(255);
-    textSize(28); // Increased from 24
-    textAlign(CENTER, CENTER);
-    const questionText = debateQuestion || 'Should fossil fuels be banned entirely?';
-    console.log('📝 Drawing debate question:', questionText);
-    
-    // Draw with text wrapping
-    const maxWidth = width * 0.7;
-    text(questionText, width / 2 - maxWidth/2, 130, maxWidth);
     pop();
     
     // Reset color mode
@@ -6594,9 +6598,21 @@ function drawDebateOverScreen() {
 function drawVoteCountingScreen() {
     background(0);
     
-    // Calculate actual vote counts from balance
-    const group1Votes = Math.round(20 + Math.abs(Math.min(finalVoteBalance, 0)));
-    const group2Votes = Math.round(20 + Math.max(finalVoteBalance, 0));
+    // Convert listener balance to vote counts
+    // Balance ranges from -20 (all Group 1) to +20 (all Group 2)
+    // Assume 20 total listeners
+    const totalListeners = 20;
+    const balance = finalVoteBalance; // This is set when debate ends
+    
+    // Calculate votes from balance
+    const group1Votes = Math.round((totalListeners - balance) / 2);
+    const group2Votes = Math.round((totalListeners + balance) / 2);
+    
+    // Debug: Log vote counts once
+    if (voteCountAnimation === 0) {
+        console.log('📊 Vote Counting Screen - Balance:', balance);
+        console.log('   Group 1:', group1Votes, 'Group 2:', group2Votes);
+    }
     
     // Animate vote count slowly (increment by 0.3 per frame for ~60fps = ~5 votes/second)
     voteCountAnimation += 0.3;

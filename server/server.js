@@ -541,7 +541,7 @@ wss.on('connection', (ws) => {
                 console.log('📦 Role assignment with cluster:', clusterName);
                 console.log('📝 Debate argument:', debateArgument);
                 
-                // TEMPORARY FOR TESTING: All clients are debaters
+                // TEMPORARY FOR TESTING: First client is listener, rest are debaters
                 // TODO: Revert to random assignment for production
                 clientRoles.clear();
                 debaterReadyState.clear();
@@ -551,14 +551,18 @@ wss.on('connection', (ws) => {
                 
                 const totalClients = sortedIds.length;
                 
-                // All clients are debaters split between groups
-                const group1Count = Math.ceil(totalClients / 2); // Half (rounded up)
-                const group2Count = Math.floor(totalClients / 2); // Half (rounded down)
+                // First client is listener, rest split into debater groups
+                const listenerCount = Math.min(1, totalClients); // 1 listener
+                const debaterCount = totalClients - listenerCount;
+                const group1Count = Math.ceil(debaterCount / 2); // Half of debaters (rounded up)
+                const group2Count = Math.floor(debaterCount / 2); // Half of debaters (rounded down)
                 
-                console.log(`🎭 TESTING MODE - Assigning roles to ${totalClients} clients (ALL DEBATERS):`);
+                console.log(`🎭 TESTING MODE - Assigning roles to ${totalClients} clients:`);
+                console.log(`   Listeners: ${listenerCount}`);
                 console.log(`   Group 1 (Against) debaters: ${group1Count}`);
                 console.log(`   Group 2 (For) debaters: ${group2Count}`);
                 
+                let listenersAssigned = 0;
                 let group1Assigned = 0;
                 let group2Assigned = 0;
                 
@@ -568,8 +572,13 @@ wss.on('connection', (ws) => {
                     let group = null;
                     let stance = null;
                     
+                    // Assign first client as listener
+                    if (listenersAssigned < listenerCount) {
+                        role = 'listener';
+                        listenersAssigned++;
+                    }
                     // Assign Group 1 (Against)
-                    if (group1Assigned < group1Count) {
+                    else if (group1Assigned < group1Count) {
                         group = 1;
                         stance = 'Against';
                         group1Assigned++;
@@ -645,6 +654,25 @@ wss.on('connection', (ws) => {
                 
                 console.log(`🗳️ Listener ${clientId} voted ${side}: balance = ${balance}`);
                 
+                // Track vote counts for final tally
+                // Remove previous vote if switching sides
+                const previousSide = clientDebateVotes.get(clientId);
+                console.log(`   Previous side: ${previousSide}, New side: ${side}`);
+                
+                if (previousSide && previousSide !== side) {
+                    debateVotes[previousSide] = Math.max(0, debateVotes[previousSide] - 1);
+                    console.log(`   Removed vote from ${previousSide}`);
+                }
+                
+                // Add vote to new side if not already voting for it
+                if (previousSide !== side) {
+                    debateVotes[side]++;
+                    clientDebateVotes.set(clientId, side);
+                    console.log(`   Added vote to ${side}`);
+                }
+                
+                console.log(`📊 Vote totals - Red: ${debateVotes.red}, Green: ${debateVotes.green}`);
+                
                 // Broadcast vote balance to all display clients for visual sync
                 displayClients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
@@ -653,6 +681,19 @@ wss.on('connection', (ws) => {
                             clientId: clientId,
                             side: side,
                             balance: balance
+                        }));
+                    }
+                });
+                
+                // Also broadcast total vote counts
+                displayClients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'debate_vote_update',
+                            red: debateVotes.red,
+                            green: debateVotes.green,
+                            redHolds: 0,
+                            greenHolds: 0
                         }));
                     }
                 });
@@ -716,6 +757,13 @@ wss.on('connection', (ws) => {
                 if (readyCount === totalDebaters && totalDebaters > 0) {
                     console.log('🎤 All users ready! Starting debate voting...');
                     
+                    // Reset debate vote counts for new debate
+                    debateVotes.red = 0;
+                    debateVotes.green = 0;
+                    clientDebateVotes.clear();
+                    clientHoldState.clear();
+                    console.log('🔄 Debate votes reset');
+                    
                     // Broadcast start debate voting to all clients
                     wss.clients.forEach(client => {
                         if (client.readyState === WebSocket.OPEN) {
@@ -769,18 +817,20 @@ wss.on('connection', (ws) => {
                     }
                 });
                 
-                // Broadcast active hold counts to all displays
+                // Broadcast actual vote counts AND active holds to all displays
                 displayClients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                             type: 'debate_vote_update',
-                            red: redActiveHolds,
-                            green: greenActiveHolds
+                            red: debateVotes.red,           // Total votes for Group 1
+                            green: debateVotes.green,       // Total votes for Group 2
+                            redHolds: redActiveHolds,       // Currently holding Group 1 button
+                            greenHolds: greenActiveHolds    // Currently holding Group 2 button
                         }));
                     }
                 });
                 
-                console.log(`📊 Active holds - Red: ${redActiveHolds}, Green: ${greenActiveHolds}`);
+                console.log(`📊 Debate votes - Red: ${debateVotes.red}, Green: ${debateVotes.green} (Active holds - Red: ${redActiveHolds}, Green: ${greenActiveHolds})`);
                 return;
             }
             
