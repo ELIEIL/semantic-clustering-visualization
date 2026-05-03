@@ -1,3 +1,6 @@
+// ============================================================
+// SECTION 1: GLOBAL STATE VARIABLES
+// ============================================================
 let ws;
 const posts = [];
 const nodes = [];
@@ -801,6 +804,10 @@ let clusterLabels = []; // Store cluster theme labels
 let activityLog = []; // Store algorithm activity for display
 const MAX_ACTIVITY_LOG = 50;
 
+// ============================================================
+// SECTION 2: UI HELPERS & ACTIVITY LOGGING
+// ============================================================
+
 // Log algorithm activity to UI
 function logActivity(message, type = 'info') {
     const timestamp = new Date().toLocaleTimeString();
@@ -1483,6 +1490,10 @@ function showDatabaseNotification(dbName) {
         setTimeout(() => notification.remove(), 300);
     }, 3000);
 }
+
+// ============================================================
+// SECTION 3: RENDER MODE FUNCTIONS (metaball, nodes, bubbles)
+// ============================================================
 
 function drawMetaballFilled() {
     if (nodes.length < 1) return;
@@ -2434,6 +2445,10 @@ function drawSpeechBubbles() {
     colorMode(HSB);
 }
 
+// ============================================================
+// SECTION 4: PHYSICS & UTILITY HELPERS
+// ============================================================
+
 // Apply collision physics to cluster circles to prevent overlapping
 function applyClusterCircleCollisions() {
     const clusters = Array.from(clusterCirclePositions.entries());
@@ -2985,6 +3000,10 @@ function startDebateTimer() {
     }, 1000);
 }
 
+// ============================================================
+// SECTION 5: PHASE ANIMATIONS (reveal, roles, debate timer)
+// ============================================================
+
 // Topic reveal animation for main display - with fade transition
 function startTopicRevealAnimation(cluster) {
     console.log('🎬 startTopicRevealAnimation called');
@@ -3323,8 +3342,13 @@ function animateToBorder() {
     animate();
 }
 
+// ============================================================
+// SECTION 6: WEBSOCKET CONNECTION & MESSAGE HANDLING
+// ============================================================
+
 function connectWebSocket() {
-    ws = new WebSocket('ws://localhost:8080');
+    const hostname = window.location.hostname || 'localhost';
+    ws = new WebSocket(`ws://${hostname}:8080`);
     window.ws = ws; // Make accessible to control panel
     
     ws.onopen = () => {
@@ -3675,6 +3699,10 @@ function connectWebSocket() {
         console.error('WebSocket error:', error);
     };
 }
+
+// ============================================================
+// SECTION 7: POST MANAGEMENT & CLUSTERING
+// ============================================================
 
 function addPost(content, timestamp) {
     console.log('Adding post:', content);
@@ -4117,7 +4145,10 @@ class Node {
         return { h: hue, s: 70, b: 90 };
     }
 }
-// p5.js setup and draw functions
+// ============================================================
+// SECTION 8: P5.JS SKETCH (preload / setup / draw)
+// ============================================================
+
 const kmeans = new KMeansClustering(numClusters);
 
 let customFont;
@@ -5224,6 +5255,10 @@ function draw() {
         console.error('Error in draw loop:', error);
     }
 }
+
+// ============================================================
+// SECTION 9: ADDITIONAL DRAW FUNCTIONS
+// ============================================================
 
 function drawClusterMetaballs() {
     if (nodes.length < 1) return;
