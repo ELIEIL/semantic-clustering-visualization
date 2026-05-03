@@ -46,6 +46,7 @@ let revealBlobY = 0; // Starting Y position of winning cluster
 // Voting phase state
 let votingPhaseActive = false;
 let votingCountdownTime = 0; // Countdown time in seconds
+let clusterCirclePositions = new Map(); // Store cluster circle positions for collision physics: clusterId -> {x, y, radius, floatOffset}
 
 // Debate voting state (post-reveal interaction)
 let debateVotingActive = false;
@@ -2325,8 +2326,8 @@ function drawSpeechBubbles() {
             // Calculate cluster center based on current node positions
             const xs = clusterNodes.map(n => n.x);
             const ys = clusterNodes.map(n => n.y);
-            const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
-            const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+            let centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+            let centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
             
             // During voting phase, use fixed radius and centered labels (matching clustering end state)
             // Otherwise, calculate radius based on spread
@@ -2335,6 +2336,32 @@ function drawSpeechBubbles() {
                 const dy = n.y - centerY;
                 return Math.sqrt(dx * dx + dy * dy);
             })) + 50);
+            
+            // Store or update cluster position for collision physics
+            if (!clusterCirclePositions.has(clusterId)) {
+                clusterCirclePositions.set(clusterId, { 
+                    x: centerX, 
+                    y: centerY, 
+                    radius: radius,
+                    floatOffset: Math.random() * Math.PI * 2 // Random starting phase for variety
+                });
+            } else {
+                // Use stored position (will be updated by physics)
+                const stored = clusterCirclePositions.get(clusterId);
+                centerX = stored.x;
+                centerY = stored.y;
+                stored.radius = radius; // Update radius in case it changes
+                
+                // Update float offset for animation
+                stored.floatOffset += 0.02;
+            }
+            
+            // Apply floating animation
+            const stored = clusterCirclePositions.get(clusterId);
+            const floatY = Math.sin(stored.floatOffset) * 15; // Gentle vertical floating
+            const floatX = Math.cos(stored.floatOffset * 0.7) * 10; // Subtle horizontal drift
+            const drawX = centerX + floatX;
+            const drawY = centerY + floatY;
             
             // Get cluster color (needed for both outline and label)
             const clusterColor = clusterNodes[0].clusterColor || { h: 0, s: 70, b: 80 };
@@ -2346,7 +2373,7 @@ function drawSpeechBubbles() {
             stroke(clusterColor.h, clusterColor.s, clusterColor.b, 255);
             strokeWeight(3);
             drawingContext.setLineDash([10, 10]);
-            circle(centerX, centerY, radius * 2);
+            circle(drawX, drawY, radius * 2);
             drawingContext.setLineDash([]);
             pop();
             
@@ -2361,8 +2388,8 @@ function drawSpeechBubbles() {
             }
             const label = clusterLabels[clusterId] || `Cluster ${clusterId}`;
             // Center label in circle during voting, above circle otherwise
-            const labelY = votingPhaseActive ? centerY : centerY - radius - 50;
-            text(label, centerX, labelY);
+            const labelY = votingPhaseActive ? drawY : drawY - radius - 50;
+            text(label, drawX, labelY);
             pop();
             
             // Draw vote count visualization (white circles) during voting phase
@@ -2370,11 +2397,10 @@ function drawSpeechBubbles() {
                 const voteCount = window.clusterVotes[String(clusterId)] || 0;
                 if (voteCount > 0) {
                     push();
-                    colorMode(RGB);
-                    fill(255); // White circles
+                    fill(255);
                     noStroke();
                     
-                    const dotSize = 12;
+                    const dotSize = 8;
                     const dotSpacing = 18;
                     const maxDotsPerRow = 8;
                     const rows = Math.ceil(voteCount / maxDotsPerRow);
@@ -2387,7 +2413,7 @@ function drawSpeechBubbles() {
                         const col = i % maxDotsPerRow;
                         const dotsInThisRow = Math.min(maxDotsPerRow, voteCount - row * maxDotsPerRow);
                         const rowWidth = (dotsInThisRow - 1) * dotSpacing;
-                        const dotX = centerX - rowWidth / 2 + col * dotSpacing;
+                        const dotX = drawX - rowWidth / 2 + col * dotSpacing;
                         const dotY = startY + row * dotSpacing;
                         
                         circle(dotX, dotY, dotSize);
@@ -2396,10 +2422,49 @@ function drawSpeechBubbles() {
                 }
             }
         });
+        
+        // Apply collision physics to cluster circles during voting phase
+        if (votingPhaseActive) {
+            applyClusterCircleCollisions();
+        }
+        
         pop();
     }
     
     colorMode(HSB);
+}
+
+// Apply collision physics to cluster circles to prevent overlapping
+function applyClusterCircleCollisions() {
+    const clusters = Array.from(clusterCirclePositions.entries());
+    
+    // Apply repulsion between overlapping clusters
+    for (let i = 0; i < clusters.length; i++) {
+        const [id1, cluster1] = clusters[i];
+        
+        for (let j = i + 1; j < clusters.length; j++) {
+            const [id2, cluster2] = clusters[j];
+            
+            const dx = cluster2.x - cluster1.x;
+            const dy = cluster2.y - cluster1.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < 1) continue; // Avoid division by zero
+            
+            const minDist = cluster1.radius + cluster2.radius + 60; // 60px padding to account for floating animation (±15px vertical, ±10px horizontal per circle)
+            
+            if (dist < minDist) {
+                const overlap = minDist - dist;
+                const pushForce = overlap * 0.3; // Gentle push to avoid jittery movement
+                
+                // Push both clusters apart
+                cluster1.x -= (dx / dist) * pushForce * 0.5;
+                cluster1.y -= (dy / dist) * pushForce * 0.5;
+                cluster2.x += (dx / dist) * pushForce * 0.5;
+                cluster2.y += (dy / dist) * pushForce * 0.5;
+            }
+        }
+    }
 }
 
 function windowResized() {
@@ -2443,6 +2508,8 @@ window.resetExperience = function() {
         console.log('🔄 Full experience reset requested');
         
         // Reset local state
+        idleScreenActive = true;
+        experienceStarted = false;
         clusteringEnabled = false;
         timerCompleted = false;
         
@@ -3262,10 +3329,13 @@ function connectWebSocket() {
     
     ws.onopen = () => {
         console.log('Display connected to server');
-        ws.send(JSON.stringify({ type: 'register_display' }));
         
-        // Notify server that main display loaded/refreshed
+        // FIRST: Notify server that display loaded/refreshed - this resets server state
+        console.log('📺 Sending display_loaded to server - should reset all mobile controllers');
         ws.send(JSON.stringify({ type: 'display_loaded' }));
+        
+        // THEN: Register as display
+        ws.send(JSON.stringify({ type: 'register_display' }));
         
         // Request current headline
         ws.send(JSON.stringify({ type: 'request_headline' }));
@@ -3405,6 +3475,75 @@ function connectWebSocket() {
             
             startDebateTimer();
             console.log('🎤 Starting debate voting on main display (from server)');
+        }
+        
+        if (data.type === 'state_sync') {
+            // Restore display state on refresh
+            console.log(`🔄 State sync received: phase=${data.phase}`);
+            if (data.timing) {
+                console.log(`⏱️ Timing data:`, data.timing);
+            }
+            
+            switch(data.phase) {
+                case 'voting':
+                    votingPhaseActive = true;
+                    // Sync voting timer to world clock
+                    if (data.timing && data.timing.votingTimeRemaining !== null) {
+                        votingCountdownTime = data.timing.votingTimeRemaining;
+                        console.log(`⏱️ Synced voting timer to ${votingCountdownTime}s`);
+                    } else {
+                        votingCountdownTime = 30;
+                    }
+                    console.log('✅ Restored to voting phase');
+                    break;
+                    
+                case 'reveal':
+                    if (data.data && data.data.cluster) {
+                        votingPhaseActive = false;
+                        // TODO: Sync reveal animation progress if needed
+                        // For now, just restart the animation
+                        startTopicRevealAnimation(data.data.cluster);
+                        console.log('✅ Restored to reveal phase');
+                    }
+                    break;
+                    
+                case 'roles':
+                    roleAssignmentActive = true;
+                    votingPhaseActive = false;
+                    if (data.data) {
+                        winningCluster = { label: data.data.clusterName };
+                        debateQuestion = data.data.debateArgument;
+                    }
+                    // TODO: Sync role assignment animation progress if needed
+                    console.log('✅ Restored to roles phase');
+                    break;
+                    
+                case 'debate':
+                    debateVotingActive = true;
+                    roleAssignmentActive = false;
+                    votingPhaseActive = false;
+                    if (data.data) {
+                        winningCluster = { label: data.data.clusterName };
+                        debateQuestion = data.data.debateArgument;
+                    }
+                    // Sync debate timer to world clock
+                    if (data.timing && data.timing.debateTimeRemaining !== null) {
+                        // Start timer but sync to world time
+                        startDebateTimer();
+                        // Override timer with world clock value
+                        if (window.debateTimer) {
+                            window.debateTimer.currentTurnTime = data.timing.debateTimeRemaining;
+                        }
+                        console.log(`⏱️ Synced debate timer to ${data.timing.debateTimeRemaining}s`);
+                    } else {
+                        startDebateTimer();
+                    }
+                    console.log('✅ Restored to debate phase');
+                    break;
+                    
+                default:
+                    console.log(`⚠️ Unknown phase: ${data.phase}`);
+            }
         }
         
         if (data.type === 'countdown_update') {
@@ -3702,7 +3841,7 @@ class Node {
             // Collision repulsion - always active
             if (dist < minDistance) {
                 const overlap = minDistance - dist;
-                const repelForce = (overlap / minDistance) * 0.5;
+                const repelForce = (overlap / minDistance) * 2.0; // Increased from 0.5 to 2.0 for stronger separation
                 fx -= (dx / dist) * repelForce;
                 fy -= (dy / dist) * repelForce;
             }
@@ -3799,6 +3938,39 @@ class Node {
         fx += cos(frameCount * 0.005 + this.x * 0.1) * circularForce;
         fy += sin(frameCount * 0.005 + this.y * 0.1) * circularForce;
         
+        // EDGE REPULSION: Push posts away from all screen edges to keep them floating in center
+        const edgeZone = 200; // Distance from edge where repulsion activates
+        const repulsionStrength = 0.5; // Strength of edge repulsion
+        
+        const leftEdge = this.boxWidth / 2 + 50;
+        const rightEdge = width - this.boxWidth / 2 - 50;
+        const topEdge = this.boxHeight / 2 + 50;
+        const bottomEdge = height - this.boxHeight / 2 - 50;
+        
+        // Left edge repulsion
+        if (this.x < leftEdge + edgeZone) {
+            const edgeProximity = 1 - (this.x - leftEdge) / edgeZone; // 0 to 1
+            fx += edgeProximity * repulsionStrength; // Push right
+        }
+        
+        // Right edge repulsion
+        if (this.x > rightEdge - edgeZone) {
+            const edgeProximity = 1 - (rightEdge - this.x) / edgeZone; // 0 to 1
+            fx -= edgeProximity * repulsionStrength; // Push left
+        }
+        
+        // Top edge repulsion
+        if (this.y < topEdge + edgeZone) {
+            const edgeProximity = 1 - (this.y - topEdge) / edgeZone; // 0 to 1
+            fy += edgeProximity * repulsionStrength; // Push down
+        }
+        
+        // Bottom edge repulsion
+        if (this.y > bottomEdge - edgeZone) {
+            const edgeProximity = 1 - (bottomEdge - this.y) / edgeZone; // 0 to 1
+            fy -= edgeProximity * repulsionStrength; // Push up
+        }
+        
         this.vx += fx;
         this.vy += fy;
         this.vx *= 0.92; // Higher damping = slower movement (was 0.75)
@@ -3807,8 +3979,9 @@ class Node {
         this.x += this.vx;
         this.y += this.vy;
         
-        const margin = this.boxWidth / 2 + 20;
-        this.x = constrain(this.x, margin, width - margin);
+        // Hard boundaries as fallback (prevent complete escape)
+        const hardMargin = this.boxWidth / 2 + 20;
+        this.x = constrain(this.x, hardMargin, width - hardMargin);
         this.y = constrain(this.y, this.boxHeight / 2 + 20, height - this.boxHeight / 2 - 20);
     }
     
@@ -4853,59 +5026,38 @@ function draw() {
                 const h = revealClusterColor.h;
                 const s = revealClusterColor.s;
                 const b = revealClusterColor.b;
-
+                
                 colorMode(HSB, 360, 100, 100);
                 const c = color(h, s, b);
-                colorMode(RGB, 255);
-
-                // Draw "CHOSEN DEBATE" title - MD Thermochrome
+                colorMode(RGB);
+                
+                // Draw "CHOSEN DEBATE" title
                 fill(255, fadeProgress * 255);
                 textAlign(CENTER, CENTER);
                 textSize(48);
-                if (customFontSemibold) {
-                    textFont(customFontSemibold);
-                }
+                if (customFontSemibold) textFont(customFontSemibold);
                 text('CHOSEN DEBATE', width / 2, height / 2 - 100);
-
-                // Draw topic name in filled box - MD Primer Regular
-                push();
                 
-                // Calculate text width for box
+                // Draw topic name in filled box - MD Primer Regular
                 textSize(32);
-                // Use default font (MD Primer from CSS)
-                textFont('MD Primer Trail');
+                if (customFontPrimer) textFont(customFontPrimer);
                 const topicText = winningCluster.label || 'Discussion';
                 const textW = textWidth(topicText);
                 const boxW = textW + 50;
                 const boxH = 55;
                 const boxX = width / 2;
                 const boxY = height / 2 + 10;
-
-                // Draw filled rectangle with cluster color
                 rectMode(CENTER);
                 fill(red(c), green(c), blue(c), fadeProgress * 255);
                 noStroke();
                 rect(boxX, boxY, boxW, boxH);
-
-                // Calculate brightness to determine text color (white or black)
-                const r = red(c);
-                const g = green(c);
-                const bl = blue(c);
-                const brightness = (r * 0.299 + g * 0.587 + bl * 0.114);
-                
-                // Use black text for bright colors, white text for dark colors
-                if (brightness > 128) {
-                    fill(0, fadeProgress * 255); // Black text
-                } else {
-                    fill(255, fadeProgress * 255); // White text
-                }
-                
+                fill(0, fadeProgress * 255);
                 textAlign(CENTER, CENTER);
                 text(topicText, boxX, boxY);
-
-                pop();
+                
                 pop();
             }
+            
             return; // Skip normal rendering during reveal
         }
 
@@ -5974,6 +6126,21 @@ function updateDebateMetaballs() {
     // Smooth size transition
     blueMetaball.currentSize += (blueMetaball.targetSize - blueMetaball.currentSize) * 0.1;
     redMetaball.currentSize += (redMetaball.targetSize - redMetaball.currentSize) * 0.1;
+    
+    // Collision detection - push metaballs apart if they overlap
+    const dx = redMetaball.x - blueMetaball.x;
+    const dy = redMetaball.y - blueMetaball.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const minDist = blueMetaball.currentSize + redMetaball.currentSize + 50; // 50px padding
+    
+    if (dist < minDist && dist > 0) {
+        const overlap = minDist - dist;
+        const pushForce = overlap * 0.5; // Gentle push
+        
+        // Push them apart horizontally (maintain vertical center)
+        blueMetaball.x -= (dx / dist) * pushForce * 0.5;
+        redMetaball.x += (dx / dist) * pushForce * 0.5;
+    }
 }
 
 // Draw role assignment screen with animation phases

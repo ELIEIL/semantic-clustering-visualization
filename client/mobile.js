@@ -42,7 +42,7 @@ function connect() {
         // Handle state sync on connect/reconnect
         if (data.type === 'state_sync') {
             console.log(`🔄 State sync received - phase: ${data.phase}`);
-            handleStateSync(data.phase, data.data);
+            handleStateSync(data.phase, data.data, data.timing);
             return;
         }
         
@@ -215,6 +215,16 @@ function connect() {
                 debateArgument: data.debateArgument
             };
             
+            // CRITICAL: Store debate question IMMEDIATELY so it's available when UI renders
+            if (data.debateArgument) {
+                window.debateQuestion = data.debateArgument;
+                console.log(`📝 Stored debate question: ${data.debateArgument}`);
+            }
+            if (data.clusterName) {
+                window.clusterName = data.clusterName;
+                console.log(`📝 Stored cluster name: ${data.clusterName}`);
+            }
+            
             console.log(`🎭 Role assigned: ${data.role}, group: ${data.group || 'none'}`);
             
             // Wait for loading animation to complete before showing role screen
@@ -351,6 +361,7 @@ function connect() {
         
         if (data.type === 'debater_ready_update') {
             // Update listener ready counters
+            console.log(`📊 Debater ready update received: Group 1: ${data.group1Ready}/${data.group1Total}, Group 2: ${data.group2Ready}/${data.group2Total}`);
             updateListenerReadyCounters(data.group1Ready, data.group1Total, data.group2Ready, data.group2Total);
         }
     };
@@ -1146,14 +1157,26 @@ function showRoleScreen(role, group) {
 
 // Update listener ready counters
 function updateListenerReadyCounters(group1Ready, group1Total, group2Ready, group2Total) {
+    console.log(`🔄 Updating listener counters: Group 1: ${group1Ready}/${group1Total}, Group 2: ${group2Ready}/${group2Total}`);
+    
     const group1Counter = document.getElementById('listenerGroup1Counter');
     const group2Counter = document.getElementById('listenerGroup2Counter');
     
+    console.log(`   Group 1 counter element:`, group1Counter);
+    console.log(`   Group 2 counter element:`, group2Counter);
+    
     if (group1Counter) {
         group1Counter.textContent = `${group1Ready}/${group1Total}`;
+        console.log(`   ✅ Updated Group 1 counter to: ${group1Ready}/${group1Total}`);
+    } else {
+        console.warn(`   ⚠️ Group 1 counter element not found!`);
     }
+    
     if (group2Counter) {
         group2Counter.textContent = `${group2Ready}/${group2Total}`;
+        console.log(`   ✅ Updated Group 2 counter to: ${group2Ready}/${group2Total}`);
+    } else {
+        console.warn(`   ⚠️ Group 2 counter element not found!`);
     }
 }
 
@@ -1677,6 +1700,7 @@ const readyUpButton = document.getElementById('readyUpButton');
 if (readyUpButton) {
     readyUpButton.addEventListener('click', () => {
         if (ws && ws.readyState === WebSocket.OPEN) {
+            console.log('📤 Sending user_ready to server');
             ws.send(JSON.stringify({
                 type: 'user_ready' // Changed to generic type that works for all roles
             }));
@@ -1687,6 +1711,8 @@ if (readyUpButton) {
             readyUpButton.disabled = true;
             
             console.log('✅ Marked as ready');
+        } else {
+            console.error('❌ Cannot send ready - WebSocket not connected');
         }
     });
 }
@@ -2222,10 +2248,13 @@ window.testListener = function() {
 };
 
 // Handle state synchronization on connect/reconnect
-function handleStateSync(phase, data) {
+function handleStateSync(phase, data, timing) {
     console.log(`📱 Syncing to phase: ${phase}`, data);
+    if (timing) {
+        console.log(`⏱️ World clock timing:`, timing);
+    }
     
-    // Hide all sections first
+    // Get all sections
     const idleSection = document.getElementById('idleSection');
     const inputSection = document.getElementById('inputSection');
     const clusterSection = document.getElementById('clusterSection');
@@ -2236,6 +2265,18 @@ function handleStateSync(phase, data) {
     const listenerWaitingScreen = document.getElementById('listenerWaitingScreen');
     const debateVotingSection = document.getElementById('debateVotingSection');
     const listenerVotingSection = document.getElementById('listenerVotingSection');
+    
+    // Hide ALL sections first
+    if (idleSection) idleSection.style.display = 'none';
+    if (inputSection) inputSection.style.display = 'none';
+    if (clusterSection) clusterSection.style.display = 'none';
+    if (votingSection) votingSection.style.display = 'none';
+    if (topicRevealSection) topicRevealSection.style.display = 'none';
+    if (roleAssignmentSection) roleAssignmentSection.style.display = 'none';
+    if (debaterReadyScreen) debaterReadyScreen.style.display = 'none';
+    if (listenerWaitingScreen) listenerWaitingScreen.style.display = 'none';
+    if (debateVotingSection) debateVotingSection.style.display = 'none';
+    if (listenerVotingSection) listenerVotingSection.style.display = 'none';
     
     // Route to correct screen based on phase
     switch(phase) {
@@ -2279,7 +2320,19 @@ function handleStateSync(phase, data) {
             break;
             
         case 'roles':
-            // Show role assignment (if user has role assigned)
+            // Store debate question if provided (for reconnects)
+            if (data && data.debateArgument) {
+                window.debateQuestion = data.debateArgument;
+                console.log('📝 Stored debate question from sync:', data.debateArgument);
+            }
+            
+            // Store cluster name if provided
+            if (data && data.clusterName) {
+                window.clusterName = data.clusterName;
+                console.log('📝 Stored cluster name from sync:', data.clusterName);
+            }
+            
+            // If user has role assigned, show appropriate ready screen
             if (data && data.role) {
                 userRole = data.role;
                 if (data.group) userGroup = data.group;
@@ -2290,11 +2343,43 @@ function handleStateSync(phase, data) {
                 } else {
                     showListenerWaitingScreen();
                 }
+            } else {
+                // No role assigned yet - show idle/waiting screen
+                if (idleSection) idleSection.style.display = 'flex';
             }
             console.log('📱 Synced to: Role assignment');
             break;
             
         case 'debate':
+            // CRITICAL: Restore user role FIRST before showing UI
+            if (data && data.role) {
+                userRole = data.role;
+                if (data.group) userGroup = data.group;
+                console.log(`🎭 Restored role: ${userRole}, group: ${userGroup || 'none'}`);
+            }
+            
+            // Store debate question if provided (for reconnects)
+            if (data && data.debateArgument) {
+                window.debateQuestion = data.debateArgument;
+                console.log('📝 Stored debate question from sync:', data.debateArgument);
+            }
+            
+            // Store cluster name if provided
+            if (data && data.clusterName) {
+                window.clusterName = data.clusterName;
+                console.log('📝 Stored cluster name from sync:', data.clusterName);
+            }
+            
+            // Log world clock timing data
+            if (timing) {
+                console.log(`⏱️ World clock timing:`, timing);
+                if (timing.debateTimeRemaining !== null) {
+                    console.log(`⏱️ Debate timer synced to ${timing.debateTimeRemaining}s`);
+                    // Store for timer display sync
+                    window.syncedDebateTime = timing.debateTimeRemaining;
+                }
+            }
+            
             // Show debate screen (debater or listener)
             if (userRole === 'listener') {
                 if (listenerVotingSection) {

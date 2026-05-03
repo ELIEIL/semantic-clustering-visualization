@@ -31,7 +31,7 @@ const profanityList = [
     'kys', 'nazi', 'hitler'
 ];
 
-const wss = new WebSocket.Server({ port: PORT });
+const wss = new WebSocket.Server({ port: PORT, host: '0.0.0.0' });
 const displayClients = new Set();
 const moderatorClients = new Set();
 const mobileClients = new Map(); // clientId -> WebSocket connection
@@ -41,7 +41,7 @@ const rateLimitMap = new Map();
 
 // Role assignment
 let nextClientId = 1;
-const clientRoles = new Map(); // clientId -> 'debater' | 'listener'
+const clientRoles = new Map(); // sessionId -> {role, group, stance} - persists across reconnects
 
 // Cluster voting state
 const clusterVotes = new Map(); // clusterId -> vote count
@@ -57,7 +57,7 @@ const clientDebateVotes = new Map(); // clientId -> 'red' | 'green' | null (curr
 const clientHoldState = new Map(); // clientId -> { side: 'red'|'green', startTime: timestamp }
 
 // Ready-up state for debaters
-const debaterReadyState = new Map(); // clientId -> boolean (ready or not)
+const debaterReadyState = new Map(); // sessionId -> boolean (ready or not) - persists across reconnects
 
 // Voting system data structures
 const postVotes = new Map(); // postId -> { upvotes: 0, downvotes: 0, voters: Set() }
@@ -72,6 +72,39 @@ let countdownInterval = null;
 let currentExperienceState = {
     phase: 'idle', // idle, posting, clustering, voting, reveal, roles, debate, winner
     data: null // Phase-specific data (clusters, roles, debate info, etc.)
+};
+
+// WORLD CLOCK - Tracks timing for all animations and phases
+let worldClock = {
+    // Animation start times (timestamps)
+    clusteringAnimationStart: null,
+    roleAssignmentAnimationStart: null,
+    topicRevealAnimationStart: null,
+    debateOverAnimationStart: null,
+    
+    // Timer values (seconds remaining)
+    votingTimeRemaining: null,
+    debateTimeRemaining: null,
+    
+    // Phase durations (in seconds, for calculating progress)
+    clusteringAnimationDuration: 10, // Example: clustering takes 10s
+    roleAssignmentAnimationDuration: 6, // Role assignment animation is 6s
+    topicRevealAnimationDuration: 8, // Topic reveal animation
+    debateOverAnimationDuration: 15, // Post-debate animations
+    
+    // Get elapsed time since animation started
+    getElapsedTime: function(animationName) {
+        const startTime = this[animationName + 'Start'];
+        if (!startTime) return 0;
+        return (Date.now() - startTime) / 1000; // Convert to seconds
+    },
+    
+    // Get animation progress (0 to 1)
+    getProgress: function(animationName) {
+        const elapsed = this.getElapsedTime(animationName);
+        const duration = this[animationName + 'Duration'];
+        return Math.min(elapsed / duration, 1);
+    }
 };
 
 // Initialize ConceptNet client for semantic understanding
@@ -188,6 +221,52 @@ wss.on('connection', (ws) => {
         try {
             const data = JSON.parse(message.toString());
             
+            // Debug: Log all display messages
+            if (data.type && data.type.includes('display')) {
+                console.log(`📨 Received from display: ${data.type}`);
+            }
+            
+            // Handle display_loaded FIRST, before any registration
+            if (data.type === 'display_loaded') {
+                // Main display has loaded/refreshed - reset global state and sync all mobiles
+                console.log('🔄 Main display loaded/refreshed - resetting global state');
+                
+                // Reset to idle state
+                currentExperienceState.phase = 'idle';
+                currentExperienceState.data = null;
+                
+                // Clear any ongoing timers/state
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
+                
+                // Reset vote counts
+                debateVotes.red = 0;
+                debateVotes.green = 0;
+                clientDebateVotes.clear();
+                clientHoldState.clear();
+                
+                // Clear role assignments
+                clientRoles.clear();
+                debaterReadyState.clear();
+                
+                console.log('📱 Broadcasting state reset to all mobile controllers');
+                
+                // Broadcast reset state to all mobile clients
+                mobileClients.forEach((client) => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'state_sync',
+                            phase: 'idle',
+                            data: null
+                        }));
+                    }
+                });
+                
+                return;
+            }
+            
             if (data.type === 'register_moderator') {
                 if (!CONFIG.ADMIN_PANEL_ENABLED) {
                     console.log('Admin panel is disabled');
@@ -228,6 +307,26 @@ wss.on('connection', (ws) => {
                     time: countdownTime
                 }));
                 
+                // Send current experience state for sync on refresh
+                console.log(`📤 Sending state sync to display: phase=${currentExperienceState.phase}`);
+                
+                // Build timing data based on current phase
+                const timingData = {
+                    votingTimeRemaining: worldClock.votingTimeRemaining,
+                    debateTimeRemaining: worldClock.debateTimeRemaining,
+                    clusteringProgress: worldClock.getProgress('clusteringAnimation'),
+                    roleAssignmentProgress: worldClock.getProgress('roleAssignmentAnimation'),
+                    topicRevealProgress: worldClock.getProgress('topicRevealAnimation'),
+                    debateOverProgress: worldClock.getProgress('debateOverAnimation')
+                };
+                
+                ws.send(JSON.stringify({
+                    type: 'state_sync',
+                    phase: currentExperienceState.phase,
+                    data: currentExperienceState.data,
+                    timing: timingData
+                }));
+                
                 approvedPosts.forEach(post => {
                     ws.send(JSON.stringify(post));
                 });
@@ -241,23 +340,18 @@ wss.on('connection', (ws) => {
                 
                 // Check if this is a reconnect (has existing session ID)
                 if (sessionId) {
-                    // Try to find existing client with this session ID
-                    let existingClientId = null;
-                    mobileClients.forEach((client, id) => {
-                        if (client.sessionId === sessionId) {
-                            existingClientId = id;
-                        }
-                    });
+                    // Check if this sessionId has a role assignment (means it's a reconnect)
+                    const hasRole = clientRoles.has(sessionId);
                     
-                    if (existingClientId) {
-                        // Reuse existing client ID
-                        clientId = existingClientId;
-                        isReconnect = true;
-                        console.log(`🔄 Client reconnected with session ${sessionId}, reusing ID ${clientId}`);
-                    } else {
-                        // Session ID provided but not found, assign new ID
+                    if (hasRole) {
+                        // This is a reconnect - assign new client ID but keep session ID
                         clientId = nextClientId++;
-                        console.log(`⚠️ Session ${sessionId} not found, assigning new ID ${clientId}`);
+                        isReconnect = true;
+                        console.log(`🔄 Client reconnected with session ${sessionId}, assigned new ID ${clientId}`);
+                    } else {
+                        // Session ID provided but no role found - treat as new client
+                        clientId = nextClientId++;
+                        console.log(`⚠️ Session ${sessionId} has no role, treating as new client ID ${clientId}`);
                     }
                 } else {
                     // New client, assign new ID and session ID
@@ -277,8 +371,8 @@ wss.on('connection', (ws) => {
                     sessionId: sessionId
                 }));
                 
-                // Get user's role if they have one
-                const roleInfo = clientRoles.get(clientId);
+                // Get user's role if they have one (using sessionId so it persists across reconnects)
+                const roleInfo = clientRoles.get(sessionId);
                 let stateData = { ...currentExperienceState.data };
                 
                 // If in roles or debate phase and user has a role, include it in state sync
@@ -286,14 +380,25 @@ wss.on('connection', (ws) => {
                     stateData.role = roleInfo.role;
                     stateData.group = roleInfo.group;
                     stateData.stance = roleInfo.stance;
-                    console.log(`📱 Sending role info to client ${clientId}: ${roleInfo.role}${roleInfo.group ? ` (Group ${roleInfo.group})` : ''}`);
+                    console.log(`📱 Sending role info to client ${clientId} (session ${sessionId}): ${roleInfo.role}${roleInfo.group ? ` (Group ${roleInfo.group})` : ''}`);
+                    console.log(`   📝 Topic: ${stateData.clusterName || 'N/A'}, Argument: ${stateData.debateArgument || 'N/A'}`);
                 }
                 
                 // Send current experience state for sync
+                const timingData = {
+                    votingTimeRemaining: worldClock.votingTimeRemaining,
+                    debateTimeRemaining: worldClock.debateTimeRemaining,
+                    clusteringProgress: worldClock.getProgress('clusteringAnimation'),
+                    roleAssignmentProgress: worldClock.getProgress('roleAssignmentAnimation'),
+                    topicRevealProgress: worldClock.getProgress('topicRevealAnimation'),
+                    debateOverProgress: worldClock.getProgress('debateOverAnimation')
+                };
+                
                 ws.send(JSON.stringify({
                     type: 'state_sync',
                     phase: currentExperienceState.phase,
-                    data: stateData
+                    data: stateData,
+                    timing: timingData
                 }));
                 
                 console.log(`Mobile client registered with ID: ${clientId}`);
@@ -343,21 +448,6 @@ wss.on('connection', (ws) => {
                         timestamp: Date.now()
                     });
                 })();
-                return;
-            }
-            
-            if (data.type === 'display_loaded') {
-                // Main display loaded/refreshed - refresh all mobile clients
-                console.log('🔄 Main display refreshed - refreshing all mobile clients');
-                
-                // Broadcast refresh to all mobile clients
-                mobileClients.forEach((client) => {
-                    if (client.readyState === WebSocket.OPEN) {
-                        client.send(JSON.stringify({
-                            type: 'refresh_page'
-                        }));
-                    }
-                });
                 return;
             }
             
@@ -461,6 +551,10 @@ wss.on('connection', (ws) => {
                 currentExperienceState.phase = 'debate';
                 currentExperienceState.data = {};
                 
+                // Set world clock for debate timer (30 seconds)
+                worldClock.debateTimeRemaining = 30;
+                console.log('⏱️ World clock: Debate timer started at 30s');
+                
                 // Broadcast start debate voting to all mobile clients
                 wss.clients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
@@ -477,6 +571,19 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'debate_timer_update') {
+                // Update world clock with current debate time
+                if (data.turnTimeRemaining !== undefined) {
+                    worldClock.debateTimeRemaining = data.turnTimeRemaining;
+                }
+                
+                // Check if debate is over and update phase
+                if (data.debateOver && currentExperienceState.phase !== 'debate-over') {
+                    currentExperienceState.phase = 'debate-over';
+                    worldClock.debateOverAnimationStart = Date.now();
+                    console.log('🏁 Debate over! Phase updated to debate-over');
+                    console.log('⏱️ World clock: Debate over animation started');
+                }
+                
                 // Broadcast timer updates to all mobile clients
                 wss.clients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
@@ -494,6 +601,10 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'skip_to_reveal') {
+                // Set world clock animation start time
+                worldClock.topicRevealAnimationStart = Date.now();
+                console.log('⏱️ World clock: Topic reveal animation started');
+                
                 // Update global state
                 currentExperienceState.phase = 'reveal';
                 currentExperienceState.data = { cluster: data.cluster };
@@ -513,6 +624,10 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'start_role_assignment_animation') {
+                // Set world clock animation start time
+                worldClock.roleAssignmentAnimationStart = Date.now();
+                console.log('⏱️ World clock: Role assignment animation started');
+                
                 // Broadcast to all mobile clients to start loading animation
                 console.log('🎬 Broadcasting start role assignment animation to mobile clients');
                 mobileClients.forEach(client => {
@@ -568,33 +683,39 @@ wss.on('connection', (ws) => {
                 
                 for (let i = 0; i < sortedIds.length; i++) {
                     const id = sortedIds[i];
-                    let role = 'debater';
+                    let role = 'listener';
                     let group = null;
                     let stance = null;
                     
-                    // Assign first client as listener
+                    // First client is listener, rest are debaters
                     if (listenersAssigned < listenerCount) {
                         role = 'listener';
                         listenersAssigned++;
+                    } else {
+                        role = 'debater';
+                        
+                        // Assign to Group 1 or Group 2
+                        if (group1Assigned < group1Count) {
+                            group = 1;
+                            stance = 'Against';
+                            group1Assigned++;
+                        } else if (group2Assigned < group2Count) {
+                            group = 2;
+                            stance = 'For';
+                            group2Assigned++;
+                        }
                     }
-                    // Assign Group 1 (Against)
-                    else if (group1Assigned < group1Count) {
-                        group = 1;
-                        stance = 'Against';
-                        group1Assigned++;
-                        debaterReadyState.set(id, false);
-                    }
-                    // Assign Group 2 (For)
-                    else if (group2Assigned < group2Count) {
-                        group = 2;
-                        stance = 'For';
-                        group2Assigned++;
-                        debaterReadyState.set(id, false);
-                    }
-                    
-                    clientRoles.set(id, { role, group, stance });
                     
                     const client = mobileClients.get(id);
+                    
+                    // Store role and ready state by sessionId so it persists across reconnects
+                    if (client && client.sessionId) {
+                        clientRoles.set(client.sessionId, { role, group, stance });
+                        if (role === 'debater') {
+                            debaterReadyState.set(client.sessionId, false);
+                        }
+                    }
+                    
                     if (client && client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                             type: 'role_assignment',
@@ -702,11 +823,11 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'user_ready' || data.type === 'debater_ready') {
-                const clientId = ws.clientId;
-                if (!clientId) return;
+                const sessionId = ws.sessionId;
+                if (!sessionId) return;
                 
-                // Mark user as ready
-                debaterReadyState.set(clientId, true);
+                // Mark user as ready (using sessionId so it persists across reconnects)
+                debaterReadyState.set(sessionId, true);
                 
                 // Count ready users per group (only debaters, not listeners)
                 let readyCount = 0;
@@ -716,11 +837,12 @@ wss.on('connection', (ws) => {
                 let group2Ready = 0;
                 let group2Total = 0;
                 
-                clientRoles.forEach((roleInfo, id) => {
+                // clientRoles now uses sessionId as key
+                clientRoles.forEach((roleInfo, sessionId) => {
                     // Only count debaters
                     if (roleInfo.role === 'debater') {
                         totalDebaters++;
-                        const isReady = debaterReadyState.get(id);
+                        const isReady = debaterReadyState.get(sessionId);
                         if (isReady) {
                             readyCount++;
                         }
@@ -740,6 +862,21 @@ wss.on('connection', (ws) => {
                 
                 // Broadcast ready count to all displays
                 displayClients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'debater_ready_update',
+                            readyCount: readyCount,
+                            totalDebaters: totalDebaters,
+                            group1Ready: group1Ready,
+                            group1Total: group1Total,
+                            group2Ready: group2Ready,
+                            group2Total: group2Total
+                        }));
+                    }
+                });
+                
+                // Also broadcast to mobile clients (for listener UI counters)
+                mobileClients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                             type: 'debater_ready_update',
@@ -1606,7 +1743,7 @@ const server = http.createServer(async (req, res) => {
     });
 });
 
-server.listen(HTTP_PORT, async () => {
+server.listen(HTTP_PORT, '0.0.0.0', async () => {
     const networkInterfaces = os.networkInterfaces();
     let localIP = 'localhost';
     
