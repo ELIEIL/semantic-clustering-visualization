@@ -13,9 +13,10 @@ let connectionCache = new Map(); // Cache for similarity calculations
 let idleScreenActive = true; // Start with idle screen
 let experienceStarted = false; // Track if experience has begun
 
-// Visualization mode
-let visualizationMode = 'bubbles'; // 'metaball', 'metaball2', 'metaball3', 'hybrid', 'nodes', 'bubbles', or 'outline'
-window.visualizationMode = visualizationMode; // Make globally accessible
+// Visualization mode — change the value below to switch render styles
+// Available: 'bubbles' | 'nodes' | 'metaball' | 'metaball2' | 'metaball3' | 'hybrid' | 'outline' | 'text' | 'code' | 'ascii'
+let visualizationMode = 'bubbles';
+window.visualizationMode = visualizationMode;
 
 // Social Media Algorithm Parameters (toggleable) - enabled by default
 let enableVisualProminence = true;
