@@ -2528,6 +2528,40 @@ window.resetExperience = function() {
         clusteringEnabled = false;
         timerCompleted = false;
         
+        // Reset clustering animation state
+        clusteringAnimationActive = false;
+        clusteringAnimationLoading = false;
+        clusteringProgress = 0;
+        clusteringPhase1Done = false;
+        clusteringPhase2Done = false;
+        clusteringPhase3Done = false;
+        clusteringPhase4Done = false;
+        
+        // Reset reveal animation state
+        revealAnimationActive = false;
+        revealPhase = 'idle';
+        revealClusterColor = null;
+        
+        // Reset voting state
+        votingPhaseActive = false;
+        votingCountdownTime = 0;
+        clusterCirclePositions.clear();
+        
+        // Reset debate state
+        debateVotingActive = false;
+        debateTimerActive = false;
+        debateOverPhase = 'none';
+        redVoteCount = 0;
+        greenVoteCount = 0;
+        
+        // Reset role assignment state
+        roleAssignmentActive = false;
+        roleAssignmentPhase = 'idle';
+        
+        // Hide countdown display
+        const displayCountdown = document.getElementById('displayCountdown');
+        if (displayCountdown) displayCountdown.style.display = 'none';
+        
         // Clear all posts and nodes
         posts.length = 0;
         nodes.length = 0;
