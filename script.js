@@ -5094,13 +5094,15 @@ function draw() {
                 colorMode(RGB);
                 const cr = red(c), cg = green(c), cb = blue(c);
 
-                // Large centered dashed circle
+                // Large centered dashed circle — square dot style (matches Figma border-dashed)
                 const circDiam = min(width, height) * 0.46; // ~500px on 1080p
                 stroke(cr, cg, cb, fadeProgress * 255);
                 strokeWeight(20);
                 noFill();
-                drawingContext.setLineDash([28, 16]);
                 drawingContext.lineCap = 'square';
+                // Near-zero dash + 36px gap: each dash renders as a ~20×20 square dot
+                // ~28 dots around a 500px circle circumference (1571 / 56 ≈ 28)
+                drawingContext.setLineDash([1, 36]);
                 ellipse(width / 2, height / 2, circDiam, circDiam);
                 drawingContext.setLineDash([]);
                 drawingContext.lineCap = 'butt';
