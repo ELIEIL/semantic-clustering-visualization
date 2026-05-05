@@ -1249,6 +1249,12 @@ function removeRoleRevealScreen() {
     }
 }
 
+// Test helper: window.testDebaterWait()
+window.testDebaterWait = function() {
+    showDebaterWaitScreen();
+    console.log('🕐 Testing debater wait screen');
+};
+
 // Test helper: window.testRoleReveal('debater', 1) / ('debater', 2) / ('listener')
 window.testRoleReveal = function(role, group) {
     showRoleRevealScreen(role || 'debater', group || 1);
@@ -2593,6 +2599,160 @@ function hsbToRgb(h, s, b) {
     };
 }
 
+// Debater wait screen — shown when it's the OTHER group's turn
+function showDebaterWaitScreen() {
+    if (document.getElementById('debaterWaitScreen')) return; // already showing
+
+    // Inject spin keyframe once
+    if (!document.getElementById('debaterWaitSpinStyle')) {
+        const style = document.createElement('style');
+        style.id = 'debaterWaitSpinStyle';
+        style.textContent = `@keyframes debaterWaitSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`;
+        document.head.appendChild(style);
+    }
+
+    const screen = document.createElement('div');
+    screen.id = 'debaterWaitScreen';
+    screen.style.cssText = `
+        position: fixed; top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 25px 25px 14px 25px;
+        z-index: 15000;
+        box-sizing: border-box;
+        overflow-y: auto;
+    `;
+
+    // ── Header ────────────────────────────────────────────────
+    const header = document.createElement('div');
+    header.style.cssText = `width:100%; display:flex; flex-direction:column; gap:5px; padding:10px;`;
+
+    const title = document.createElement('p');
+    title.textContent = 'WAIT...';
+    title.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 40px; font-weight: 600; letter-spacing: 6px;
+        color: #0b0701; margin: 0;
+    `;
+
+    const subtitle = document.createElement('p');
+    subtitle.textContent = 'Prepare your argument while the other group makes theirs.';
+    subtitle.style.cssText = `
+        font-family: 'MD Primer Trial', Georgia, serif;
+        font-size: 20px; color: #0b0701; margin: 0; line-height: 1.4;
+    `;
+
+    header.appendChild(title);
+    header.appendChild(subtitle);
+
+    // ── Content: rotating circle ──────────────────────────────
+    const content = document.createElement('div');
+    content.style.cssText = `
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 50px; flex: 1;
+        padding: 100px 10px 10px 10px; width: 100%;
+    `;
+
+    const circle = document.createElement('div');
+    circle.style.cssText = `
+        width: 318px; height: 318px;
+        border: 5px dashed #D62828;
+        border-radius: 50%;
+        animation: debaterWaitSpin 8s linear infinite;
+        flex-shrink: 0;
+    `;
+
+    // ── Argumentation button + info (same as debaterReadyScreen) ─
+    const argContainer = document.createElement('div');
+    argContainer.style.cssText = `display:flex; flex-direction:column; gap:10px; width:100%; padding:10px;`;
+
+    const argHeader = document.createElement('div');
+    argHeader.style.cssText = `display:flex; flex-direction:column; width:100%; max-width:320px;`;
+
+    const argBtn = document.createElement('div');
+    argBtn.style.cssText = `
+        background: #fff; border: 1px solid #0b0701;
+        border-radius: 0.5px 0.5px 0 0;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 5px 15px; cursor: pointer;
+    `;
+
+    const argLabel = document.createElement('p');
+    argLabel.textContent = 'DEBATE ARGUMENTATION';
+    argLabel.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 18px; font-weight: 600; letter-spacing: 2.7px;
+        text-transform: uppercase; color: #3f985b; margin: 0; white-space: nowrap;
+    `;
+
+    const argArrow = document.createElement('span');
+    argArrow.textContent = '→';
+    argArrow.style.cssText = `font-size:18px; color:#3f985b;`;
+
+    argBtn.appendChild(argLabel);
+    argBtn.appendChild(argArrow);
+    argBtn.addEventListener('click', () => showArgumentationOverlay());
+
+    const argBorder = document.createElement('div');
+    argBorder.style.cssText = `
+        background: #9a9a9a; border: 1px solid #0b0701; border-top: none;
+        border-radius: 0 0 0.5px 0.5px; height: 3px; width: 100%;
+    `;
+
+    argHeader.appendChild(argBtn);
+    argHeader.appendChild(argBorder);
+
+    const argInfo = document.createElement('div');
+    argInfo.style.cssText = `
+        background: #fff; border: 1px solid #3f985b; border-radius: 0.5px;
+        display: flex; align-items: center; gap: 10px; padding: 5px;
+    `;
+
+    const infoIcon = document.createElement('div');
+    infoIcon.style.cssText = `flex-shrink:0; width:22px; height:24px;`;
+    infoIcon.innerHTML = `<svg width="22" height="24" viewBox="0 0 22 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="6" y="0" width="10" height="2" fill="#3f985b"/>
+        <rect x="2" y="2" width="4" height="2" fill="#3f985b"/>
+        <rect x="16" y="2" width="4" height="2" fill="#3f985b"/>
+        <rect x="0" y="4" width="2" height="16" fill="#3f985b"/>
+        <rect x="20" y="4" width="2" height="16" fill="#3f985b"/>
+        <rect x="2" y="20" width="4" height="2" fill="#3f985b"/>
+        <rect x="16" y="20" width="4" height="2" fill="#3f985b"/>
+        <rect x="6" y="22" width="10" height="2" fill="#3f985b"/>
+        <rect x="9" y="4" width="4" height="4" fill="#3f985b"/>
+        <rect x="9" y="10" width="4" height="10" fill="#3f985b"/>
+    </svg>`;
+
+    const infoText = document.createElement('p');
+    infoText.textContent = 'Good arguments dont just win debates - they help everyone understand better';
+    infoText.style.cssText = `
+        font-family: 'MD Primer Trial', Georgia, serif;
+        font-size: 12px; color: #3f985b; margin: 0; width: 208px; line-height: 1.4;
+    `;
+
+    argInfo.appendChild(infoIcon);
+    argInfo.appendChild(infoText);
+    argContainer.appendChild(argHeader);
+    argContainer.appendChild(argInfo);
+
+    content.appendChild(circle);
+    content.appendChild(argContainer);
+
+    screen.appendChild(header);
+    screen.appendChild(content);
+    document.body.appendChild(screen);
+}
+
+function removeDebaterWaitScreen() {
+    const screen = document.getElementById('debaterWaitScreen');
+    if (screen) screen.remove();
+}
+
 // Update debate timer display on mobile
 function updateDebateTimer(data) {
     const debateSection = document.getElementById('debateVotingSection');
@@ -2632,13 +2792,17 @@ function updateDebateTimer(data) {
             drawDebateTimerSegments(timerSegmentsContainer, data.turnTimeRemaining, userGroup);
         }
     } else {
-        // WAIT...
+        // WAIT... — show the Figma wait screen overlay
+        showDebaterWaitScreen();
         headerText.textContent = 'WAIT...';
         instructionText.textContent = 'PREPARE YOUR ARGUMENT WHILE THE OTHER GROUP MAKES THEIRS';
-        timerText.textContent = ''; // No timer when waiting
-        
-        // Clear timer segments
+        timerText.textContent = '';
         if (timerSegmentsContainer) timerSegmentsContainer.innerHTML = '';
+    }
+
+    // Remove wait screen when it becomes the user's turn or debate is over
+    if (isMyTurn || data.debateOver) {
+        removeDebaterWaitScreen();
     }
     
     console.log(`⏱️ Timer updated - My turn: ${isMyTurn}`);
