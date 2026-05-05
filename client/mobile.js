@@ -1379,6 +1379,17 @@ function showArgumentationOverlay() {
     const existing = document.getElementById('argumentationOverlay');
     if (existing) existing.remove();
 
+    // Ensure spin keyframe exists
+    if (!document.getElementById('listenerCircleAnimation')) {
+        const style = document.createElement('style');
+        style.id = 'listenerCircleAnimation';
+        style.textContent = `
+            @keyframes spinCW  { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
+            @keyframes spinCCW { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
+        `;
+        document.head.appendChild(style);
+    }
+
     // Backdrop
     const backdrop = document.createElement('div');
     backdrop.id = 'argumentationOverlay';
