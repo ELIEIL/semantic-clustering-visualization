@@ -1374,6 +1374,275 @@ function showListenerWaitingScreen() {
     document.body.appendChild(listenerScreen);
 }
 
+// Debate Argumentation overlay (Logos / Etos / Patos)
+function showArgumentationOverlay() {
+    const existing = document.getElementById('argumentationOverlay');
+    if (existing) existing.remove();
+
+    // Backdrop
+    const backdrop = document.createElement('div');
+    backdrop.id = 'argumentationOverlay';
+    backdrop.style.cssText = `
+        position: fixed; top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 20000;
+        display: flex; align-items: center; justify-content: center;
+    `;
+
+    // Panel
+    const panel = document.createElement('div');
+    panel.style.cssText = `
+        background: #fff;
+        border-top: 1px solid #0b0701;
+        border-bottom: 1px solid #0b0701;
+        width: 100%; max-width: 390px;
+        max-height: 90vh;
+        overflow-y: auto;
+        display: flex; flex-direction: column;
+        gap: 10px;
+        align-items: center;
+        padding-top: 10px;
+        position: relative;
+        box-sizing: border-box;
+    `;
+
+    // ── Rotating dashed circle (top-right) ──────────────────
+    const circleWrapper = document.createElement('div');
+    circleWrapper.style.cssText = `
+        position: absolute; top: 49px; right: 8px;
+        width: 125px; height: 125px;
+        animation: spinCW 6s linear infinite;
+        pointer-events: none;
+    `;
+    const r = 57, circ = 2 * Math.PI * r;
+    const dash = (circ / 12).toFixed(1), gap = (circ / 12 * 0.6).toFixed(1);
+    circleWrapper.innerHTML = `<svg width="125" height="125" viewBox="0 0 125 125" fill="none">
+        <circle cx="62.5" cy="62.5" r="${r}" stroke="#3f985b" stroke-width="4" stroke-dasharray="${dash} ${gap}" stroke-linecap="round"/>
+    </svg>`;
+
+    // ── X CLOSE button ───────────────────────────────────────
+    const closeWrapper = document.createElement('div');
+    closeWrapper.style.cssText = `
+        position: absolute; top: 9px; right: 5px;
+        display: flex; flex-direction: column; align-items: flex-start;
+        cursor: pointer;
+    `;
+
+    const closeBtn = document.createElement('div');
+    closeBtn.style.cssText = `
+        background: #fff;
+        border: 1px solid #0b0701;
+        border-radius: 0.5px 0.5px 0 0;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 5px;
+        width: 66px; height: 18px;
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 10px; font-weight: 600;
+        letter-spacing: 1.5px; text-transform: uppercase;
+        color: #3f985b;
+        white-space: nowrap;
+        box-sizing: border-box;
+    `;
+    closeBtn.innerHTML = `<span>X</span><span>CLOSE</span>`;
+
+    const closeBorder = document.createElement('div');
+    closeBorder.style.cssText = `
+        background: #c4c4c4;
+        border: 1px solid #0b0701;
+        border-top: none;
+        border-radius: 0 0 0.5px 0.5px;
+        height: 3px; width: 100%;
+    `;
+
+    closeWrapper.appendChild(closeBtn);
+    closeWrapper.appendChild(closeBorder);
+    closeWrapper.addEventListener('click', () => backdrop.remove());
+
+    // ── Header text ──────────────────────────────────────────
+    const headerText = document.createElement('div');
+    headerText.style.cssText = `
+        width: 100%; padding: 0 25px;
+        display: flex; flex-direction: column; gap: 5px;
+    `;
+
+    const headerTitle = document.createElement('p');
+    headerTitle.textContent = 'DEBATE ARGUMENTATION';
+    headerTitle.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 32px; font-weight: 600;
+        letter-spacing: 4.8px; text-transform: uppercase;
+        color: #0b0701; margin: 0; line-height: 1.2;
+    `;
+
+    const headerDesc = document.createElement('p');
+    headerDesc.textContent = 'Use these frameworks to structure your arguments and strengthen your position in the debate';
+    headerDesc.style.cssText = `
+        font-family: 'MD Primer Trial', Georgia, serif;
+        font-size: 16px; color: #0b0701;
+        margin: 0; width: 208px; line-height: 1.4;
+    `;
+
+    headerText.appendChild(headerTitle);
+    headerText.appendChild(headerDesc);
+
+    // ── Green 3-column section ───────────────────────────────
+    const greenSection = document.createElement('div');
+    greenSection.style.cssText = `
+        background: #3f985b;
+        width: 100%;
+        display: flex;
+        align-items: stretch;
+        justify-content: space-between;
+        padding: 10px;
+        box-sizing: border-box;
+    `;
+
+    // Column helper
+    function makeColumn(iconSvg, label, description, bullets) {
+        const col = document.createElement('div');
+        col.style.cssText = `
+            display: flex; flex-direction: column;
+            gap: 10px; align-items: center;
+            width: 117px; padding: 0 5px;
+            box-sizing: border-box;
+        `;
+
+        // Icon
+        const iconArea = document.createElement('div');
+        iconArea.style.cssText = `height: 45px; display: flex; align-items: center; justify-content: center;`;
+        iconArea.innerHTML = iconSvg;
+
+        // Label badge
+        const labelBadge = document.createElement('div');
+        labelBadge.style.cssText = `
+            border: 1px solid #fff;
+            border-radius: 0.5px;
+            width: 77px; height: 29px;
+            display: flex; align-items: center; justify-content: center;
+            padding: 0 5px;
+        `;
+        const labelText = document.createElement('p');
+        labelText.textContent = label;
+        labelText.style.cssText = `
+            font-family: 'MD Thermochrome 0.4 Trial', monospace;
+            font-size: 13px; font-weight: 600;
+            letter-spacing: 1.95px; text-transform: uppercase;
+            color: #fff; margin: 0; white-space: nowrap;
+        `;
+        labelBadge.appendChild(labelText);
+
+        // Description
+        const descBox = document.createElement('div');
+        descBox.style.cssText = `
+            border-bottom: 2px dashed rgba(255,255,255,0.25);
+            padding-bottom: 10px;
+            width: 100%;
+        `;
+        const descText = document.createElement('p');
+        descText.textContent = description;
+        descText.style.cssText = `
+            font-family: 'MD Primer Trial', Georgia, serif;
+            font-size: 10px; color: #fff;
+            margin: 0; line-height: 1.4;
+        `;
+        descBox.appendChild(descText);
+
+        // Common use + bullets
+        const useSection = document.createElement('div');
+        useSection.style.cssText = `display: flex; flex-direction: column; gap: 10px; width: 100%;`;
+
+        const useLabel = document.createElement('p');
+        useLabel.textContent = 'COMMON USE';
+        useLabel.style.cssText = `
+            font-family: 'MD Thermochrome 0.4 Trial', monospace;
+            font-size: 10px; font-weight: 600;
+            letter-spacing: 1.5px; text-transform: uppercase;
+            color: #fff; margin: 0;
+        `;
+
+        const ul = document.createElement('ul');
+        ul.style.cssText = `
+            margin: 0; padding-left: 15px;
+            display: flex; flex-direction: column; gap: 8px;
+        `;
+        bullets.forEach(b => {
+            const li = document.createElement('li');
+            li.textContent = b;
+            li.style.cssText = `
+                font-family: 'MD Primer Trial', Georgia, serif;
+                font-size: 10px; font-weight: 600;
+                color: #fff; line-height: 1.3;
+            `;
+            ul.appendChild(li);
+        });
+
+        useSection.appendChild(useLabel);
+        useSection.appendChild(ul);
+
+        col.appendChild(iconArea);
+        col.appendChild(labelBadge);
+        col.appendChild(descBox);
+        col.appendChild(useSection);
+        return col;
+    }
+
+    // Divider
+    function makeDivider() {
+        const d = document.createElement('div');
+        d.style.cssText = `width: 1px; background: rgba(255,255,255,0.4); align-self: stretch; flex-shrink: 0;`;
+        return d;
+    }
+
+    // LOGOS icon: two overlapping circles
+    const logosIcon = `<svg width="55" height="33" viewBox="0 0 55 33" fill="none">
+        <circle cx="18" cy="16" r="14.5" stroke="white" stroke-width="1.5"/>
+        <circle cx="37" cy="16" r="14.5" stroke="white" stroke-width="1.5"/>
+    </svg>`;
+
+    // ETOS icon: heart
+    const etosIcon = `<svg width="38" height="34" viewBox="0 0 38 34" fill="none">
+        <path d="M19 31 C19 31 2 20 2 10 C2 5.5 5.5 2 10 2 C13.5 2 16.5 4 19 7 C21.5 4 24.5 2 28 2 C32.5 2 36 5.5 36 10 C36 20 19 31 19 31Z" stroke="white" stroke-width="1.5" fill="none"/>
+    </svg>`;
+
+    // PATOS icon: 8-point starburst
+    const patosIcon = `<svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <line x1="20" y1="2" x2="20" y2="38" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="2" y1="20" x2="38" y2="20" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="6.1" y1="6.1" x2="33.9" y2="33.9" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="33.9" y1="6.1" x2="6.1" y2="33.9" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="20" y1="2" x2="20" y2="38" stroke="white" stroke-width="1.5" stroke-linecap="round" transform="rotate(22.5 20 20)"/>
+        <line x1="2" y1="20" x2="38" y2="20" stroke="white" stroke-width="1.5" stroke-linecap="round" transform="rotate(22.5 20 20)"/>
+    </svg>`;
+
+    greenSection.appendChild(makeColumn(
+        logosIcon, 'LOGOS',
+        'Appeal to logic and reason. Use facts, data, and evidence to support your position.',
+        ['Present statistics and research', 'Cite credible sources', 'Build a logical rational case']
+    ));
+    greenSection.appendChild(makeDivider());
+    greenSection.appendChild(makeColumn(
+        etosIcon, 'ETOS',
+        'Appeal to credibility and ethics. Establish trust and demonstrate your reliability',
+        ['Show expertise or experience', 'Demonstrate fairness and respect', 'Build trust with your audience']
+    ));
+    greenSection.appendChild(makeDivider());
+    greenSection.appendChild(makeColumn(
+        patosIcon, 'PATOS',
+        'Appeal to emotions and values. Connect with the audience on a personal level',
+        ['Share stories and real-life examples', 'Highlight impact and consequences', 'Inspire empathy and values']
+    ));
+
+    panel.appendChild(circleWrapper);
+    panel.appendChild(closeWrapper);
+    panel.appendChild(headerText);
+    panel.appendChild(greenSection);
+
+    backdrop.appendChild(panel);
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.remove(); });
+    document.body.appendChild(backdrop);
+}
+
 // Show new debater ready screen with colored background
 function showDebaterReadyScreen(group) {
     // Remove existing debater screen if any
@@ -1568,6 +1837,8 @@ function showDebaterReadyScreen(group) {
 
     argBtn.appendChild(argLabel);
     argBtn.appendChild(argArrow);
+    argBtn.style.cursor = 'pointer';
+    argBtn.addEventListener('click', () => showArgumentationOverlay());
 
     const argBorder = document.createElement('div');
     argBorder.style.cssText = `
