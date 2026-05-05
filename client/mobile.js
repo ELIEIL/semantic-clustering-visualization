@@ -1184,14 +1184,17 @@ function showRoleRevealScreen(role, group) {
     `;
 
     const iconEl = document.createElement('div');
-    // Use emoji chars from MD Thermochrome — speech balloon for debaters, bust for listeners
-    iconEl.textContent = role === 'listener' ? '\uD83D\uDC64' : '\uD83D\uDCAC'; // 👤 or 💬
+    // \uFE0E = Text Variation Selector-15: forces font text glyph over system colour emoji
+    const iconChar = role === 'listener' ? '\uD83D\uDC64\uFE0E' : '\uD83D\uDCAC\uFE0E';
+    iconEl.textContent = iconChar;
     iconEl.style.cssText = `
         font-family: 'MD Thermochrome 0.4 Trial', monospace;
         font-size: min(65vw, 65vh);
         line-height: 1;
         color: ${iconColor};
         display: block;
+        font-variant-emoji: text;
+        -webkit-font-variant-emoji: text;
         ${role === 'debater' && group === 2 ? 'transform: scaleX(-1);' : ''}
     `;
     iconWrap.appendChild(iconEl);
@@ -1245,6 +1248,12 @@ function removeRoleRevealScreen() {
         setTimeout(() => screen.remove(), 500);
     }
 }
+
+// Test helper: window.testRoleReveal('debater', 1) / ('debater', 2) / ('listener')
+window.testRoleReveal = function(role, group) {
+    showRoleRevealScreen(role || 'debater', group || 1);
+    console.log(`🎭 Testing role reveal: ${role} group ${group}`);
+};
 
 // Show role assignment screen
 function showRoleScreen(role, group) {
