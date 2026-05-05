@@ -3065,7 +3065,6 @@ function updateDebateTimer(data) {
     if (data.debateOver) {
         removeDebaterWaitScreen();
         removeDebaterActiveScreen();
-        if (userRole === 'debater') showDebaterOverScreen();
     }
     
     console.log(`⏱️ Timer updated - My turn: ${isMyTurn}`);
@@ -3431,34 +3430,92 @@ function handleStateSync(phase, data, timing) {
     }
 }
 
-// Show debate over / counting votes screen
+// Show counting votes screen — Figma 2411-1671 (G1), 2411-1662 (G2), 2411-1680 (Listener)
 function showDebateOverScreen() {
-    const debateOverSection = document.getElementById('debateOverSection');
+    if (document.getElementById('countingVotesScreen')) return;
+
+    // Clean up any lingering debate screens
+    removeDebaterWaitScreen();
+    removeDebaterActiveScreen();
+    removeDebaterOverScreen();
     const debateVotingSection = document.getElementById('debateVotingSection');
     const listenerVotingSection = document.getElementById('listenerVotingSection');
-    
-    if (!debateOverSection) return;
-    
-    // Hide debate screens
     if (debateVotingSection) debateVotingSection.style.display = 'none';
     if (listenerVotingSection) listenerVotingSection.style.display = 'none';
-    
-    // Show debate over screen
-    debateOverSection.style.display = 'flex';
-    
-    // Set background color based on user's role
-    debateOverSection.classList.remove('group-1', 'group-2', 'listener');
-    
-    if (userRole === 'debater' && userGroup === 1) {
-        debateOverSection.classList.add('group-1');
-        console.log('📱 Showing debate over screen - Group 1 (Red)');
-    } else if (userRole === 'debater' && userGroup === 2) {
-        debateOverSection.classList.add('group-2');
-        console.log('📱 Showing debate over screen - Group 2 (Blue)');
+
+    // Determine color and label by role
+    let roleColor, roleLabel;
+    if (userRole === 'debater' && userGroup === 2) {
+        roleColor = '#0000FE';
+        roleLabel = 'GROUP 2';
+    } else if (userRole === 'debater') {
+        roleColor = '#D62828';
+        roleLabel = 'GROUP 1';
     } else {
-        debateOverSection.classList.add('listener');
-        console.log('📱 Showing debate over screen - Listener (White)');
+        roleColor = '#0b0701';
+        roleLabel = 'LISTENER';
     }
+
+    const screen = document.createElement('div');
+    screen.id = 'countingVotesScreen';
+    screen.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: #fff; display: flex; flex-direction: column;
+        align-items: flex-start; justify-content: space-between;
+        padding: 25px 25px 14px 25px; z-index: 16000;
+        box-sizing: border-box;
+    `;
+
+    // ── Role label + underline ──────────────────────────────
+    const labelWrap = document.createElement('div');
+    labelWrap.style.cssText = `display:flex; flex-direction:column; gap:6px; padding:10px;`;
+
+    const roleText = document.createElement('p');
+    roleText.textContent = roleLabel;
+    roleText.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 24px; font-weight: 600; letter-spacing: 3.6px;
+        color: #0b0701; margin: 0; white-space: nowrap;
+    `;
+
+    const underline = document.createElement('div');
+    underline.style.cssText = `width: 66px; height: 2px; background: #0b0701;`;
+
+    labelWrap.appendChild(roleText);
+    labelWrap.appendChild(underline);
+
+    // ── Center: dashed circle with COUNTING VOTES... ────────
+    const centerWrap = document.createElement('div');
+    centerWrap.style.cssText = `
+        flex: 1; display: flex; align-items: center; justify-content: center;
+        width: 100%;
+    `;
+
+    const circle = document.createElement('div');
+    circle.style.cssText = `
+        width: 318px; height: 318px;
+        border: 5px dashed ${roleColor};
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        padding: 6px;
+    `;
+
+    const countingText = document.createElement('p');
+    countingText.textContent = 'COUNTING VOTES...';
+    countingText.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 36px; font-weight: 600; letter-spacing: 5.4px;
+        color: ${roleColor}; margin: 0; text-align: center; line-height: 1.3;
+    `;
+
+    circle.appendChild(countingText);
+    centerWrap.appendChild(circle);
+
+    screen.appendChild(labelWrap);
+    screen.appendChild(centerWrap);
+    document.body.appendChild(screen);
+
+    console.log(`📱 Showing counting votes screen — ${roleLabel}`);
 }
 
 connect();
