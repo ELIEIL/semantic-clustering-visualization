@@ -2946,6 +2946,76 @@ function removeDebaterActiveScreen() {
     if (screen) screen.remove();
 }
 
+// Debate over screen for debaters — Figma 2411-1642
+function showDebaterOverScreen() {
+    if (document.getElementById('debaterOverScreen')) return;
+    const groupColor = userGroup === 2 ? '#0000FE' : '#D62828';
+    const groupLabel = userGroup === 2 ? 'GROUP 2' : 'GROUP 1';
+
+    const screen = document.createElement('div');
+    screen.id = 'debaterOverScreen';
+    screen.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: #fff; display: flex; flex-direction: column;
+        align-items: flex-start; justify-content: space-between;
+        padding: 25px 25px 14px 25px; z-index: 15000;
+        box-sizing: border-box;
+    `;
+
+    // ── Group label + underline ─────────────────────────────
+    const labelWrap = document.createElement('div');
+    labelWrap.style.cssText = `display:flex; flex-direction:column; gap:6px; padding:10px;`;
+
+    const groupText = document.createElement('p');
+    groupText.textContent = groupLabel;
+    groupText.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 24px; font-weight: 600; letter-spacing: 3.6px;
+        color: #0b0701; margin: 0; white-space: nowrap;
+    `;
+
+    const underline = document.createElement('div');
+    underline.style.cssText = `width: 66px; height: 2px; background: #0b0701;`;
+
+    labelWrap.appendChild(groupText);
+    labelWrap.appendChild(underline);
+
+    // ── Center: dashed circle with DEBATE OVER text ─────────
+    const centerWrap = document.createElement('div');
+    centerWrap.style.cssText = `
+        flex: 1; display: flex; align-items: center; justify-content: center;
+        width: 100%;
+    `;
+
+    const circle = document.createElement('div');
+    circle.style.cssText = `
+        width: 318px; height: 318px;
+        border: 5px dashed ${groupColor};
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+    `;
+
+    const debateOverText = document.createElement('p');
+    debateOverText.textContent = 'DEBATE OVER';
+    debateOverText.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 36px; font-weight: 600; letter-spacing: 5.4px;
+        color: ${groupColor}; margin: 0; text-align: center;
+    `;
+
+    circle.appendChild(debateOverText);
+    centerWrap.appendChild(circle);
+
+    screen.appendChild(labelWrap);
+    screen.appendChild(centerWrap);
+    document.body.appendChild(screen);
+}
+
+function removeDebaterOverScreen() {
+    const screen = document.getElementById('debaterOverScreen');
+    if (screen) screen.remove();
+}
+
 // Update debate timer display on mobile
 function updateDebateTimer(data) {
     const debateSection = document.getElementById('debateVotingSection');
@@ -2995,6 +3065,7 @@ function updateDebateTimer(data) {
     if (data.debateOver) {
         removeDebaterWaitScreen();
         removeDebaterActiveScreen();
+        if (userRole === 'debater') showDebaterOverScreen();
     }
     
     console.log(`⏱️ Timer updated - My turn: ${isMyTurn}`);
