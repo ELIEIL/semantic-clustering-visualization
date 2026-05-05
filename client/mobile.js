@@ -1423,21 +1423,27 @@ function showDebaterReadyScreen(group) {
 
     const chatIcon = document.createElement('div');
     chatIcon.innerHTML = `<svg width="117" height="114" viewBox="0 0 117 114" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="18" y="6" width="81" height="6" fill="${groupColor}"/>
-        <rect x="12" y="12" width="93" height="6" fill="${groupColor}"/>
-        <rect x="6" y="18" width="6" height="54" fill="${groupColor}"/>
-        <rect x="105" y="18" width="6" height="54" fill="${groupColor}"/>
-        <rect x="12" y="72" width="93" height="6" fill="${groupColor}"/>
-        <rect x="18" y="78" width="24" height="6" fill="${groupColor}"/>
-        <rect x="18" y="84" width="18" height="6" fill="${groupColor}"/>
-        <rect x="18" y="90" width="12" height="6" fill="${groupColor}"/>
-        <rect x="18" y="96" width="6" height="6" fill="${groupColor}"/>
-        <rect x="30" y="36" width="12" height="12" fill="${groupColor}"/>
-        <rect x="54" y="36" width="12" height="12" fill="${groupColor}"/>
-        <rect x="78" y="36" width="12" height="12" fill="${groupColor}"/>
-        <rect x="24" y="54" width="12" height="6" fill="${groupColor}"/>
-        <rect x="84" y="54" width="12" height="6" fill="${groupColor}"/>
-        <rect x="36" y="57" width="48" height="3" fill="${groupColor}"/>
+        <!-- Top edge -->
+        <rect x="24" y="6" width="69" height="6" fill="${groupColor}"/>
+        <!-- Second row -->
+        <rect x="12" y="12" width="6" height="6" fill="${groupColor}"/>
+        <rect x="99" y="12" width="6" height="6" fill="${groupColor}"/>
+        <!-- Left/right walls -->
+        <rect x="6" y="18" width="6" height="42" fill="${groupColor}"/>
+        <rect x="105" y="18" width="6" height="42" fill="${groupColor}"/>
+        <!-- Three dot indicators -->
+        <rect x="24" y="30" width="12" height="12" fill="${groupColor}"/>
+        <rect x="52" y="30" width="12" height="12" fill="${groupColor}"/>
+        <rect x="80" y="30" width="12" height="12" fill="${groupColor}"/>
+        <!-- Bottom row of bubble -->
+        <rect x="12" y="60" width="6" height="6" fill="${groupColor}"/>
+        <rect x="99" y="60" width="6" height="6" fill="${groupColor}"/>
+        <!-- Bottom edge -->
+        <rect x="24" y="66" width="69" height="6" fill="${groupColor}"/>
+        <!-- Tail (bottom-left) -->
+        <rect x="18" y="72" width="18" height="6" fill="${groupColor}"/>
+        <rect x="18" y="78" width="12" height="6" fill="${groupColor}"/>
+        <rect x="18" y="84" width="6" height="6" fill="${groupColor}"/>
     </svg>`;
 
     const groupDetails = document.createElement('div');
@@ -1556,9 +1562,23 @@ function showDebaterReadyScreen(group) {
         padding: 5px;
     `;
 
-    const infoIcon = document.createElement('span');
-    infoIcon.textContent = 'ℹ';
-    infoIcon.style.cssText = `font-size:16px; color:#3f985b; flex-shrink:0;`;
+    const infoIcon = document.createElement('div');
+    infoIcon.style.cssText = `flex-shrink:0; width:22px; height:24px;`;
+    infoIcon.innerHTML = `<svg width="22" height="24" viewBox="0 0 22 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Circle border -->
+        <rect x="6" y="0" width="10" height="2" fill="#3f985b"/>
+        <rect x="2" y="2" width="4" height="2" fill="#3f985b"/>
+        <rect x="16" y="2" width="4" height="2" fill="#3f985b"/>
+        <rect x="0" y="4" width="2" height="16" fill="#3f985b"/>
+        <rect x="20" y="4" width="2" height="16" fill="#3f985b"/>
+        <rect x="2" y="20" width="4" height="2" fill="#3f985b"/>
+        <rect x="16" y="20" width="4" height="2" fill="#3f985b"/>
+        <rect x="6" y="22" width="10" height="2" fill="#3f985b"/>
+        <!-- i dot -->
+        <rect x="9" y="4" width="4" height="4" fill="#3f985b"/>
+        <!-- i stem -->
+        <rect x="9" y="10" width="4" height="10" fill="#3f985b"/>
+    </svg>`;
 
     const infoText = document.createElement('p');
     infoText.textContent = 'Good arguments dont just win debates - they help everyone understand better';
