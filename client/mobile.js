@@ -1831,7 +1831,7 @@ function showDebaterReadyScreen(group) {
         align-items: center;
         justify-content: space-between;
         padding: 25px 25px 14px 25px;
-        z-index: 10000;
+        z-index: 15000;
         box-sizing: border-box;
         overflow-y: auto;
     `;
