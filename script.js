@@ -2999,6 +2999,14 @@ function startDebateTimer() {
                         // Determine winner based on actual vote counts
                         winnerGroup = group1Votes > group2Votes ? 1 : 2;
                         console.log(`📺 Phase 3: Winner - Group ${winnerGroup} (Group 1: ${group1Votes}, Group 2: ${group2Votes})`);
+                        
+                        // Broadcast winner to mobile clients
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({
+                                type: 'winner_announcement',
+                                winnerGroup: winnerGroup
+                            }));
+                        }
                     }, 8000);
                 }, 5000);
                 

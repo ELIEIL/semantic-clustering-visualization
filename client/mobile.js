@@ -365,6 +365,10 @@ function connect() {
             }
         }
         
+        if (data.type === 'winner_announcement') {
+            showWinnerScreen(data.winnerGroup);
+        }
+        
         if (data.type === 'debater_ready_update') {
             // Update listener ready counters
             console.log(`📊 Debater ready update received: Group 1: ${data.group1Ready}/${data.group1Total}, Group 2: ${data.group2Ready}/${data.group2Total}`);
@@ -3421,13 +3425,107 @@ function handleStateSync(phase, data, timing) {
             break;
             
         case 'winner':
-            // Show winner screen (if implemented)
+            if (data && data.winnerGroup) showWinnerScreen(data.winnerGroup);
             console.log('📱 Synced to: Winner announcement');
             break;
             
         default:
             console.log(`⚠️ Unknown phase: ${phase}`);
     }
+}
+
+// Winner screen — Figma 2411-1711 (G1), 2411-1702 (G2), 2411-1720 (Listener)
+function showWinnerScreen(winnerGroup) {
+    if (document.getElementById('winnerScreen')) return;
+
+    // Remove counting votes screen if present
+    const cv = document.getElementById('countingVotesScreen');
+    if (cv) cv.remove();
+
+    // Determine role label and circle color
+    let roleLabel, circleColor;
+    if (userRole === 'debater' && userGroup === 2) {
+        roleLabel = 'GROUP 2';
+        circleColor = '#0000FE';
+    } else if (userRole === 'debater') {
+        roleLabel = 'GROUP 1';
+        circleColor = '#D62828';
+    } else {
+        roleLabel = 'LISTENER';
+        circleColor = '#0b0701';
+    }
+
+    // Winner text inside circle
+    const winnerLabel = `GROUP ${winnerGroup}`;
+    // Debaters see their group label + WINNER!, listener sees "GROUP X WINNER"
+    let circleLines;
+    if (userRole === 'debater') {
+        circleLines = [`GROUP ${winnerGroup}`, 'WINNER!'];
+    } else {
+        circleLines = [`GROUP ${winnerGroup} WINNER`];
+    }
+
+    const screen = document.createElement('div');
+    screen.id = 'winnerScreen';
+    screen.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: #fff; display: flex; flex-direction: column;
+        align-items: flex-start; justify-content: space-between;
+        padding: 25px 25px 14px 25px; z-index: 17000;
+        box-sizing: border-box;
+    `;
+
+    // ── Role label + underline ──────────────────────────────
+    const labelWrap = document.createElement('div');
+    labelWrap.style.cssText = `display:flex; flex-direction:column; gap:6px; padding:10px;`;
+
+    const roleText = document.createElement('p');
+    roleText.textContent = roleLabel;
+    roleText.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 24px; font-weight: 600; letter-spacing: 3.6px;
+        color: #0b0701; margin: 0; white-space: nowrap;
+    `;
+    const underline = document.createElement('div');
+    underline.style.cssText = `width: 66px; height: 2px; background: #0b0701;`;
+    labelWrap.appendChild(roleText);
+    labelWrap.appendChild(underline);
+
+    // ── Center: dashed circle with winner text ──────────────
+    const centerWrap = document.createElement('div');
+    centerWrap.style.cssText = `
+        flex: 1; display: flex; align-items: center; justify-content: center;
+        width: 100%;
+    `;
+
+    const circle = document.createElement('div');
+    circle.style.cssText = `
+        width: 318px; height: 318px;
+        border: 5px dashed ${circleColor};
+        border-radius: 50%;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 0; padding: 6px;
+    `;
+
+    circleLines.forEach(line => {
+        const p = document.createElement('p');
+        p.textContent = line;
+        p.style.cssText = `
+            font-family: 'MD Thermochrome 0.4 Trial', monospace;
+            font-size: 36px; font-weight: 600; letter-spacing: 5.4px;
+            color: ${circleColor}; margin: 0; text-align: center;
+            white-space: nowrap; line-height: 1.2;
+        `;
+        circle.appendChild(p);
+    });
+
+    centerWrap.appendChild(circle);
+    screen.appendChild(labelWrap);
+    screen.appendChild(centerWrap);
+    document.body.appendChild(screen);
+
+    console.log(`🏆 Showing winner screen — ${roleLabel}, winner: Group ${winnerGroup}`);
 }
 
 // Show counting votes screen — Figma 2411-1671 (G1), 2411-1662 (G2), 2411-1680 (Listener)

@@ -600,6 +600,21 @@ wss.on('connection', (ws) => {
                 return;
             }
             
+            if (data.type === 'winner_announcement') {
+                currentExperienceState.phase = 'winner';
+                currentExperienceState.data = { winnerGroup: data.winnerGroup };
+                console.log(`🏆 Winner announcement: Group ${data.winnerGroup} — broadcasting to mobiles`);
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'winner_announcement',
+                            winnerGroup: data.winnerGroup
+                        }));
+                    }
+                });
+                return;
+            }
+
             if (data.type === 'skip_to_reveal') {
                 // Set world clock animation start time
                 worldClock.topicRevealAnimationStart = Date.now();
