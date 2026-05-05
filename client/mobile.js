@@ -1,6 +1,15 @@
 // Onboarding configuration - SET TO false TO DISABLE ONBOARDING
 window.ENABLE_ONBOARDING = false;
 
+// DEV: Set forceRole via URL params e.g. ?role=debater&group=1 or ?role=listener
+(function() {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('role')) {
+        window.forceRole = { role: p.get('role'), group: parseInt(p.get('group')) || null };
+        console.log(`🛠️ forceRole set from URL:`, window.forceRole);
+    }
+})();
+
 const textInput = document.getElementById('textInput');
 const submitBtn = document.getElementById('submitBtn');
 const countdownElement = document.getElementById('countdown');

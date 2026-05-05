@@ -671,55 +671,38 @@ wss.on('connection', (ws) => {
                 console.log('📦 Role assignment with cluster:', clusterName);
                 console.log('📝 Debate argument:', debateArgument);
                 
-                // TEMPORARY FOR TESTING: First client is listener, rest are debaters
-                // TODO: Revert to random assignment for production
+                // Random role assignment: 25% Group 1, 25% Group 2, 50% Listeners
                 clientRoles.clear();
                 debaterReadyState.clear();
                 
-                // Sort client IDs to ensure consistent ordering
-                const sortedIds = [...clientIds].sort((a, b) => a - b);
+                const totalClients = clientIds.length;
+                const group1Count = Math.round(totalClients * 0.25);
+                const group2Count = Math.round(totalClients * 0.25);
+                const listenerCount = totalClients - group1Count - group2Count;
                 
-                const totalClients = sortedIds.length;
+                // Build shuffled role pool
+                const rolePool = [
+                    ...Array(group1Count).fill({ role: 'debater', group: 1, stance: 'Against' }),
+                    ...Array(group2Count).fill({ role: 'debater', group: 2, stance: 'For' }),
+                    ...Array(listenerCount).fill({ role: 'listener', group: null, stance: null })
+                ];
+                // Fisher-Yates shuffle
+                for (let i = rolePool.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [rolePool[i], rolePool[j]] = [rolePool[j], rolePool[i]];
+                }
                 
-                // First client is listener, rest split into debater groups
-                const listenerCount = Math.min(1, totalClients); // 1 listener
-                const debaterCount = totalClients - listenerCount;
-                const group1Count = Math.ceil(debaterCount / 2); // Half of debaters (rounded up)
-                const group2Count = Math.floor(debaterCount / 2); // Half of debaters (rounded down)
+                let group1Assigned = 0, group2Assigned = 0, listenersAssigned = 0;
                 
-                console.log(`🎭 TESTING MODE - Assigning roles to ${totalClients} clients:`);
-                console.log(`   Listeners: ${listenerCount}`);
-                console.log(`   Group 1 (Against) debaters: ${group1Count}`);
-                console.log(`   Group 2 (For) debaters: ${group2Count}`);
+                console.log(`🎭 Assigning roles to ${totalClients} clients: ${group1Count} G1, ${group2Count} G2, ${listenerCount} Listeners`);
                 
-                let listenersAssigned = 0;
-                let group1Assigned = 0;
-                let group2Assigned = 0;
-                
-                for (let i = 0; i < sortedIds.length; i++) {
-                    const id = sortedIds[i];
-                    let role = 'listener';
-                    let group = null;
-                    let stance = null;
+                for (let i = 0; i < clientIds.length; i++) {
+                    const id = clientIds[i];
+                    const { role, group, stance } = rolePool[i];
                     
-                    // First client is listener, rest are debaters
-                    if (listenersAssigned < listenerCount) {
-                        role = 'listener';
-                        listenersAssigned++;
-                    } else {
-                        role = 'debater';
-                        
-                        // Assign to Group 1 or Group 2
-                        if (group1Assigned < group1Count) {
-                            group = 1;
-                            stance = 'Against';
-                            group1Assigned++;
-                        } else if (group2Assigned < group2Count) {
-                            group = 2;
-                            stance = 'For';
-                            group2Assigned++;
-                        }
-                    }
+                    if (role === 'debater' && group === 1) group1Assigned++;
+                    else if (role === 'debater' && group === 2) group2Assigned++;
+                    else listenersAssigned++;
                     
                     const client = mobileClients.get(id);
                     
