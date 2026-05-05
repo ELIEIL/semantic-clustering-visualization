@@ -370,9 +370,13 @@ function connect() {
         }
         
         if (data.type === 'debater_ready_update') {
-            // Update listener ready counters
-            console.log(`📊 Debater ready update received: Group 1: ${data.group1Ready}/${data.group1Total}, Group 2: ${data.group2Ready}/${data.group2Total}`);
-            updateListenerReadyCounters(data.group1Ready, data.group1Total, data.group2Ready, data.group2Total);
+            // Only listeners need to update ready counters — debaters ignore this message
+            if (userRole === 'listener') {
+                console.log(`📊 Debater ready update received: Group 1: ${data.group1Ready}/${data.group1Total}, Group 2: ${data.group2Ready}/${data.group2Total}`);
+                updateListenerReadyCounters(data.group1Ready, data.group1Total, data.group2Ready, data.group2Total);
+            } else {
+                console.log(`📊 Debater ready update received — ignored (user is ${userRole})`);
+            }
         }
     };
     
