@@ -16,6 +16,7 @@ const countdownElement = document.getElementById('countdown');
 
 let ws;
 let isConnected = false;
+let lastDebaterCounts = { group1Ready: 0, group1Total: 0, group2Ready: 0, group2Total: 0 };
 let postHistoryData = [];
 let clientId = null; // Unique client ID assigned by server
 
@@ -383,6 +384,8 @@ function connect() {
         }
         
         if (data.type === 'debater_ready_update') {
+            // Always cache latest counts
+            lastDebaterCounts = { group1Ready: data.group1Ready, group1Total: data.group1Total, group2Ready: data.group2Ready, group2Total: data.group2Total };
             // Only listeners need to update ready counters — debaters ignore this message
             if (userRole === 'listener') {
                 console.log(`📊 Debater ready update received: Group 1: ${data.group1Ready}/${data.group1Total}, Group 2: ${data.group2Ready}/${data.group2Total}`);
@@ -1478,7 +1481,7 @@ function showListenerWaitingScreen() {
 
     const group1Counter = document.createElement('p');
     group1Counter.id = 'listenerGroup1Counter';
-    group1Counter.textContent = '0/5';
+    group1Counter.textContent = `${lastDebaterCounts.group1Ready}/${lastDebaterCounts.group1Total}`;
     group1Counter.style.cssText = `
         font-family: 'MD Thermochrome 0.4 Trial', monospace;
         font-size: 48px; font-weight: 600;
@@ -1495,7 +1498,7 @@ function showListenerWaitingScreen() {
 
     const group2Counter = document.createElement('p');
     group2Counter.id = 'listenerGroup2Counter';
-    group2Counter.textContent = '0/5';
+    group2Counter.textContent = `${lastDebaterCounts.group2Ready}/${lastDebaterCounts.group2Total}`;
     group2Counter.style.cssText = `
         font-family: 'MD Thermochrome 0.4 Trial', monospace;
         font-size: 48px; font-weight: 600;
