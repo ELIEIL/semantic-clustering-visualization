@@ -864,22 +864,20 @@ function displayClusters(clusters) {
         // Convert HSB color to RGB for CSS
         const rgb = hsbToRgb(cluster.color.h, cluster.color.s, cluster.color.b);
         
-        // Create vote dots
-        const voteCount = cluster.votes || 0;
-        const voteDots = Array(Math.min(voteCount, 10)).fill(0).map(() => 
-            '<div class="vote-dot"></div>'
-        ).join('');
-        
+        // Darker shadow color (~60% of cluster color)
+        const shadowR = Math.round(rgb.r * 0.6);
+        const shadowG = Math.round(rgb.g * 0.6);
+        const shadowB = Math.round(rgb.b * 0.6);
+
         clusterItem.innerHTML = `
             <div class="cluster-box" style="color: rgb(${rgb.r}, ${rgb.g}, ${rgb.b});">
                 <div class="cluster-label">${cluster.label || 'Cluster ' + cluster.id}</div>
-                <div class="vote-bar" style="background-color: rgb(${rgb.r}, ${rgb.g}, ${rgb.b});">
-                    <span class="vote-bar-label">VOTES</span>
-                    <div class="vote-circles">
-                        <!-- Squares will be added when users vote -->
-                    </div>
-                </div>
             </div>
+            <div class="vote-bar" style="background-color: rgb(${rgb.r}, ${rgb.g}, ${rgb.b});">
+                <span class="vote-bar-label">VOTES</span>
+                <div class="vote-circles"></div>
+            </div>
+            <div class="cluster-shadow" style="background-color: rgb(${shadowR}, ${shadowG}, ${shadowB});"></div>
         `;
         
         // Add click handler for voting
