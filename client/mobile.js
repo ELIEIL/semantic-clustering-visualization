@@ -3186,87 +3186,6 @@ textInput.addEventListener('blur', () => {
     document.body.classList.remove('keyboard-visible');
 });
 
-// Show role reveal screen (colored background with icon and role name)
-function showRoleRevealScreen(role, group) {
-    // Remove existing reveal screen if any
-    const existing = document.getElementById('roleRevealScreen');
-    if (existing) existing.remove();
-    
-    // Create reveal screen
-    const revealScreen = document.createElement('div');
-    revealScreen.id = 'roleRevealScreen';
-    
-    // Set background color based on role
-    let bgColor, icon, roleText, textColor;
-    if (role === 'listener') {
-        bgColor = '#FFFFFF';
-        textColor = '#000';
-        icon = '👤';
-        roleText = 'LISTENER';
-    } else if (role === 'debater' && group === 1) {
-        bgColor = '#DC3545'; // Red
-        textColor = '#FFF';
-        icon = '💬';
-        roleText = 'DEBATER<br>GROUP 1';
-    } else if (role === 'debater' && group === 2) {
-        bgColor = '#0000FE'; // Blue
-        textColor = '#FFF';
-        icon = '💬';
-        roleText = 'DEBATER<br>GROUP 2';
-    }
-    
-    revealScreen.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: ${bgColor};
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 10000;
-        animation: fadeIn 0.5s ease;
-    `;
-    
-    // Add icon (emoji with MD Thermochrome font to match main display)
-    const iconEl = document.createElement('div');
-    iconEl.textContent = icon;
-    iconEl.style.cssText = `
-        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-        font-size: 100px;
-        margin-bottom: 15px;
-        ${role === 'debater' ? 'filter: brightness(0) invert(1);' : ''}
-    `;
-    revealScreen.appendChild(iconEl);
-    
-    // Add role text
-    const textEl = document.createElement('div');
-    textEl.innerHTML = roleText;
-    textEl.style.cssText = `
-        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-        font-size: 36px;
-        font-weight: 900;
-        letter-spacing: 0.15em;
-        text-align: center;
-        color: ${textColor};
-        line-height: 1.3;
-    `;
-    revealScreen.appendChild(textEl);
-    
-    document.body.appendChild(revealScreen);
-}
-
-// Remove role reveal screen with fade out
-function removeRoleRevealScreen() {
-    const revealScreen = document.getElementById('roleRevealScreen');
-    if (revealScreen) {
-        revealScreen.style.animation = 'fadeOut 0.5s ease';
-        setTimeout(() => revealScreen.remove(), 500);
-    }
-}
-
 // TEST FUNCTIONS - Remove these in production
 window.testGroup1 = function() {
     window.debateQuestion = 'Should fossil fuels be banned entirely?';
@@ -3291,6 +3210,29 @@ window.testListener = function() {
     setTimeout(() => updateListenerReadyCounters(2, 5, 1, 3), 1000);
 };
 
+// Remove all dynamic screens and hide all static sections
+function cleanupAllScreens() {
+    const dynamicIds = [
+        'roleRevealScreen', 'assigningRolesLoading',
+        'debaterReadyScreen', 'listenerWaitingScreen',
+        'debaterWaitScreen', 'debaterActiveScreen',
+        'debaterOverScreen', 'countingVotesScreen', 'winnerScreen'
+    ];
+    dynamicIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    });
+    const staticIds = [
+        'idleSection', 'inputSection', 'clusterSection', 'votingSection',
+        'topicRevealSection', 'roleAssignmentSection',
+        'debateVotingSection', 'listenerVotingSection'
+    ];
+    staticIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+}
+
 // Handle state synchronization on connect/reconnect
 function handleStateSync(phase, data, timing) {
     console.log(`📱 Syncing to phase: ${phase}`, data);
@@ -3298,29 +3240,15 @@ function handleStateSync(phase, data, timing) {
         console.log(`⏱️ World clock timing:`, timing);
     }
     
-    // Get all sections
+    // Clean up all screens before transitioning
+    cleanupAllScreens();
+
     const idleSection = document.getElementById('idleSection');
     const inputSection = document.getElementById('inputSection');
     const clusterSection = document.getElementById('clusterSection');
     const votingSection = document.getElementById('votingSection');
-    const topicRevealSection = document.getElementById('topicRevealSection');
-    const roleAssignmentSection = document.getElementById('roleAssignmentSection');
-    const debaterReadyScreen = document.getElementById('debaterReadyScreen');
-    const listenerWaitingScreen = document.getElementById('listenerWaitingScreen');
     const debateVotingSection = document.getElementById('debateVotingSection');
     const listenerVotingSection = document.getElementById('listenerVotingSection');
-    
-    // Hide ALL sections first
-    if (idleSection) idleSection.style.display = 'none';
-    if (inputSection) inputSection.style.display = 'none';
-    if (clusterSection) clusterSection.style.display = 'none';
-    if (votingSection) votingSection.style.display = 'none';
-    if (topicRevealSection) topicRevealSection.style.display = 'none';
-    if (roleAssignmentSection) roleAssignmentSection.style.display = 'none';
-    if (debaterReadyScreen) debaterReadyScreen.style.display = 'none';
-    if (listenerWaitingScreen) listenerWaitingScreen.style.display = 'none';
-    if (debateVotingSection) debateVotingSection.style.display = 'none';
-    if (listenerVotingSection) listenerVotingSection.style.display = 'none';
     
     // Route to correct screen based on phase
     switch(phase) {
@@ -3553,14 +3481,8 @@ function showWinnerScreen(winnerGroup) {
 function showDebateOverScreen() {
     if (document.getElementById('countingVotesScreen')) return;
 
-    // Clean up any lingering debate screens
-    removeDebaterWaitScreen();
-    removeDebaterActiveScreen();
-    removeDebaterOverScreen();
-    const debateVotingSection = document.getElementById('debateVotingSection');
-    const listenerVotingSection = document.getElementById('listenerVotingSection');
-    if (debateVotingSection) debateVotingSection.style.display = 'none';
-    if (listenerVotingSection) listenerVotingSection.style.display = 'none';
+    // Clean up all lingering screens before showing this one
+    cleanupAllScreens();
 
     // Determine color and label by role
     let roleColor, roleLabel;
