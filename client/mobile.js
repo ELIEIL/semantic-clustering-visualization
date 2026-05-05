@@ -1130,6 +1130,122 @@ function findWinningCluster() {
     return winner;
 }
 
+// Role reveal screen — full-screen flash shown before the detailed role screen
+function showRoleRevealScreen(role, group) {
+    // Remove any existing reveal screen
+    const existing = document.getElementById('roleRevealScreen');
+    if (existing) existing.remove();
+
+    // Colors per role/group
+    let bgColor, iconColor, roleLabel, groupLabel;
+    if (role === 'listener') {
+        bgColor   = '#3f985b';
+        iconColor = '#bcdbc6';
+        roleLabel = 'LISTENER';
+        groupLabel = 'AUDIENCE';
+    } else if (group === 2) {
+        bgColor   = '#0000FE';
+        iconColor = '#8080ff';
+        roleLabel = 'DEBATER';
+        groupLabel = 'GROUP 2';
+    } else {
+        bgColor   = '#D62828';
+        iconColor = '#eb9393';
+        roleLabel = 'DEBATER';
+        groupLabel = 'GROUP 1';
+    }
+
+    const screen = document.createElement('div');
+    screen.id = 'roleRevealScreen';
+    screen.style.cssText = `
+        position: fixed; top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: ${bgColor};
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 25px;
+        z-index: 20000;
+        box-sizing: border-box;
+        overflow: hidden;
+    `;
+
+    // Icon — MD Thermochrome emoji glyph, large
+    const iconWrap = document.createElement('div');
+    iconWrap.style.cssText = `
+        width: 100%;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: ${role === 'listener' ? 'center' : role === 'debater' && group === 2 ? 'flex-end' : 'flex-start'};
+        padding: 10px;
+        overflow: hidden;
+    `;
+
+    const iconEl = document.createElement('div');
+    // Use emoji chars from MD Thermochrome — speech balloon for debaters, bust for listeners
+    iconEl.textContent = role === 'listener' ? '\uD83D\uDC64' : '\uD83D\uDCAC'; // 👤 or 💬
+    iconEl.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: min(65vw, 65vh);
+        line-height: 1;
+        color: ${iconColor};
+        display: block;
+        ${role === 'debater' && group === 2 ? 'transform: scaleX(-1);' : ''}
+    `;
+    iconWrap.appendChild(iconEl);
+
+    // Text block
+    const textBlock = document.createElement('div');
+    textBlock.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 10px;
+        align-items: ${role === 'listener' ? 'center' : 'flex-start'};
+        flex-shrink: 0;
+        width: 100%;
+    `;
+
+    const roleLabelEl = document.createElement('p');
+    roleLabelEl.textContent = roleLabel;
+    roleLabelEl.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 40px;
+        font-weight: 600;
+        color: #fff;
+        margin: 0;
+        letter-spacing: 0;
+    `;
+
+    const groupLabelEl = document.createElement('p');
+    groupLabelEl.textContent = groupLabel;
+    groupLabelEl.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 32px;
+        font-weight: 600;
+        color: ${iconColor};
+        margin: 0;
+        letter-spacing: 4.8px;
+    `;
+
+    textBlock.appendChild(roleLabelEl);
+    textBlock.appendChild(groupLabelEl);
+
+    screen.appendChild(iconWrap);
+    screen.appendChild(textBlock);
+    document.body.appendChild(screen);
+}
+
+function removeRoleRevealScreen() {
+    const screen = document.getElementById('roleRevealScreen');
+    if (screen) {
+        screen.classList.add('fade-out-view');
+        setTimeout(() => screen.remove(), 500);
+    }
+}
+
 // Show role assignment screen
 function showRoleScreen(role, group) {
     console.log(`🎭 Showing role screen: ${role}, group: ${group}`);
