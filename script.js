@@ -5080,47 +5080,43 @@ function draw() {
         
         // Handle topic reveal fade-in (reveal screen fading in from black)
         if (revealPhase === 'fade-in' || revealPhase === 'static') {
-            // Black background
-            background(0);
+            // Dark background #0b0701
+            background(11, 7, 1);
 
             if (revealClusterColor && winningCluster) {
                 const fadeProgress = revealPhase === 'fade-in' ? (1 - (window.revealFadeProgress || 0)) : 1;
                 
                 push();
 
-                // Convert HSB to RGB
-                const h = revealClusterColor.h;
-                const s = revealClusterColor.s;
-                const b = revealClusterColor.b;
-                
+                // Convert HSB to RGB for cluster color
                 colorMode(HSB, 360, 100, 100);
-                const c = color(h, s, b);
+                const c = color(revealClusterColor.h, revealClusterColor.s, revealClusterColor.b);
                 colorMode(RGB);
-                
-                // Draw "CHOSEN DEBATE" title
-                fill(255, fadeProgress * 255);
-                textAlign(CENTER, CENTER);
-                textSize(48);
-                if (customFontSemibold) textFont(customFontSemibold);
-                text('CHOSEN DEBATE', width / 2, height / 2 - 100);
-                
-                // Draw topic name in filled box - MD Primer Regular
-                textSize(32);
-                if (customFontPrimer) textFont(customFontPrimer);
-                const topicText = winningCluster.label || 'Discussion';
-                const textW = textWidth(topicText);
-                const boxW = textW + 50;
-                const boxH = 55;
-                const boxX = width / 2;
-                const boxY = height / 2 + 10;
-                rectMode(CENTER);
-                fill(red(c), green(c), blue(c), fadeProgress * 255);
+                const cr = red(c), cg = green(c), cb = blue(c);
+
+                // Large centered dashed circle
+                const circDiam = min(width, height) * 0.46; // ~500px on 1080p
+                stroke(cr, cg, cb, fadeProgress * 255);
+                strokeWeight(20);
+                noFill();
+                drawingContext.setLineDash([28, 16]);
+                drawingContext.lineCap = 'square';
+                ellipse(width / 2, height / 2, circDiam, circDiam);
+                drawingContext.setLineDash([]);
+                drawingContext.lineCap = 'butt';
+
+                // Topic name centered inside circle
                 noStroke();
-                rect(boxX, boxY, boxW, boxH);
-                fill(0, fadeProgress * 255);
+                fill(cr, cg, cb, fadeProgress * 255);
                 textAlign(CENTER, CENTER);
-                text(topicText, boxX, boxY);
-                
+                textSize(40);
+                if (customFontSemibold) textFont(customFontSemibold);
+                drawingContext.letterSpacing = '6px';
+                const topicText = (winningCluster.label || 'Discussion').toUpperCase();
+                const maxW = circDiam * 0.78;
+                text(topicText, width / 2 - maxW / 2, height / 2 - 60, maxW, 160);
+                drawingContext.letterSpacing = '0px';
+
                 pop();
             }
             

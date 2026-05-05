@@ -2034,15 +2034,18 @@ function showTopicReveal(cluster) {
     const revealSection = document.getElementById('topicRevealSection');
     const revealTopicBox = document.getElementById('revealTopicBox');
     const revealTopicName = document.getElementById('revealTopicName');
+    const revealTopicShadow = document.getElementById('revealTopicShadow');
     
     if (!revealSection || !revealTopicBox || !revealTopicName) return;
     
     // Convert cluster color to RGB
     const rgb = hsbToRgb(cluster.color.h, cluster.color.s, cluster.color.b);
     const colorString = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+    const shadowString = `rgb(${Math.round(rgb.r * 0.6)}, ${Math.round(rgb.g * 0.6)}, ${Math.round(rgb.b * 0.6)})`;
     
-    // Set box background color (filled box design)
+    // Style the button header
     revealTopicBox.style.backgroundColor = colorString;
+    if (revealTopicShadow) revealTopicShadow.style.backgroundColor = shadowString;
     
     // Set topic name
     revealTopicName.textContent = cluster.label || 'Cluster ' + cluster.id;

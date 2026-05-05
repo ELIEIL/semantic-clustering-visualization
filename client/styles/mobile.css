@@ -464,40 +464,49 @@ body.keyboard-visible .mobile-container {
 }
 
 .reveal-content {
-    width: 100%;
-    max-width: 500px;
+    width: 320px;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    text-align: center;
+    align-items: flex-start;
 }
 
 .reveal-title {
-    font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-    font-size: 36px;
-    font-weight: 900;
-    letter-spacing: 0.15em;
-    color: #000;
-    margin: 0 0 40px 0;
+    display: none;
 }
 
-
 .reveal-topic-box {
-    background: #000;
-    border: none;
-    border-radius: 0;
-    padding: 20px 40px;
-    display: inline-block;
+    width: 100%;
+    border: 1px solid #0b0701;
+    border-bottom: none;
+    border-radius: 0.5px 0.5px 0 0;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
 .reveal-topic-name {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 24px;
-    font-weight: 500;
-    text-transform: capitalize;
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 3px;
     color: #fff;
+    text-transform: uppercase;
+    text-align: left;
     margin: 0;
     line-height: 1.3;
+    word-break: break-word;
+}
+
+.reveal-topic-shadow {
+    width: 100%;
+    height: 7px;
+    border: 1px solid #0b0701;
+    border-top: none;
+    border-radius: 0 0 0.5px 0.5px;
+    box-sizing: border-box;
 }
 
 /* Fade transitions for view switching */
