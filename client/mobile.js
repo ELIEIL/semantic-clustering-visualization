@@ -1423,7 +1423,7 @@ function showArgumentationOverlay() {
     circleWrapper.style.cssText = `
         position: absolute; top: 49px; right: 8px;
         width: 125px; height: 125px;
-        animation: spinCW 6s linear infinite;
+        animation: spinCW 14s linear infinite;
         pointer-events: none;
     `;
     const r = 57, circ = 2 * Math.PI * r;
