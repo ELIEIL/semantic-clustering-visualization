@@ -1348,169 +1348,303 @@ function showDebaterReadyScreen(group) {
     // Remove existing debater screen if any
     const existing = document.getElementById('debaterReadyScreen');
     if (existing) existing.remove();
-    
-    // Create full-screen debater UI
+
+    const groupColor = group === 1 ? '#D62828' : '#0000FE';
+    const groupColorFaded = group === 1 ? 'rgba(214,40,40,0.65)' : 'rgba(0,0,254,0.65)';
+    const groupLabel = group === 1 ? 'GROUP 1' : 'GROUP 2';
+    const question = (window.debateQuestion || 'Should fossil fuels be banned entirely?').toUpperCase();
+
     const debaterScreen = document.createElement('div');
     debaterScreen.id = 'debaterReadyScreen';
-    
-    const bgColor = group === 1 ? '#DC3545' : '#0000FE'; // Red for Group 1, Blue for Group 2
-    const stance = group === 1 ? 'FOR' : 'AGAINST';
-    const stanceColor = group === 1 ? '#4CAF50' : '#DC3545'; // Green for FOR, Red for AGAINST
-    
     debaterScreen.style.cssText = `
         position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: ${bgColor};
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: #fff;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: space-between;
-        padding: 40px 30px;
+        padding: 25px 25px 14px 25px;
         z-index: 10000;
         box-sizing: border-box;
+        overflow-y: auto;
     `;
-    
-    // Top section: Title and instructions
-    const topSection = document.createElement('div');
-    topSection.style.cssText = `
-        width: 100%;
-        text-align: left;
-    `;
-    
-    const title = document.createElement('div');
-    title.textContent = 'DEBATER';
+
+    // ── Header ──────────────────────────────────────────────
+    const header = document.createElement('div');
+    header.style.cssText = `width:100%; display:flex; flex-direction:column; gap:5px; padding:10px;`;
+
+    const title = document.createElement('p');
+    title.textContent = 'THE DEBATE';
     title.style.cssText = `
-        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-        font-size: 48px;
-        font-weight: 900;
-        color: #FFF;
-        margin-bottom: 20px;
-        letter-spacing: 0.1em;
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 40px;
+        font-weight: 600;
+        letter-spacing: 6px;
+        color: #0b0701;
+        margin: 0;
     `;
-    topSection.appendChild(title);
-    
-    const instructions = document.createElement('div');
-    instructions.textContent = 'Read your instructions and press "ready up" when you\'re ready to start the debate!';
-    instructions.style.cssText = `
-        font-family: sans-serif;
-        font-size: 18px;
-        color: #FFF;
+
+    const subtitle = document.createElement('p');
+    subtitle.textContent = 'Read your instructions and press "ready up" when you\'re ready to start the debate!';
+    subtitle.style.cssText = `
+        font-family: 'MD Primer Trial', Georgia, serif;
+        font-size: 20px;
+        color: #0b0701;
+        margin: 0;
         line-height: 1.4;
     `;
-    topSection.appendChild(instructions);
-    
-    debaterScreen.appendChild(topSection);
-    
-    // Middle section: Debate question and stance boxes
-    const middleSection = document.createElement('div');
-    middleSection.style.cssText = `
-        width: 100%;
+
+    header.appendChild(title);
+    header.appendChild(subtitle);
+
+    // ── Content ─────────────────────────────────────────────
+    const content = document.createElement('div');
+    content.style.cssText = `
         display: flex;
         flex-direction: column;
-        gap: 0;
+        gap: 15px;
+        align-items: center;
+        width: 100%;
+        max-width: 360px;
+        padding: 10px;
     `;
-    
-    // Yellow debate question box
-    const questionBox = document.createElement('div');
-    questionBox.textContent = window.debateQuestion || 'Should fossil fuels be banned entirely?';
-    questionBox.style.cssText = `
-        background-color: #FFE66D;
-        color: #000;
-        padding: 30px 20px;
-        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-        font-size: 28px;
-        font-weight: 900;
-        text-align: center;
-        border: 3px solid #000;
-        letter-spacing: 0.05em;
+
+    // Group info row
+    const groupInfo = document.createElement('div');
+    groupInfo.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 0 10px 10px 10px;
+    `;
+
+    const chatIcon = document.createElement('div');
+    chatIcon.innerHTML = `<svg width="117" height="114" viewBox="0 0 117 114" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="18" y="6" width="81" height="6" fill="${groupColor}"/>
+        <rect x="12" y="12" width="93" height="6" fill="${groupColor}"/>
+        <rect x="6" y="18" width="6" height="54" fill="${groupColor}"/>
+        <rect x="105" y="18" width="6" height="54" fill="${groupColor}"/>
+        <rect x="12" y="72" width="93" height="6" fill="${groupColor}"/>
+        <rect x="18" y="78" width="24" height="6" fill="${groupColor}"/>
+        <rect x="18" y="84" width="18" height="6" fill="${groupColor}"/>
+        <rect x="18" y="90" width="12" height="6" fill="${groupColor}"/>
+        <rect x="18" y="96" width="6" height="6" fill="${groupColor}"/>
+        <rect x="30" y="36" width="12" height="12" fill="${groupColor}"/>
+        <rect x="54" y="36" width="12" height="12" fill="${groupColor}"/>
+        <rect x="78" y="36" width="12" height="12" fill="${groupColor}"/>
+        <rect x="24" y="54" width="12" height="6" fill="${groupColor}"/>
+        <rect x="84" y="54" width="12" height="6" fill="${groupColor}"/>
+        <rect x="36" y="57" width="48" height="3" fill="${groupColor}"/>
+    </svg>`;
+
+    const groupDetails = document.createElement('div');
+    groupDetails.style.cssText = `display:flex; flex-direction:column; gap:10px; align-items:flex-start;`;
+
+    const groupName = document.createElement('p');
+    groupName.textContent = groupLabel;
+    groupName.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 40px;
+        font-weight: 600;
+        color: ${groupColor};
+        margin: 0;
+        white-space: nowrap;
+    `;
+
+    const roleLabel = document.createElement('p');
+    roleLabel.textContent = 'DEBATER';
+    roleLabel.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 24px;
+        font-weight: 600;
+        color: ${groupColorFaded};
+        margin: 0;
+        white-space: nowrap;
+    `;
+
+    groupDetails.appendChild(groupName);
+    groupDetails.appendChild(roleLabel);
+    groupInfo.appendChild(chatIcon);
+    groupInfo.appendChild(groupDetails);
+
+    // Yellow question box
+    const questionContainer = document.createElement('div');
+    questionContainer.style.cssText = `
+        background: #FDED6B;
+        border-top: 1px solid #0b0701;
+        border-bottom: 1px solid #0b0701;
+        width: 100%;
+        padding: 10px;
+    `;
+
+    const questionText = document.createElement('p');
+    questionText.textContent = question;
+    questionText.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: 3.6px;
+        text-transform: uppercase;
+        color: #0b0701;
+        margin: 0;
         line-height: 1.3;
     `;
-    middleSection.appendChild(questionBox);
-    
-    // Stance box (green for FOR, red for AGAINST)
-    const stanceBox = document.createElement('div');
-    stanceBox.textContent = `STANCE: ${stance}`;
-    stanceBox.style.cssText = `
-        background-color: ${stanceColor};
-        color: #000;
-        padding: 20px;
-        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-        font-size: 24px;
-        font-weight: 900;
-        text-align: center;
-        border: 3px solid #000;
-        border-top: none;
-        letter-spacing: 0.1em;
+    questionContainer.appendChild(questionText);
+
+    // Argumentation section
+    const argContainer = document.createElement('div');
+    argContainer.style.cssText = `display:flex; flex-direction:column; gap:10px; width:100%; padding:10px;`;
+
+    const argHeader = document.createElement('div');
+    argHeader.style.cssText = `display:flex; flex-direction:column; width:100%; max-width:320px;`;
+
+    const argBtn = document.createElement('div');
+    argBtn.style.cssText = `
+        background: #fff;
+        border: 1px solid #0b0701;
+        border-radius: 0.5px 0.5px 0 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 5px 15px;
     `;
-    middleSection.appendChild(stanceBox);
-    
-    debaterScreen.appendChild(middleSection);
-    
-    // Bottom section: Ready button
-    const readyButton = document.createElement('button');
-    readyButton.textContent = 'PRESS WHEN READY';
-    readyButton.id = 'debaterReadyButton';
-    readyButton.style.cssText = `
-        background-color: #FFF;
-        color: #000;
-        padding: 18px 20px;
-        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-        font-size: 14px;
-        font-weight: 900;
-        border: 3px solid #000;
-        border-bottom: 8px solid #999;
-        cursor: pointer;
-        letter-spacing: 0.05em;
-        width: 60%;
-        max-width: 280px;
-        transition: all 0.1s ease;
-        position: relative;
+
+    const argLabel = document.createElement('p');
+    argLabel.textContent = 'DEBATE ARGUMENTATION';
+    argLabel.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: 2.7px;
+        text-transform: uppercase;
+        color: #3f985b;
+        margin: 0;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
     `;
-    
-    // Press animation on mousedown
-    readyButton.addEventListener('mousedown', () => {
-        readyButton.style.transform = 'translateY(4px)';
-        readyButton.style.borderBottomWidth = '4px';
-    });
-    
-    readyButton.addEventListener('mouseup', () => {
-        readyButton.style.transform = 'translateY(0)';
-        readyButton.style.borderBottomWidth = '8px';
-    });
-    
-    readyButton.addEventListener('mouseleave', () => {
-        readyButton.style.transform = 'translateY(0)';
-        readyButton.style.borderBottomWidth = '8px';
-    });
-    
-    // Ready button click handler
+
+    const argArrow = document.createElement('span');
+    argArrow.textContent = '→';
+    argArrow.style.cssText = `font-size:18px; color:#3f985b;`;
+
+    argBtn.appendChild(argLabel);
+    argBtn.appendChild(argArrow);
+
+    const argBorder = document.createElement('div');
+    argBorder.style.cssText = `
+        background: #9a9a9a;
+        border: 1px solid #0b0701;
+        border-top: none;
+        border-radius: 0 0 0.5px 0.5px;
+        height: 3px;
+        width: 100%;
+    `;
+
+    argHeader.appendChild(argBtn);
+    argHeader.appendChild(argBorder);
+
+    const argInfo = document.createElement('div');
+    argInfo.style.cssText = `
+        background: #fff;
+        border: 1px solid #3f985b;
+        border-radius: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 5px;
+    `;
+
+    const infoIcon = document.createElement('span');
+    infoIcon.textContent = 'ℹ';
+    infoIcon.style.cssText = `font-size:16px; color:#3f985b; flex-shrink:0;`;
+
+    const infoText = document.createElement('p');
+    infoText.textContent = 'Good arguments dont just win debates - they help everyone understand better';
+    infoText.style.cssText = `
+        font-family: 'MD Primer Trial', Georgia, serif;
+        font-size: 12px;
+        color: #3f985b;
+        margin: 0;
+        width: 208px;
+        line-height: 1.4;
+    `;
+
+    argInfo.appendChild(infoIcon);
+    argInfo.appendChild(infoText);
+    argContainer.appendChild(argHeader);
+    argContainer.appendChild(argInfo);
+
+    content.appendChild(groupInfo);
+    content.appendChild(questionContainer);
+    content.appendChild(argContainer);
+
+    // ── Ready Button ─────────────────────────────────────────
+    const btnWrapper = document.createElement('div');
+    btnWrapper.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        max-width: 265px;
+        padding: 22px 17px;
+    `;
+
+    const readyButton = document.createElement('button');
+    readyButton.id = 'debaterReadyButton';
+    readyButton.textContent = 'PRESS WHEN READY';
+    readyButton.style.cssText = `
+        background: #EBEDF0;
+        border: 1px solid #0b0701;
+        border-radius: 0.5px 0.5px 0 0;
+        width: 100%;
+        padding: 15px 25px;
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: 3px;
+        color: #0b0701;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform 0.1s ease;
+    `;
+
+    const btnBase = document.createElement('div');
+    btnBase.style.cssText = `
+        background: #C4C4C4;
+        border: 1px solid #0b0701;
+        border-top: none;
+        border-radius: 0 0 0.5px 0.5px;
+        height: 5px;
+        width: 100%;
+    `;
+
+    readyButton.addEventListener('mousedown', () => { readyButton.style.transform = 'translateY(3px)'; btnBase.style.height = '2px'; });
+    readyButton.addEventListener('mouseup', () => { readyButton.style.transform = 'translateY(0)'; btnBase.style.height = '5px'; });
+    readyButton.addEventListener('mouseleave', () => { readyButton.style.transform = 'translateY(0)'; btnBase.style.height = '5px'; });
+    readyButton.addEventListener('touchstart', () => { readyButton.style.transform = 'translateY(3px)'; btnBase.style.height = '2px'; });
+    readyButton.addEventListener('touchend', () => { readyButton.style.transform = 'translateY(0)'; btnBase.style.height = '5px'; });
+
     readyButton.addEventListener('click', () => {
         if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-                type: 'user_ready'
-            }));
-            
-            // Change button state to ready (green with darker bottom border)
-            readyButton.style.backgroundColor = '#4CAF50';
-            readyButton.style.borderBottomColor = '#2E7D32';
-            readyButton.textContent = 'READY';
+            ws.send(JSON.stringify({ type: 'user_ready' }));
+            readyButton.textContent = 'READY ✓';
+            readyButton.style.background = '#4CAF50';
+            readyButton.style.color = '#fff';
+            btnBase.style.background = '#2E7D32';
             readyButton.disabled = true;
             readyButton.style.cursor = 'not-allowed';
-            readyButton.style.transform = 'translateY(0)';
-            readyButton.style.borderBottomWidth = '8px';
-            
             console.log('✅ Marked as ready');
         }
     });
-    
-    debaterScreen.appendChild(readyButton);
-    
+
+    btnWrapper.appendChild(readyButton);
+    btnWrapper.appendChild(btnBase);
+
+    debaterScreen.appendChild(header);
+    debaterScreen.appendChild(content);
+    debaterScreen.appendChild(btnWrapper);
     document.body.appendChild(debaterScreen);
 }
 
