@@ -1185,161 +1185,192 @@ function showListenerWaitingScreen() {
     // Remove existing listener screen if any
     const existing = document.getElementById('listenerWaitingScreen');
     if (existing) existing.remove();
-    
-    // Create full-screen listener UI
+
+    // Inject keyframe animation once
+    if (!document.getElementById('listenerCircleAnimation')) {
+        const style = document.createElement('style');
+        style.id = 'listenerCircleAnimation';
+        style.textContent = `
+            @keyframes spinCW  { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
+            @keyframes spinCCW { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
+        `;
+        document.head.appendChild(style);
+    }
+
     const listenerScreen = document.createElement('div');
     listenerScreen.id = 'listenerWaitingScreen';
-    
     listenerScreen.style.cssText = `
         position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: #F5F5F5;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: #3f985b;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: space-between;
-        padding: 40px 30px;
+        padding: 25px;
         z-index: 10000;
         box-sizing: border-box;
+        overflow: hidden;
     `;
-    
-    // Top section: Title and instructions
-    const topSection = document.createElement('div');
-    topSection.style.cssText = `
-        width: 100%;
-        text-align: left;
+
+    // ── Header ──────────────────────────────────────────────
+    const header = document.createElement('div');
+    header.style.cssText = `
+        width: 100%; max-width: 340px;
+        display: flex; flex-direction: column;
+        gap: 5px; padding: 10px 10px 25px 10px;
+        flex-shrink: 0;
     `;
-    
-    const title = document.createElement('div');
+
+    const title = document.createElement('p');
     title.textContent = 'LISTENER';
     title.style.cssText = `
-        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-        font-size: 48px;
-        font-weight: 900;
-        color: #000;
-        margin-bottom: 20px;
-        letter-spacing: 0.1em;
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 40px; font-weight: 600;
+        letter-spacing: 6px; color: #fff; margin: 0;
     `;
-    topSection.appendChild(title);
-    
-    const instructions = document.createElement('div');
-    instructions.textContent = 'Decide the winner of the debate by voting for the group you agree with. Use the buttons on the mobile controller to cast your vote.';
-    instructions.style.cssText = `
-        font-family: sans-serif;
-        font-size: 16px;
-        color: #000;
-        line-height: 1.5;
+
+    const subtitle = document.createElement('p');
+    subtitle.textContent = 'Decide the winner of the debate by voting for the group you agree with. Use the buttons on the mobile controller to cast your vote.';
+    subtitle.style.cssText = `
+        font-family: 'MD Primer Trial', Georgia, serif;
+        font-size: 20px; color: #fff; margin: 0; line-height: 1.4;
     `;
-    topSection.appendChild(instructions);
-    
-    listenerScreen.appendChild(topSection);
-    
-    // Middle section: Waiting text and ready counters
-    const middleSection = document.createElement('div');
-    middleSection.style.cssText = `
+
+    header.appendChild(title);
+    header.appendChild(subtitle);
+
+    // ── Ellipses Container ───────────────────────────────────
+    const ellipsesContainer = document.createElement('div');
+    ellipsesContainer.style.cssText = `
+        flex: 1;
         width: 100%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 20px;
+        position: relative;
+        border-top: 1px solid #fff;
+        border-bottom: 1px solid #fff;
+        overflow: hidden;
+        min-height: 300px;
     `;
-    
-    const waitingText = document.createElement('div');
+
+    // Helper: create a dashed circle SVG
+    function makeDashedCircle(diameter, color, animDir, animDuration, left, top) {
+        const r = diameter / 2;
+        const circumference = 2 * Math.PI * r;
+        const dashLen = circumference / 12; // ~12 dashes
+        const gapLen = dashLen * 0.6;
+
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = `
+            position: absolute;
+            left: ${left};
+            top: ${top};
+            width: ${diameter}px;
+            height: ${diameter}px;
+            animation: ${animDir} ${animDuration}s linear infinite;
+        `;
+
+        wrapper.innerHTML = `<svg width="${diameter}" height="${diameter}" viewBox="0 0 ${diameter} ${diameter}" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="${r}" cy="${r}" r="${r - 5}" stroke="${color}" stroke-width="5" stroke-dasharray="${dashLen.toFixed(1)} ${gapLen.toFixed(1)}" stroke-linecap="round"/>
+        </svg>`;
+
+        return wrapper;
+    }
+
+    // 4 circles matching Figma positions/sizes/colors
+    ellipsesContainer.appendChild(makeDashedCircle(160, '#ffffff', 'spinCCW', 9,  '0px',   '16px'));
+    ellipsesContainer.appendChild(makeDashedCircle(154, '#D62828', 'spinCW',  7,  '33%',   '30%'));
+    ellipsesContainer.appendChild(makeDashedCircle(97,  '#0000FE', 'spinCW',  11, '6%',    '63%'));
+    ellipsesContainer.appendChild(makeDashedCircle(86,  '#FDED6B', 'spinCCW', 5,  '52%',   '75%'));
+
+    // ── Footer ───────────────────────────────────────────────
+    const footer = document.createElement('div');
+    footer.style.cssText = `
+        width: 100%; flex-shrink: 0;
+        display: flex; flex-direction: column;
+        gap: 5px; align-items: center;
+        padding-top: 25px;
+    `;
+
+    const waitingText = document.createElement('p');
     waitingText.textContent = 'Waiting for debaters to be ready...';
     waitingText.style.cssText = `
-        font-family: sans-serif;
-        font-size: 18px;
-        color: #999;
-        font-style: italic;
-        margin-bottom: 10px;
-    `;
-    middleSection.appendChild(waitingText);
-    
-    // Ready counters container
-    const countersContainer = document.createElement('div');
-    countersContainer.style.cssText = `
-        display: flex;
-        gap: 60px;
-        align-items: center;
-    `;
-    
-    // Group 1 counter (red)
-    const group1Counter = document.createElement('div');
-    group1Counter.id = 'listenerGroup1Counter';
-    group1Counter.textContent = '0/0';
-    group1Counter.style.cssText = `
-        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-        font-size: 64px;
-        font-weight: 900;
-        color: #DC3545;
-        letter-spacing: 0.05em;
-    `;
-    countersContainer.appendChild(group1Counter);
-    
-    // Group 2 counter (blue)
-    const group2Counter = document.createElement('div');
-    group2Counter.id = 'listenerGroup2Counter';
-    group2Counter.textContent = '0/0';
-    group2Counter.style.cssText = `
-        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-        font-size: 64px;
-        font-weight: 900;
-        color: #0000FE;
-        letter-spacing: 0.05em;
-    `;
-    countersContainer.appendChild(group2Counter);
-    
-    middleSection.appendChild(countersContainer);
-    listenerScreen.appendChild(middleSection);
-    
-    // Bottom section: Topic and debate question
-    const bottomSection = document.createElement('div');
-    bottomSection.style.cssText = `
+        font-family: 'MD Primer Trial', Georgia, serif;
+        font-size: 20px; font-style: italic;
+        color: #d2d2d2; margin: 0; text-align: center;
         width: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 0;
     `;
-    
-    // Topic header (orange/red)
-    const topicHeader = document.createElement('div');
-    topicHeader.textContent = window.clusterName || 'CLIMATE CHANGE';
-    topicHeader.style.cssText = `
-        background-color: #FF6B35;
-        color: #FFF;
-        padding: 15px 20px;
-        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-        font-size: 20px;
-        font-weight: 900;
-        text-align: center;
-        border: 3px solid #000;
-        letter-spacing: 0.1em;
+
+    // Vote status row
+    const voteRow = document.createElement('div');
+    voteRow.style.cssText = `
+        display: flex; align-items: center;
+        justify-content: space-between;
+        width: 100%; height: 57px;
     `;
-    bottomSection.appendChild(topicHeader);
-    
-    // Debate question box (yellow)
-    const questionBox = document.createElement('div');
-    questionBox.textContent = window.debateQuestion || 'Should fossil fuels be banned entirely?';
-    questionBox.style.cssText = `
-        background-color: #FFE66D;
-        color: #000;
-        padding: 25px 20px;
-        font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
-        font-size: 24px;
-        font-weight: 900;
-        text-align: center;
-        border: 3px solid #000;
-        border-top: none;
-        letter-spacing: 0.05em;
-        line-height: 1.3;
+
+    const group1Counter = document.createElement('p');
+    group1Counter.id = 'listenerGroup1Counter';
+    group1Counter.textContent = '0/5';
+    group1Counter.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 48px; font-weight: 600;
+        letter-spacing: 7.2px;
+        color: #D62828; margin: 0;
     `;
-    bottomSection.appendChild(questionBox);
-    
-    listenerScreen.appendChild(bottomSection);
-    
+
+    const divider = document.createElement('div');
+    divider.style.cssText = `
+        flex: 1; display: flex;
+        align-items: center; justify-content: center;
+    `;
+    divider.innerHTML = `<svg width="2" height="56" viewBox="0 0 2 56" fill="none"><rect width="2" height="56" fill="white"/></svg>`;
+
+    const group2Counter = document.createElement('p');
+    group2Counter.id = 'listenerGroup2Counter';
+    group2Counter.textContent = '0/5';
+    group2Counter.style.cssText = `
+        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+        font-size: 48px; font-weight: 600;
+        letter-spacing: 7.2px;
+        color: #0000FE; margin: 0;
+    `;
+
+    voteRow.appendChild(group1Counter);
+    voteRow.appendChild(divider);
+    voteRow.appendChild(group2Counter);
+
+    // Group labels
+    const groupLabels = document.createElement('div');
+    groupLabels.style.cssText = `
+        display: flex; justify-content: space-between;
+        width: 100%;
+    `;
+
+    const label1 = document.createElement('p');
+    label1.textContent = 'Group 1';
+    label1.style.cssText = `
+        font-family: 'MD Primer Trial', Georgia, serif;
+        font-size: 20px; color: #D62828; margin: 0;
+    `;
+
+    const label2 = document.createElement('p');
+    label2.textContent = 'Group 2';
+    label2.style.cssText = `
+        font-family: 'MD Primer Trial', Georgia, serif;
+        font-size: 20px; color: #0000FE; margin: 0;
+    `;
+
+    groupLabels.appendChild(label1);
+    groupLabels.appendChild(label2);
+
+    footer.appendChild(waitingText);
+    footer.appendChild(voteRow);
+    footer.appendChild(groupLabels);
+
+    listenerScreen.appendChild(header);
+    listenerScreen.appendChild(ellipsesContainer);
+    listenerScreen.appendChild(footer);
     document.body.appendChild(listenerScreen);
 }
 
