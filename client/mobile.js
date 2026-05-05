@@ -252,6 +252,10 @@ function connect() {
             if (window.forceRole) {
                 data = Object.assign({}, data, { role: window.forceRole.role, group: window.forceRole.group });
                 console.log(`🛠️ forceRole override: ${data.role} group ${data.group}`);
+                // Notify server of the override so it tracks this client correctly
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'force_role_override', role: data.role, group: data.group }));
+                }
             }
 
             // Store user's role and group
@@ -2114,6 +2118,7 @@ function showDebaterReadyScreen(group) {
     readyButton.addEventListener('touchend', () => { readyButton.style.transform = 'translateY(0)'; btnBase.style.height = '5px'; });
 
     readyButton.addEventListener('click', () => {
+        console.log('🔘 Button clicked!');
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'user_ready' }));
             readyButton.textContent = 'READY ✓';
@@ -2123,6 +2128,8 @@ function showDebaterReadyScreen(group) {
             readyButton.disabled = true;
             readyButton.style.cursor = 'not-allowed';
             console.log('✅ Marked as ready');
+        } else {
+            console.error('❌ WebSocket not open:', ws ? ws.readyState : 'ws is null');
         }
     });
 
@@ -2133,6 +2140,7 @@ function showDebaterReadyScreen(group) {
     debaterScreen.appendChild(content);
     debaterScreen.appendChild(btnWrapper);
     document.body.appendChild(debaterScreen);
+    console.log('🎨 Debater ready screen created and appended to DOM');
 }
 
 // Generate role icon SVG

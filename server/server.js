@@ -837,6 +837,14 @@ wss.on('connection', (ws) => {
                 return;
             }
             
+            if (data.type === 'force_role_override') {
+                const sessionId = ws.sessionId;
+                if (!sessionId) return;
+                clientRoles.set(sessionId, { role: data.role, group: data.group });
+                console.log(`🛠️ Server force_role_override: session ${sessionId} → ${data.role} group ${data.group}`);
+                return;
+            }
+            
             if (data.type === 'user_ready' || data.type === 'debater_ready') {
                 const sessionId = ws.sessionId;
                 if (!sessionId) return;
