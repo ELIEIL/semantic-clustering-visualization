@@ -18,13 +18,24 @@
     font-style: normal;
 }
 
+html {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
 body {
     font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
     background: #fff;
-    min-height: 100vh;
+    height: 100%;
+    width: 100%;
     margin: 0;
     padding: 0;
     color: #333;
+    overflow: hidden;
+    overscroll-behavior: none;
+    position: fixed;
+    -webkit-overflow-scrolling: auto;
 }
 
 /* Header */
@@ -164,9 +175,10 @@ body.keyboard-visible .input-title {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
+    height: 100vh;
     padding: 2rem;
     background: white;
+    overflow: hidden;
 }
 
 .idle-content {
@@ -197,9 +209,8 @@ body.keyboard-visible .input-title {
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
-    min-height: 100vh;
-    overflow-y: auto;
-    overflow-x: hidden;
+    height: 100vh;
+    overflow: hidden;
     transition: padding 0.3s ease;
 }
 
