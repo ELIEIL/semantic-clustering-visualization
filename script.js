@@ -6823,7 +6823,7 @@ function drawDebateOverScreen() {
 
 // Phase 2: Vote Counting Animation
 function drawVoteCountingScreen() {
-    background(0);
+    background(11, 7, 1); // #0b0701
     
     // Convert listener balance to vote counts
     // Balance ranges from -20 (all Group 1) to +20 (all Group 2)
@@ -6846,65 +6846,47 @@ function drawVoteCountingScreen() {
     const displayGroup1Votes = Math.min(Math.floor(voteCountAnimation), group1Votes);
     const displayGroup2Votes = Math.min(Math.floor(voteCountAnimation), group2Votes);
     
-    // Fixed circle sizes (same as debate screen)
-    const circleSize = 350;
-    const leftX = width * 0.3;
-    const rightX = width * 0.7;
-    const circleY = height / 2 + 50;
+    // Circle layout matching Figma 2157-791 (1920px canvas)
+    const circleSize = 525;
+    const leftX  = width * 0.271; // ~520px / 1920
+    const rightX = width * 0.729; // ~1399px / 1920
+    const circleY = height / 2;
     
     colorMode(RGB, 255);
-    
-    // Draw "COUNTING VOTES" header
-    push();
-    fill(255, 215, 0); // Yellow/gold
-    textAlign(CENTER, CENTER);
-    textSize(32);
-    if (customFontSemibold) textFont(customFontSemibold);
-    text('COUNTING VOTES', width / 2, 80);
-    
-    // Draw three dots below
-    fill(255); // White
-    textSize(48);
-    text('...', width / 2, 130);
-    pop();
     
     // Segment parameters
     const totalSegments = 40;
     const segmentAngle = TWO_PI / totalSegments;
     const segmentLength = segmentAngle * 0.6;
-    const innerRadius = (circleSize) / 2 - 30;
+    const innerRadius = circleSize / 2 - 30;
     
-    // Draw Group 1 (Red) circle
+    // ── Group 1 (Red) circle — #D62828 ───────────────────────
     push();
     noFill();
-    stroke(220, 53, 69);
+    stroke(214, 40, 40);
     strokeWeight(6);
     drawingContext.setLineDash([15, 15]);
     circle(leftX, circleY, circleSize);
     drawingContext.setLineDash([]);
     
-    // Draw full segmented ring (all 40 segments)
     noFill();
-    stroke(220, 53, 69);
+    stroke(214, 40, 40);
     strokeWeight(20);
     strokeCap(SQUARE);
-    
     for (let i = 0; i < totalSegments; i++) {
         const startAngle = HALF_PI + (i * segmentAngle);
-        const endAngle = startAngle + segmentLength;
-        arc(leftX, circleY, innerRadius * 2, innerRadius * 2, startAngle, endAngle);
+        arc(leftX, circleY, innerRadius * 2, innerRadius * 2, startAngle, startAngle + segmentLength);
     }
     
-    // Vote count in center
     noStroke();
-    fill(220, 53, 69);
+    fill(214, 40, 40);
     textAlign(CENTER, CENTER);
-    textSize(80);
-    if (customFontPrimer) textFont(customFontPrimer); // MD Primer Trial
+    textSize(96);
+    if (customFontPrimer) textFont(customFontPrimer);
     text(displayGroup1Votes, leftX, circleY);
     pop();
     
-    // Draw Group 2 (Blue) circle
+    // ── Group 2 (Blue) circle — #0000FE ──────────────────────
     push();
     noFill();
     stroke(0, 0, 254);
@@ -6913,24 +6895,20 @@ function drawVoteCountingScreen() {
     circle(rightX, circleY, circleSize);
     drawingContext.setLineDash([]);
     
-    // Draw full segmented ring (all 40 segments)
     noFill();
     stroke(0, 0, 254);
     strokeWeight(20);
     strokeCap(SQUARE);
-    
     for (let i = 0; i < totalSegments; i++) {
         const startAngle = HALF_PI + (i * segmentAngle);
-        const endAngle = startAngle + segmentLength;
-        arc(rightX, circleY, innerRadius * 2, innerRadius * 2, startAngle, endAngle);
+        arc(rightX, circleY, innerRadius * 2, innerRadius * 2, startAngle, startAngle + segmentLength);
     }
     
-    // Vote count in center
     noStroke();
     fill(0, 0, 254);
     textAlign(CENTER, CENTER);
-    textSize(80);
-    if (customFontPrimer) textFont(customFontPrimer); // MD Primer Trial
+    textSize(96);
+    if (customFontPrimer) textFont(customFontPrimer);
     text(displayGroup2Votes, rightX, circleY);
     pop();
     
