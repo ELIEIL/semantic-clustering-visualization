@@ -6917,30 +6917,31 @@ function drawVoteCountingScreen() {
 
 // Phase 3: Winner Screen
 function drawWinnerScreen() {
-    background(0);
+    background(11, 7, 1); // #0b0701
     
     // Calculate final vote counts
     const group1Votes = Math.round(20 + Math.abs(Math.min(finalVoteBalance, 0)));
     const group2Votes = Math.round(20 + Math.max(finalVoteBalance, 0));
     const winnerVotes = winnerGroup === 1 ? group1Votes : group2Votes;
     
-    const circleX = width * 0.25;
-    const circleY = height / 2;
-    const circleSize = 350;
+    // Circle layout matching Figma 2160-2723 (1920×1080 canvas)
+    const circleX    = width * 0.327; // ~627px / 1920
+    const circleY    = height / 2;
+    const circleSize = 525;
     
     colorMode(RGB, 255);
     
-    // Winner color (red for Group 1, blue for Group 2)
-    const winnerColor = winnerGroup === 1 ? [220, 53, 69] : [0, 0, 254];
+    // Winner color — #D62828 (Group 1) or #0000FE (Group 2)
+    const winnerColor = winnerGroup === 1 ? [214, 40, 40] : [0, 0, 254];
     
-    // Rotating animation
+    // ── Rotating animation (unchanged logic) ─────────────────
     if (!window.winnerAnimStart) {
         window.winnerAnimStart = Date.now();
     }
-    const animElapsed = Date.now() - window.winnerAnimStart;
-    const rotationSpeed = 0.0002; // Radians per millisecond (slower rotation)
+    const animElapsed  = Date.now() - window.winnerAnimStart;
+    const rotationSpeed = 0.0002;
     
-    // Draw outer dashed circle (rotates clockwise)
+    // Outer dashed circle (rotates clockwise)
     push();
     translate(circleX, circleY);
     rotate(animElapsed * rotationSpeed);
@@ -6952,26 +6953,21 @@ function drawWinnerScreen() {
     drawingContext.setLineDash([]);
     pop();
     
-    // Draw inner segmented ring (rotates counter-clockwise)
+    // Inner segmented ring (rotates counter-clockwise)
     push();
     translate(circleX, circleY);
-    rotate(-animElapsed * rotationSpeed * 1.5); // Faster, opposite direction
-    
+    rotate(-animElapsed * rotationSpeed * 1.5);
     noFill();
     stroke(...winnerColor);
     strokeWeight(20);
     strokeCap(SQUARE);
-    
     const totalSegments = 40;
-    const segmentAngle = TWO_PI / totalSegments;
-    const gapAngle = segmentAngle * 0.2;
-    const segmentLength = segmentAngle - gapAngle;
-    const innerRadius = (circleSize / 2) - 30;
-    
+    const segmentAngle  = TWO_PI / totalSegments;
+    const segmentLength = segmentAngle * 0.8;
+    const innerRadius   = circleSize / 2 - 30;
     for (let i = 0; i < totalSegments; i++) {
         const startAngle = i * segmentAngle;
-        const endAngle = startAngle + segmentLength;
-        arc(0, 0, innerRadius * 2, innerRadius * 2, startAngle, endAngle);
+        arc(0, 0, innerRadius * 2, innerRadius * 2, startAngle, startAngle + segmentLength);
     }
     pop();
     
@@ -6980,72 +6976,45 @@ function drawWinnerScreen() {
     noStroke();
     fill(...winnerColor);
     textAlign(CENTER, CENTER);
-    textSize(100);
+    textSize(96);
     if (customFontPrimer) textFont(customFontPrimer);
     text(winnerVotes, circleX, circleY);
     pop();
     
-    // Right side text information
-    const rightX = width * 0.55;
-    const startY = height * 0.25;
-    const lineHeight = 70;
-    let currentY = startY;
+    // ── Right info panel — Figma: left-[985px], top-[277px], h-[525px] ──
+    const panelX     = width  * (985  / 1920); // ~0.513
+    const panelTop   = height * (277  / 1080); // ~0.256
+    const panelH     = height * (525  / 1080); // ~0.486
+    const maxW       = width  * (711  / 1920); // ~0.370
+    
+    // 4 sections, justify-between over panelH
+    const sections = [
+        { label: 'DEBATE WINNER',      value: `Group ${winnerGroup}` },
+        { label: 'DEBATE TOPIC',       value: winningCluster?.label || 'Climate change' },
+        { label: 'STATEMENT',          value: debateQuestion || 'Should fossil fuels be banned entirely?' },
+        { label: 'STANCE ON STATEMENT', value: winnerGroup === 1 ? 'Against' : 'For' },
+    ];
+    const gap = panelH / (sections.length - 1);
     
     push();
     textAlign(LEFT, TOP);
-    
-    // DEBATE WINNER
-    fill(...winnerColor);
-    textSize(32);
-    if (customFontSemibold) textFont(customFontSemibold); // MD Thermochrome
-    text('DEBATE WINNER', rightX, currentY);
-    currentY += 40;
-    
-    fill(255);
-    textSize(28);
-    if (customFontPrimer) textFont(customFontPrimer);
-    text(`Group ${winnerGroup}`, rightX, currentY);
-    currentY += lineHeight;
-    
-    // DEBATE TOPIC
-    fill(...winnerColor);
-    textSize(32);
-    if (customFontSemibold) textFont(customFontSemibold);
-    text('DEBATE TOPIC', rightX, currentY);
-    currentY += 40;
-    
-    fill(255);
-    textSize(28);
-    if (customFontPrimer) textFont(customFontPrimer);
-    text(window.clusterName || 'Climate change', rightX, currentY);
-    currentY += lineHeight;
-    
-    // STATEMENT
-    fill(...winnerColor);
-    textSize(32);
-    if (customFontSemibold) textFont(customFontSemibold);
-    text('STATEMENT', rightX, currentY);
-    currentY += 40;
-    
-    fill(255);
-    textSize(24);
-    if (customFontPrimer) textFont(customFontPrimer);
-    const maxWidth = width * 0.35;
-    text(debateQuestion || 'Should fossil fuels be banned entirely?', rightX, currentY, maxWidth);
-    currentY += 90;
-    
-    // STANCE ON STATEMENT
-    fill(...winnerColor);
-    textSize(32);
-    if (customFontSemibold) textFont(customFontSemibold);
-    text('STANCE ON STATEMENT', rightX, currentY);
-    currentY += 40;
-    
-    fill(255);
-    textSize(28);
-    if (customFontPrimer) textFont(customFontPrimer);
-    text(winnerGroup === 1 ? 'Against' : 'For', rightX, currentY);
-    
+    sections.forEach((s, i) => {
+        const y = panelTop + i * gap;
+        
+        // Label — group color, MD Thermochrome Semibold, 48px, tracking 7.2px
+        fill(...winnerColor);
+        textSize(48);
+        if (customFontSemibold) textFont(customFontSemibold);
+        drawingContext.letterSpacing = '7.2px';
+        text(s.label, panelX, y);
+        drawingContext.letterSpacing = '0px';
+        
+        // Value — white, MD Primer Regular, 40px
+        fill(255);
+        textSize(40);
+        if (customFontPrimer) textFont(customFontPrimer);
+        text(s.value, panelX, y + 52, maxW);
+    });
     pop();
     
     colorMode(HSB, 360, 100, 100);
