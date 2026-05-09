@@ -6718,26 +6718,38 @@ function drawListenerVotingCircles() {
 
 // Phase 1: Debate Over Screen
 function drawDebateOverScreen() {
-    background(0);
+    background(11, 7, 1); // #0b0701
     
-    // Fixed circle sizes (same as debate screen)
-    const circleSize = 350;
-    const leftX = width * 0.3;
-    const rightX = width * 0.7;
-    const circleY = height / 2 + 50;
+    // Circle layout matching Figma 2160-2569 (1920px canvas)
+    const circleSize = 525;
+    const leftX  = width * 0.274; // ~526px / 1920
+    const rightX = width * 0.726; // ~1393px / 1920
+    const circleY = height / 2 + 6.5;
     
     colorMode(RGB, 255);
     
-    // Draw debate question at top
+    // ── Header ───────────────────────────────────────────────
+    // Cluster topic label — yellow, MD Thermochrome, 40px, tracking 6px
     push();
-    fill(255); // White
+    fill(253, 237, 107); // #FDED6B
     textAlign(CENTER, CENTER);
-    textSize(28);
-    if (customFontPrimer) textFont(customFontPrimer);
-    text(debateQuestion || 'Should fossil fuels be banned entirely?', width / 2, 100);
+    textSize(40);
+    if (customFontSemibold) textFont(customFontSemibold);
+    drawingContext.letterSpacing = '6px';
+    text((winningCluster?.label || '').toUpperCase(), width / 2, 65);
+    drawingContext.letterSpacing = '0px';
     pop();
     
-    // Animate segments filling up (quick animation - 2 seconds)
+    // Debate question — white, MD Primer, 48px
+    push();
+    fill(255);
+    textAlign(CENTER, CENTER);
+    textSize(48);
+    if (customFontPrimer) textFont(customFontPrimer);
+    text(debateQuestion || 'Should fossil fuels be banned entirely?', width / 2, 130);
+    pop();
+    
+    // ── Animation (unchanged logic) ──────────────────────────
     if (!window.debateOverAnimStart) {
         window.debateOverAnimStart = Date.now();
         console.log('🎬 Starting debate over animation');
@@ -6750,51 +6762,37 @@ function drawDebateOverScreen() {
     
     console.log(`📊 Debate Over: progress=${animProgress.toFixed(2)}, segments=${visibleSegments}/${totalSegments}`);
     
-    // Draw Group 1 (Red) circle
+    const segmentAngle = TWO_PI / totalSegments;
+    const segmentLength = segmentAngle * 0.6;
+    const innerRadius = circleSize / 2 - 30;
+    
+    // ── Group 1 (Red) circle — #D62828 ───────────────────────
     push();
     noFill();
-    stroke(220, 53, 69);
+    stroke(214, 40, 40);
     strokeWeight(6);
     drawingContext.setLineDash([15, 15]);
     circle(leftX, circleY, circleSize);
     drawingContext.setLineDash([]);
     
-    // Draw animated segmented ring (filling up)
-    const segmentAngle = TWO_PI / totalSegments;
-    const segmentLength = segmentAngle * 0.6;
-    const innerRadius = (circleSize) / 2 - 30;
-    
     noFill();
-    stroke(220, 53, 69);
+    stroke(214, 40, 40);
     strokeWeight(20);
     strokeCap(SQUARE);
-    
     for (let i = 0; i < visibleSegments; i++) {
         const startAngle = HALF_PI + (i * segmentAngle);
-        const endAngle = startAngle + segmentLength;
-        arc(leftX, circleY, innerRadius * 2, innerRadius * 2, startAngle, endAngle);
+        arc(leftX, circleY, innerRadius * 2, innerRadius * 2, startAngle, startAngle + segmentLength);
     }
     
-    // "Debate Over" text in center (only during animation)
-    if (animProgress < 1) {
-        noStroke();
-        fill(220, 53, 69);
-        textAlign(CENTER, CENTER);
-        textSize(36);
-        if (customFontPrimer) textFont(customFontPrimer);
-        text('Debate Over', leftX, circleY);
-    } else {
-        // Show "Group 1" when animation is complete
-        noStroke();
-        fill(220, 53, 69);
-        textAlign(CENTER, CENTER);
-        textSize(36);
-        if (customFontPrimer) textFont(customFontPrimer);
-        text('Group 1', leftX, circleY);
-    }
+    noStroke();
+    fill(214, 40, 40);
+    textAlign(CENTER, CENTER);
+    textSize(48);
+    if (customFontPrimer) textFont(customFontPrimer);
+    text('Debate Over', leftX, circleY);
     pop();
     
-    // Draw Group 2 (Blue) circle
+    // ── Group 2 (Blue) circle — #0000FE ──────────────────────
     push();
     noFill();
     stroke(0, 0, 254);
@@ -6803,35 +6801,21 @@ function drawDebateOverScreen() {
     circle(rightX, circleY, circleSize);
     drawingContext.setLineDash([]);
     
-    // Draw animated segmented ring (filling up)
     noFill();
     stroke(0, 0, 254);
     strokeWeight(20);
     strokeCap(SQUARE);
-    
     for (let i = 0; i < visibleSegments; i++) {
         const startAngle = HALF_PI + (i * segmentAngle);
-        const endAngle = startAngle + segmentLength;
-        arc(rightX, circleY, innerRadius * 2, innerRadius * 2, startAngle, endAngle);
+        arc(rightX, circleY, innerRadius * 2, innerRadius * 2, startAngle, startAngle + segmentLength);
     }
     
-    // "Debate Over" text in center (only during animation)
-    if (animProgress < 1) {
-        noStroke();
-        fill(0, 0, 254);
-        textAlign(CENTER, CENTER);
-        textSize(36);
-        if (customFontPrimer) textFont(customFontPrimer);
-        text('Debate Over', rightX, circleY);
-    } else {
-        // Show "Group 2" when animation is complete
-        noStroke();
-        fill(0, 0, 254);
-        textAlign(CENTER, CENTER);
-        textSize(36);
-        if (customFontPrimer) textFont(customFontPrimer);
-        text('Group 2', rightX, circleY);
-    }
+    noStroke();
+    fill(0, 0, 254);
+    textAlign(CENTER, CENTER);
+    textSize(48);
+    if (customFontPrimer) textFont(customFontPrimer);
+    text('Debate Over', rightX, circleY);
     pop();
     
     colorMode(HSB, 360, 100, 100);
