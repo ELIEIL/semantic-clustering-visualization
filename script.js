@@ -2990,15 +2990,9 @@ function startDebateTimer() {
                     setTimeout(() => {
                         debateOverPhase = 'winner';
                         
-                        // Calculate vote counts from balance
-                        const totalListeners = 20;
-                        const balance = finalVoteBalance;
-                        const group1Votes = Math.round((totalListeners - balance) / 2);
-                        const group2Votes = Math.round((totalListeners + balance) / 2);
-                        
-                        // Determine winner based on actual vote counts
-                        winnerGroup = group1Votes > group2Votes ? 1 : 2;
-                        console.log(`📺 Phase 3: Winner - Group ${winnerGroup} (Group 1: ${group1Votes}, Group 2: ${group2Votes})`);
+                        // Determine winner from actual tracked vote counts
+                        winnerGroup = redVoteCount >= greenVoteCount ? 1 : 2;
+                        console.log(`📺 Phase 3: Winner - Group ${winnerGroup} (Group 1: ${redVoteCount}, Group 2: ${greenVoteCount})`);
                         
                         // Broadcast winner to mobile clients
                         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -6825,20 +6819,13 @@ function drawDebateOverScreen() {
 function drawVoteCountingScreen() {
     background(11, 7, 1); // #0b0701
     
-    // Convert listener balance to vote counts
-    // Balance ranges from -20 (all Group 1) to +20 (all Group 2)
-    // Assume 20 total listeners
-    const totalListeners = 20;
-    const balance = finalVoteBalance; // This is set when debate ends
-    
-    // Calculate votes from balance
-    const group1Votes = Math.round((totalListeners - balance) / 2);
-    const group2Votes = Math.round((totalListeners + balance) / 2);
+    // Use actual tracked vote counts
+    const group1Votes = redVoteCount;
+    const group2Votes = greenVoteCount;
     
     // Debug: Log vote counts once
     if (voteCountAnimation === 0) {
-        console.log('📊 Vote Counting Screen - Balance:', balance);
-        console.log('   Group 1:', group1Votes, 'Group 2:', group2Votes);
+        console.log('📊 Vote Counting Screen - Group 1:', group1Votes, 'Group 2:', group2Votes);
     }
     
     // Animate vote count slowly (increment by 0.3 per frame for ~60fps = ~5 votes/second)
@@ -6919,10 +6906,8 @@ function drawVoteCountingScreen() {
 function drawWinnerScreen() {
     background(11, 7, 1); // #0b0701
     
-    // Calculate final vote counts
-    const group1Votes = Math.round(20 + Math.abs(Math.min(finalVoteBalance, 0)));
-    const group2Votes = Math.round(20 + Math.max(finalVoteBalance, 0));
-    const winnerVotes = winnerGroup === 1 ? group1Votes : group2Votes;
+    // Use actual tracked vote counts
+    const winnerVotes = winnerGroup === 1 ? redVoteCount : greenVoteCount;
     
     // Circle layout matching Figma 2160-2723 (1920×1080 canvas)
     const circleX    = width * 0.327; // ~627px / 1920
