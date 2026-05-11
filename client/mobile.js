@@ -19,6 +19,7 @@ let isConnected = false;
 let lastDebaterCounts = { group1Ready: 0, group1Total: 0, group2Ready: 0, group2Total: 0 };
 let postHistoryData = [];
 let clientId = null; // Unique client ID assigned by server
+let currentPhase = 'idle'; // Tracks current experience phase for guards
 
 // Countdown timer variables
 let countdownTime = 180; // 3 minutes in seconds
@@ -114,13 +115,31 @@ function connect() {
         }
         
         if (data.type === 'experience_start') {
-            // Hide idle screen and show input section
+            currentPhase = 'posting';
             console.log('🎬 Experience started - showing input section');
             const idleSection = document.getElementById('idleSection');
             const inputSection = document.getElementById('inputSection');
             
             if (idleSection) idleSection.style.display = 'none';
             if (inputSection) inputSection.style.display = 'flex';
+            
+            // Re-enable input in case it was disabled
+            if (textInput) { textInput.disabled = false; textInput.placeholder = 'Whats your opinion?'; }
+            if (submitBtn) submitBtn.disabled = false;
+        }
+        
+        if (data.type === 'end_experience') {
+            currentPhase = 'idle';
+            console.log('🏁 Experience ended - returning to idle screen');
+            const idleSection = document.getElementById('idleSection');
+            const inputSection = document.getElementById('inputSection');
+            if (idleSection) idleSection.style.display = 'flex';
+            if (inputSection) inputSection.style.display = 'none';
+        }
+        
+        if (data.type === 'state_sync') {
+            currentPhase = data.phase || 'idle';
+            console.log('🔄 State synced to phase:', currentPhase);
         }
         
         if (data.type === 'countdown_update') {
@@ -792,8 +811,8 @@ function updateCountdownFromServer(time) {
     countdownTime = time;
     countdownElement.textContent = formatTime(time);
     
-    // Disable input when time is up
-    if (time <= 0) {
+    // Only disable input if experience is actually running (not during idle)
+    if (time <= 0 && currentPhase !== 'idle') {
         textInput.disabled = true;
         submitBtn.disabled = true;
         textInput.placeholder = 'Time is up!';

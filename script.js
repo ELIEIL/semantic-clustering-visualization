@@ -2524,8 +2524,19 @@ window.resetExperience = function() {
         console.log('🔄 Full experience reset requested');
         
         // Reset local state
-        idleScreenActive = true;
+        idleScreenActive  = true;
         experienceStarted = false;
+        
+        // Restore idle layer visuals
+        const idleLayerR = document.getElementById('idle-layer');
+        const p5CanvasR  = document.getElementById('p5-canvas');
+        if (idleLayerR) idleLayerR.style.opacity = '1';
+        if (p5CanvasR)  p5CanvasR.style.opacity  = '0';
+        if (window.IdleAnimation) window.IdleAnimation.start();
+        const startBtnR = document.getElementById('startExpBtn');
+        const endBtnR   = document.getElementById('endExpBtn');
+        if (startBtnR) startBtnR.style.display = 'block';
+        if (endBtnR)   endBtnR.style.display   = 'none';
         clusteringEnabled = false;
         timerCompleted = false;
         
@@ -2993,6 +3004,13 @@ function startDebateTimer() {
                         // Determine winner from actual tracked vote counts
                         winnerGroup = redVoteCount >= greenVoteCount ? 1 : 2;
                         console.log(`📺 Phase 3: Winner - Group ${winnerGroup} (Group 1: ${redVoteCount}, Group 2: ${greenVoteCount})`);
+                        
+                        // Show Return button with a gentle fade-in
+                        const returnBtn = document.getElementById('returnToIdleBtn');
+                        if (returnBtn) {
+                            returnBtn.style.display = 'block';
+                            requestAnimationFrame(() => { returnBtn.style.opacity = '1'; });
+                        }
                         
                         // Broadcast winner to mobile clients
                         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -3607,6 +3625,13 @@ function connectWebSocket() {
             }
         }
         
+        if (data.type === 'end_experience') {
+            // Server or another client triggered end — return to idle
+            if (!idleScreenActive) {
+                endExperience(true); // fromServer=true: don't re-send to server
+            }
+        }
+        
         if (data.type === 'countdown_update') {
             // Update countdown timer display
             if (window.updateCountdownDisplay) {
@@ -4211,6 +4236,7 @@ function setup() {
     
     const canvas = createCanvas(windowWidth, windowHeight);
     canvas.parent(document.body);
+    canvas.id('p5-canvas');
     colorMode(HSB);
     
     console.log('Canvas created:', width, 'x', height);
@@ -4219,19 +4245,26 @@ function setup() {
     setupMonitorToggle();
     connectWebSocket();
     
+    // Initialize ASCII idle animation layer
+    const idleLayer = document.getElementById('idle-layer');
+    if (idleLayer && window.IdleAnimation) {
+        window.IdleAnimation.init(idleLayer);
+        window.IdleAnimation.start();
+    }
+    
     // Load debate topics for cluster matching
     loadDebateTopics();
 }
 
 function draw() {
     try {
-        background(0);
-        
-        // Show idle/welcome screen if active
+        // During idle the ASCII layer shows through — keep p5 canvas transparent
         if (idleScreenActive) {
-            drawIdleScreen();
+            clear();
             return;
         }
+        
+        background(0);
         
         // Update typing animations
         if (typeof typingAnimation !== 'undefined') {
@@ -7005,79 +7038,106 @@ function drawWinnerScreen() {
     colorMode(HSB, 360, 100, 100);
 }
 
-// Draw idle/welcome screen
-function drawIdleScreen() {
-    background(0);
-    
-    // Hide countdown timer display
-    const displayCountdown = document.getElementById('displayCountdown');
-    if (displayCountdown) displayCountdown.style.display = 'none';
-    
-    // Title
-    push();
-    fill(255);
-    textAlign(CENTER, CENTER);
-    textSize(64);
-    if (customFont) textFont(customFont);
-    text('Split Signals', width / 2, height / 2 - 100);
-    pop();
-    
-    // Start button
-    push();
-    const buttonW = 200;
-    const buttonH = 80;
-    const buttonX = width / 2 - buttonW / 2;
-    const buttonY = height / 2;
-    
-    // Button background
-    fill(220, 53, 69); // Red
-    noStroke();
-    rect(buttonX, buttonY, buttonW, buttonH);
-    
-    // Button text
-    fill(255);
-    textAlign(CENTER, CENTER);
-    textSize(32);
-    if (customFont) textFont(customFont);
-    text('Start', width / 2, buttonY + buttonH / 2);
-    pop();
-}
+// Draw idle/welcome screen — no-op, ASCII layer handles the idle display
+function drawIdleScreen() {}
 
-// Start the experience
+// Start the experience — dissolve ASCII chars, then reveal timer + p5 canvas
 function startExperience() {
-    idleScreenActive = false;
+    idleScreenActive  = false;
     experienceStarted = true;
     
-    // Show countdown timer display
-    const displayCountdown = document.getElementById('displayCountdown');
-    if (displayCountdown) displayCountdown.style.display = 'block';
+    // Toggle facilitator buttons immediately
+    const startBtn = document.getElementById('startExpBtn');
+    const endBtn   = document.getElementById('endExpBtn');
+    if (startBtn) startBtn.style.display = 'none';
+    if (endBtn)   endBtn.style.display   = 'block';
     
-    // Broadcast start to all mobile clients and server
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-            type: 'experience_start'
-        }));
+    // Called once dissolve completes (or immediately if IdleAnimation unavailable)
+    const onDissolveComplete = () => {
+        const idleLayer        = document.getElementById('idle-layer');
+        const p5Canvas         = document.getElementById('p5-canvas');
+        const displayCountdown = document.getElementById('displayCountdown');
+        
+        // 1. Make timer visible but still transparent, then fade it in
+        if (displayCountdown) {
+            displayCountdown.style.display = 'block';
+            requestAnimationFrame(() => {
+                displayCountdown.style.opacity = '1';
+            });
+        }
+        
+        // 2. After timer has fully faded in (1s), start the actual countdown + fade p5 in
+        setTimeout(() => {
+            // NOW send experience_start so countdown begins after timer is visible
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'experience_start' }));
+            }
+            // Crossfade: idle layer out, p5 canvas in
+            if (idleLayer) idleLayer.style.opacity = '0';
+            if (p5Canvas)  p5Canvas.style.opacity  = '1';
+        }, 1000);
+    };
+    
+    if (window.IdleAnimation && window.IdleAnimation.dissolveOut) {
+        window.IdleAnimation.dissolveOut(onDissolveComplete);
+    } else {
+        onDissolveComplete();
     }
     
     console.log('🎬 Experience started!');
 }
 
-// Mouse click handler for Start button
-function mousePressed() {
-    if (idleScreenActive) {
-        // Check if Start button clicked
-        const buttonW = 200;
-        const buttonH = 80;
-        const buttonX = width / 2 - buttonW / 2;
-        const buttonY = height / 2;
-        
-        if (mouseX >= buttonX && mouseX <= buttonX + buttonW &&
-            mouseY >= buttonY && mouseY <= buttonY + buttonH) {
-            // Start experience
-            startExperience();
-        }
+// End the experience — p5 fades out while ASCII chars materialise (reverse of start)
+// fromServer: true when triggered by incoming WS message (skip re-sending to avoid loop)
+function endExperience(fromServer = false) {
+    const idleLayer        = document.getElementById('idle-layer');
+    const p5Canvas         = document.getElementById('p5-canvas');
+    const displayCountdown = document.getElementById('displayCountdown');
+    const startBtn         = document.getElementById('startExpBtn');
+    const endBtn           = document.getElementById('endExpBtn');
+    const returnBtn        = document.getElementById('returnToIdleBtn');
+    
+    // Hide control buttons immediately
+    if (endBtn)    endBtn.style.display    = 'none';
+    if (returnBtn) { returnBtn.style.opacity = '0'; setTimeout(() => { returnBtn.style.display = 'none'; }, 600); }
+    
+    // Fade out countdown timer
+    if (displayCountdown) {
+        displayCountdown.style.opacity = '0';
+        setTimeout(() => { displayCountdown.style.display = 'none'; displayCountdown.style.opacity = '1'; }, 1000);
     }
+    
+    // Crossfade: p5 fades out, idle layer becomes visible (starts empty)
+    if (p5Canvas)  p5Canvas.style.opacity  = '0';
+    if (idleLayer) idleLayer.style.opacity = '1';
+    
+    // Chars materialise on idle layer simultaneously with p5 fading out
+    if (window.IdleAnimation && window.IdleAnimation.revealIn) {
+        window.IdleAnimation.revealIn(() => {
+            console.log('✨ Returned to idle — animation complete');
+        });
+    } else if (window.IdleAnimation) {
+        window.IdleAnimation.start();
+    }
+    
+    // Reset state after p5 has faded (1.5s) and return start button
+    setTimeout(() => {
+        idleScreenActive  = true;
+        experienceStarted = false;
+        debateOverPhase   = null;
+        if (startBtn) startBtn.style.display = 'block';
+    }, 1600);
+    
+    // Notify server (unless triggered by incoming WS message)
+    if (!fromServer && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'end_experience' }));
+    }
+    
+    console.log('🏁 Experience ended — returning to idle');
 }
+
+// Mouse click handler (idle start button removed — use #startExpBtn)
+function mousePressed() {}
 
 // Draw debate voting screen with live vote visualization
 function drawDebateVotingScreen() {

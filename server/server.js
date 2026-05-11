@@ -210,8 +210,12 @@ function startCountdownTimer() {
 }
 
 function resetCountdownTimer() {
-    startCountdownTimer();
-    console.log('Countdown timer reset');
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+    countdownTime = 30;
+    console.log('⏸️  Timer ready - waiting for Start button...');
 }
 
 wss.on('connection', (ws) => {
@@ -452,8 +456,8 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'experience_start') {
-                // Start experience - reset and start countdown timer
-                resetCountdownTimer();
+                // Start experience - start the countdown timer
+                startCountdownTimer();
                 console.log('🎬 Experience started - countdown timer started');
                 
                 // Update global state
@@ -464,6 +468,20 @@ wss.on('connection', (ws) => {
                 broadcastToAll({
                     type: 'experience_start'
                 });
+                return;
+            }
+            
+            if (data.type === 'end_experience') {
+                // Experience ended — return to idle state
+                if (countdownInterval) clearInterval(countdownInterval);
+                console.log('🏁 Experience ended — returning to idle');
+                
+                // Update global state
+                currentExperienceState.phase = 'idle';
+                currentExperienceState.data = null;
+                
+                // Broadcast to all clients
+                broadcastToAll({ type: 'end_experience' });
                 return;
             }
             
