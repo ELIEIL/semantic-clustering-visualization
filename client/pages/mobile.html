@@ -12,17 +12,19 @@
     <!-- Main Content Container -->
     <div class="mobile-container">
         
-        <!-- Idle/Welcome Screen -->
-        <div id="idleSection" class="idle-section">
-            <div class="idle-content">
-                <h1 class="idle-title">Split Signals</h1>
-                <p class="idle-subtitle">Waiting for experience to start...</p>
-                
+        <!-- Waiting Room Screen -->
+        <div id="idleSection" class="waiting-room">
+            <div id="waitingSymbolsContainer" class="waiting-symbols-container"></div>
+            <div class="waiting-banner">
+                <p class="waiting-title">Waiting for debate to start...</p>
+                <div class="waiting-players-box">
+                    <span class="waiting-players-text">PLAYERS <span id="waitingPlayerCount">0</span>/25</span>
+                </div>
             </div>
         </div>
-        
+
         <!-- Input Section -->
-        <div id="inputSection" class="input-section">
+        <div id="inputSection" class="input-section" style="display: none;">
             <h1 class="input-title">WHAT DO YOU CARE ABOUT?</h1>
             
             <textarea 

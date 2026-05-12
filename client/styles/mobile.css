@@ -1448,3 +1448,84 @@ body.keyboard-visible .mobile-container {
         font-size: 16px;
     }
 }
+
+/* ── Waiting Room ─────────────────────────────────────── */
+.waiting-room {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    overflow: hidden;
+    z-index: 1;
+}
+
+.waiting-symbols-container {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.waiting-symbol {
+    position: absolute;
+    font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+    font-weight: 600;
+    font-size: 18px;
+    color: #0b0701;
+    opacity: 0;
+    animation: symbolPulse linear infinite;
+    will-change: opacity;
+}
+
+@keyframes symbolPulse {
+    0%   { opacity: 0; }
+    15%  { opacity: 0.5; }
+    85%  { opacity: 0.5; }
+    100% { opacity: 0; }
+}
+
+.waiting-banner {
+    position: relative;
+    z-index: 2;
+    background: #0b0701;
+    width: 100%;
+    padding: 15px 25px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.waiting-title {
+    font-family: 'MD Primer Trail', -apple-system, sans-serif;
+    font-size: 24px;
+    font-weight: 500;
+    color: #ffffff;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.waiting-players-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid #0b0701;
+    border-radius: 1px;
+    padding: 5px 10px;
+}
+
+.waiting-players-text {
+    font-family: 'MD Thermochrome 0.4 Trial', 'Courier New', monospace;
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: 0.8px;
+    color: #0b0701;
+    text-transform: uppercase;
+    line-height: 1;
+}

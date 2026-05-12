@@ -407,6 +407,9 @@ wss.on('connection', (ws) => {
                 
                 console.log(`Mobile client registered with ID: ${clientId}`);
                 console.log(`📱 Sent current state: ${currentExperienceState.phase}`);
+                
+                // Broadcast updated participant count to everyone
+                broadcastToAll({ type: 'participant_count', count: mobileClients.size });
                 return;
             }
             
@@ -472,16 +475,24 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'end_experience') {
-                // Experience ended — return to idle state
-                if (countdownInterval) clearInterval(countdownInterval);
-                console.log('🏁 Experience ended — returning to idle');
+                // Experience ended — full reset, return to idle
+                if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+                resetCountdownTimer();
+                
+                // Clear posts and votes for next run
+                approvedPosts = [];
+                clusterVotes.clear();
+                clientClusterVotes.clear();
+                
+                console.log('🏁 Experience ended — full reset, returning to idle');
                 
                 // Update global state
                 currentExperienceState.phase = 'idle';
                 currentExperienceState.data = null;
                 
-                // Broadcast to all clients
+                // Broadcast end + clear to all clients
                 broadcastToAll({ type: 'end_experience' });
+                broadcastToAll({ type: 'clear_all_posts' });
                 return;
             }
             
@@ -1342,6 +1353,8 @@ wss.on('connection', (ws) => {
             }
             
             mobileClients.delete(ws.clientId);
+            // Broadcast updated participant count to all remaining clients
+            broadcastToAll({ type: 'participant_count', count: mobileClients.size });
         }
     });
     
@@ -1360,6 +1373,28 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') {
         res.writeHead(200);
         res.end();
+        return;
+    }
+    
+    // Participant count endpoint - for ELO GUI live counter
+    if (req.url === '/api/participants' && req.method === 'GET') {
+        res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ count: mobileClients.size }));
+        return;
+    }
+    
+    // Start experience endpoint - allows ELO GUI button to trigger startExperience on main display
+    if (req.url === '/api/start-experience' && req.method === 'POST') {
+        broadcastToDisplays({ type: 'trigger_start_experience' });
+        res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ ok: true }));
+        console.log('🎬 ELO GUI triggered start experience');
         return;
     }
     

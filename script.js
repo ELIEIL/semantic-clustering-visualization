@@ -2267,46 +2267,22 @@ function drawSpeechBubbles() {
         const floatyOffset = sin(node.pointerOffset) * 0.03;
         const animatedAngle = node.pointerAngle + floatyOffset;
         
-        // Calculate text dimensions
-        textSize(28); // Increased from 24
-        if (customFontSemibold) {
-            textFont(customFontSemibold);
-        }
-        
-        const lineHeight = 35; // Increased from 30 to match text size
-        const letterSpacing = 28 * 0.25; // Adjusted for new text size
-        const padding = 12;
-        
-        // Measure text width with letter spacing
-        let maxWidth = 0;
-        node.lines.forEach(line => {
-            let lineWidth = 0;
-            for (let j = 0; j < line.length; j++) {
-                lineWidth += textWidth(line.charAt(j)) + letterSpacing;
-            }
-            if (lineWidth > maxWidth) maxWidth = lineWidth;
-        });
-        
-        const boxWidth = maxWidth + padding * 2;
-        const boxHeight = node.lines.length * lineHeight + padding * 2;
-        const boxX = postX - padding;
-        const boxY = postY - padding;
-        
-        // Draw text with MD Thermochrome Medium font and 25% letter spacing (no background)
-        fill(textColor);
+        fill(255, 255, 255, 255);
         textAlign(LEFT, TOP);
+        textSize(24);
+        if (customFontSemibold) textFont(customFontSemibold);
+        noStroke();
+        drawingContext.letterSpacing = '0.01em';
+        
+        const lineHeight = 30;
         const textX = postX;
         const textY = postY;
         
-        // Draw each line with letter spacing
         node.lines.forEach((line, i) => {
-            let xOffset = 0;
-            for (let j = 0; j < line.length; j++) {
-                const char = line.charAt(j);
-                text(char, textX + xOffset, textY + i * lineHeight);
-                xOffset += textWidth(char) + letterSpacing;
-            }
+            text(line.toUpperCase(), textX, textY + i * lineHeight);
         });
+        
+        drawingContext.letterSpacing = '0px';
         
         pop();
         });
@@ -3226,7 +3202,7 @@ async function startRoleAssignment() {
     }
     
     roleAssignmentActive = true;
-    roleAssignmentPhase = 'topic-dissolve';
+    roleAssignmentPhase = 'emoji-loading';
     
     // Notify mobile clients to start their loading animation (synced)
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -3265,8 +3241,8 @@ function assignRolesToClients() {
 
 // Animate role assignment transition: topic dissolve -> emoji loading -> icons push out -> fade to circles
 function animateRoleAssignmentTransition() {
-    const startTime = Date.now();
-    const topicDissolveDuration = 1000; // 1s topic box dissolves and moves
+    const topicDissolveDuration = 1000; // 1s topic box dissolves and moves (skipped — start already past this)
+    const startTime = Date.now() - topicDissolveDuration; // Jump straight to emoji-loading phase
     const emojiLoadingDuration = 4500; // 4.5s emoji loads block by block (slower)
     const iconPushOutDuration = 5000; // 5s icons push out and stay visible longer
     const fadeToCirclesDuration = 1500; // 1.5s fade to circles with easingal screen
@@ -3632,6 +3608,11 @@ function connectWebSocket() {
             }
         }
         
+        if (data.type === 'trigger_start_experience') {
+            // ELO GUI start button pressed — trigger startExperience if on idle screen
+            if (idleScreenActive) startExperience();
+        }
+        
         if (data.type === 'countdown_update') {
             // Update countdown timer display
             if (window.updateCountdownDisplay) {
@@ -3639,7 +3620,8 @@ function connectWebSocket() {
             }
             
             // Trigger clustering when timer reaches 00:00
-            if (data.time === 0 && !timerCompleted) {
+            // Guard: only fire if this display actually started the experience (prevents stale server messages)
+            if (data.time === 0 && !timerCompleted && experienceStarted) {
                 timerCompleted = true;
                 
                 console.log('⏰ Timer completed! Running clustering algorithm...');
@@ -3862,6 +3844,7 @@ class Node {
         this.clusterColor = { h: 0, s: 0, b: 100 };
         this.avgSimilarity = 0;
         this.isMerged = false;
+        this.charReveal = 0; // for character-by-character reveal animation
         
         // Calculate embedding asynchronously for semantic analysis
         this.embedding = null;
@@ -4016,6 +3999,12 @@ class Node {
             });
         }
         
+        // Char-by-char reveal animation — 3 chars per frame
+        const _totalChars = this.lines.join('\n').length;
+        if (this.charReveal < _totalChars) {
+            this.charReveal = Math.min(this.charReveal + 3, _totalChars);
+        }
+        
         // GENTLE FLOATING PHYSICS - Always active for natural movement
         // Add gentle random drift to keep posts floating
         const driftStrength = 0.05;
@@ -4163,38 +4152,27 @@ class Node {
     display() {
         push();
         translate(this.x, this.y);
+        colorMode(RGB, 255);
         
-        const alpha = 255;
+        // Idle-style colors cycling: red, blue, green (matches idle-animation.js GROUP_RGB)
+        textAlign(LEFT, TOP);
+        textSize(24);
+        if (customFontSemibold) textFont(customFontSemibold);
+        noStroke();
+        fill(255, 255, 255, 255);
+        drawingContext.letterSpacing = '0.01em';
         
-        // Draw circular outline (original style)
-        const radius = max(this.boxWidth, this.boxHeight) / 2 + 10;
-        noFill();
-        stroke(255, alpha);
-        strokeWeight(2);
-        circle(0, 0, radius * 2);
-        
-        // Draw text inside circle with stroke for visibility
-        textAlign(LEFT, CENTER);
-        textSize(18);
-        textFont('MD Primer Trial');
-        
-        const lineHeight = 24;
-        const startY = -(this.lines.length - 1) * lineHeight / 2;
-        const startX = -110; // Left align from center
+        const lineHeight = 30;
+        const startY = -(this.lines.length * lineHeight) / 2;
+        const startX = -(this.boxWidth / 2 - 10);
         
         this.lines.forEach((line, i) => {
-            // Draw black stroke
-            stroke(0, alpha);
-            strokeWeight(4);
-            fill(0, alpha);
-            text(line, startX, startY + i * lineHeight);
-            
-            // Draw white text on top
-            noStroke();
-            fill(255, alpha);
-            text(line, startX, startY + i * lineHeight);
+            text(line.toUpperCase(), startX, startY + i * lineHeight);
         });
+        drawingContext.letterSpacing = '0px';
         
+        textStyle(NORMAL);
+        colorMode(HSB, 360, 100, 100, 255);
         pop();
     }
     
@@ -5476,32 +5454,29 @@ function drawClusterMetaballs() {
         // Only draw individual post text for single posts (not in a cluster)
         // For multi-post clusters, only show the cluster label
         if (groupNodes.length === 1) {
-            // Single post - show its text
             const node = groupNodes[0];
             push();
+            colorMode(RGB, 255);
             translate(node.x, node.y);
             
             textAlign(LEFT, CENTER);
-            textSize(18);
-            textFont('MD Primer Trial');
+            textSize(24);
+            if (customFontSemibold) textFont(customFontSemibold);
+            noStroke();
+            fill(255, 255, 255, 255);
+            drawingContext.letterSpacing = '0.01em';
             
-            const lineHeight = 24;
+            const lineHeight = 30;
             const startY = -(node.lines.length - 1) * lineHeight / 2;
-            const startX = -110; // Left align from center
+            const startX = -(node.boxWidth / 2 - 10);
             
             node.lines.forEach((line, i) => {
-                // Black stroke
-                stroke(0, 255);
-                strokeWeight(4);
-                fill(0, 255);
-                text(line, startX, startY + i * lineHeight);
-                
-                // White text on top
-                noStroke();
-                fill(255, 255);
-                text(line, startX, startY + i * lineHeight);
+                text(line.toUpperCase(), startX, startY + i * lineHeight);
             });
+            drawingContext.letterSpacing = '0px';
             
+            textStyle(NORMAL);
+            colorMode(HSB, 360, 100, 100, 255);
             pop();
         }
         // For clusters with 2+ posts, don't draw individual post text
@@ -5532,17 +5507,20 @@ function drawClusterMetaballs() {
         
         if (topKeywords.length > 0) {
             const label = topKeywords.join(' & ');
+            const IDLE_COLORS = [[214,40,40],[0,0,254],[63,152,91]];
+            const kCol = IDLE_COLORS[groupIndex % 3];
+            push();
+            colorMode(RGB, 255);
             textAlign(CENTER, CENTER);
-            textSize(18);
+            textSize(13);
+            textFont('monospace');
             textStyle(BOLD);
-            stroke(0, 200);
-            strokeWeight(3);
-            fill(color.h, color.s, color.b, 180);
-            text(label, centerX, centerY);
             noStroke();
-            fill(255, 255);
-            text(label, centerX, centerY);
+            fill(kCol[0], kCol[1], kCol[2], 255);
+            text(label.toUpperCase(), centerX, centerY);
             textStyle(NORMAL);
+            colorMode(HSB, 360, 100, 100, 255);
+            pop();
         }
         pop();
         }
@@ -7087,7 +7065,7 @@ function startExperience() {
     console.log('🎬 Experience started!');
 }
 
-// End the experience — p5 fades out while ASCII chars materialise (reverse of start)
+// End the experience — full reset + reverse transition back to idle
 // fromServer: true when triggered by incoming WS message (skip re-sending to avoid loop)
 function endExperience(fromServer = false) {
     const idleLayer        = document.getElementById('idle-layer');
@@ -7097,21 +7075,74 @@ function endExperience(fromServer = false) {
     const endBtn           = document.getElementById('endExpBtn');
     const returnBtn        = document.getElementById('returnToIdleBtn');
     
-    // Hide control buttons immediately
+    // ── Stop all active timers ─────────────────────────────────
+    if (typeof debateTimerInterval !== 'undefined' && debateTimerInterval) {
+        clearInterval(debateTimerInterval);
+        debateTimerInterval = null;
+    }
+    
+    // ── Full state reset ───────────────────────────────────────
+    // Posts & nodes
+    posts.length = 0;
+    nodes.length = 0;
+    if (typeof connectionCache !== 'undefined') connectionCache.clear();
+    if (typeof clusterRegistry !== 'undefined') { clusterRegistry.clusters = []; clusterRegistry.nextId = 0; }
+    if (typeof clusterLabels   !== 'undefined') clusterLabels = [];
+    if (typeof clusteringEnabled !== 'undefined') clusteringEnabled = false;
+    if (typeof timerCompleted    !== 'undefined') timerCompleted    = false;
+    
+    // Clustering animation
+    clusteringAnimationActive  = false;
+    clusteringAnimationLoading = false;
+    clusteringProgress         = 0;
+    clusteringPhase1Done       = false;
+    clusteringPhase2Done       = false;
+    clusteringPhase3Done       = false;
+    clusteringPhase4Done       = false;
+    
+    // Voting & clustering
+    if (typeof votingPhaseActive    !== 'undefined') votingPhaseActive    = false;
+    if (typeof winningCluster       !== 'undefined') winningCluster       = null;
+    if (typeof debateQuestion       !== 'undefined') debateQuestion       = null;
+    if (typeof debatePositions      !== 'undefined') debatePositions      = null;
+    
+    // Debate
+    if (typeof debateVotingActive   !== 'undefined') debateVotingActive   = false;
+    if (typeof debateTimerActive    !== 'undefined') debateTimerActive    = false;
+    if (typeof debateOverPhase      !== 'undefined') debateOverPhase      = null;
+    if (typeof winnerGroup          !== 'undefined') winnerGroup          = null;
+    if (typeof redVoteCount         !== 'undefined') redVoteCount         = 0;
+    if (typeof greenVoteCount       !== 'undefined') greenVoteCount       = 0;
+    
+    // Reveal animation
+    if (typeof revealAnimationActive !== 'undefined') revealAnimationActive = false;
+    if (typeof revealPhase           !== 'undefined') revealPhase           = 'idle';
+    if (typeof revealBlobSize        !== 'undefined') revealBlobSize        = 0;
+    if (typeof revealClusterColor    !== 'undefined') revealClusterColor    = null;
+    
+    // Role assignment
+    if (typeof roleAssignmentActive  !== 'undefined') roleAssignmentActive  = false;
+    if (typeof roleAssignmentPhase   !== 'undefined') roleAssignmentPhase   = null;
+    
+    // ── UI: hide buttons / countdown ──────────────────────────
     if (endBtn)    endBtn.style.display    = 'none';
     if (returnBtn) { returnBtn.style.opacity = '0'; setTimeout(() => { returnBtn.style.display = 'none'; }, 600); }
     
-    // Fade out countdown timer
     if (displayCountdown) {
         displayCountdown.style.opacity = '0';
         setTimeout(() => { displayCountdown.style.display = 'none'; displayCountdown.style.opacity = '1'; }, 1000);
     }
     
-    // Crossfade: p5 fades out, idle layer becomes visible (starts empty)
+    // Restore elements hidden during debate/role-assignment for next run
+    const headlineDisplay   = document.getElementById('headlineDisplay');
+    const controlsContainer = document.getElementById('controlsContainer');
+    if (headlineDisplay)   headlineDisplay.style.display   = 'block';
+    if (controlsContainer) controlsContainer.style.display = 'block';
+    
+    // ── Reverse transition: p5 fades out, idle layer fades in with chars materialising
     if (p5Canvas)  p5Canvas.style.opacity  = '0';
     if (idleLayer) idleLayer.style.opacity = '1';
     
-    // Chars materialise on idle layer simultaneously with p5 fading out
     if (window.IdleAnimation && window.IdleAnimation.revealIn) {
         window.IdleAnimation.revealIn(() => {
             console.log('✨ Returned to idle — animation complete');
@@ -7120,20 +7151,20 @@ function endExperience(fromServer = false) {
         window.IdleAnimation.start();
     }
     
-    // Reset state after p5 has faded (1.5s) and return start button
+    // Re-enable START after p5 fade completes
     setTimeout(() => {
         idleScreenActive  = true;
         experienceStarted = false;
-        debateOverPhase   = null;
         if (startBtn) startBtn.style.display = 'block';
     }, 1600);
     
-    // Notify server (unless triggered by incoming WS message)
+    // Notify server: end experience + clear all posts on mobile clients
     if (!fromServer && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'end_experience' }));
+        ws.send(JSON.stringify({ type: 'clear_all_posts' }));
     }
     
-    console.log('🏁 Experience ended — returning to idle');
+    console.log('🏁 Experience ended — full reset, returning to idle');
 }
 
 // Mouse click handler (idle start button removed — use #startExpBtn)

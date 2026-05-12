@@ -114,6 +114,10 @@ function connect() {
             window.location.reload();
         }
         
+        if (data.type === 'participant_count') {
+            updateWaitingPlayerCount(data.count);
+        }
+
         if (data.type === 'experience_start') {
             currentPhase = 'posting';
             console.log('🎬 Experience started - showing input section');
@@ -3581,5 +3585,46 @@ function showDebateOverScreen() {
     console.log(`📱 Showing counting votes screen — ${roleLabel}`);
 }
 
+// ── Waiting Room ──────────────────────────────────────────────────────────────
+
+function initWaitingRoomSymbols() {
+    const container = document.getElementById('waitingSymbolsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const symbols = ['/', '|', 'X', '=', '-', '@', '#', ':'];
+
+    symbols.forEach((char, i) => {
+        const el = document.createElement('span');
+        el.className = 'waiting-symbol';
+        el.textContent = char;
+
+        // Random position avoiding the center 20% vertically (where banner sits)
+        const topZones = [
+            () => 5  + Math.random() * 40,   // top half
+            () => 58 + Math.random() * 37,   // bottom half
+        ];
+        el.style.left = (8 + Math.random() * 78) + '%';
+        el.style.top  = topZones[i % 2]() + '%';
+
+        const duration = 3 + Math.random() * 5;
+        el.style.animationDuration = duration + 's';
+        el.style.animationDelay    = -(Math.random() * duration) + 's';
+
+        container.appendChild(el);
+
+        el.addEventListener('animationiteration', () => {
+            el.style.left = (8 + Math.random() * 78) + '%';
+            el.style.top  = topZones[i % 2]() + '%';
+        });
+    });
+}
+
+function updateWaitingPlayerCount(count) {
+    const el = document.getElementById('waitingPlayerCount');
+    if (el) el.textContent = count;
+}
+
 connect();
 textInput.focus();
+initWaitingRoomSymbols();
