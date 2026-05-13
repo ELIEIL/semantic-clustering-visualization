@@ -409,7 +409,7 @@ wss.on('connection', (ws) => {
                 console.log(`📱 Sent current state: ${currentExperienceState.phase}`);
                 
                 // Broadcast updated participant count to everyone
-                broadcastToAll({ type: 'participant_count', count: mobileClients.size });
+                broadcastToAll({ type: 'participant_count', count: mobileClients.size, max: CONFIG.MAX_PARTICIPANTS });
                 return;
             }
             
@@ -1354,7 +1354,7 @@ wss.on('connection', (ws) => {
             
             mobileClients.delete(ws.clientId);
             // Broadcast updated participant count to all remaining clients
-            broadcastToAll({ type: 'participant_count', count: mobileClients.size });
+            broadcastToAll({ type: 'participant_count', count: mobileClients.size, max: CONFIG.MAX_PARTICIPANTS });
         }
     });
     
@@ -1386,15 +1386,41 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     
-    // Start experience endpoint - allows ELO GUI button to trigger startExperience on main display
+    // Start experience endpoint - allows ELO GUI button to start experience directly
     if (req.url === '/api/start-experience' && req.method === 'POST') {
-        broadcastToDisplays({ type: 'trigger_start_experience' });
+        startCountdownTimer();
+        currentExperienceState.phase = 'posting';
+        currentExperienceState.data = { countdownTime };
+        broadcastToAll({ type: 'experience_start' });
         res.writeHead(200, {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
         });
         res.end(JSON.stringify({ ok: true }));
-        console.log('🎬 ELO GUI triggered start experience');
+        console.log('🎬 ELO GUI triggered start — countdown started, broadcasting experience_start');
+        return;
+    }
+
+    // End experience endpoint - allows ELO GUI button to trigger end on main display
+    if (req.url === '/api/end-experience' && req.method === 'POST') {
+        broadcastToDisplays({ type: 'end_experience' });
+        currentExperienceState = { phase: 'idle', data: null };
+        res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ ok: true }));
+        console.log('🔚 ELO GUI triggered end experience');
+        return;
+    }
+
+    // State endpoint - for ELO GUI phase polling
+    if (req.url === '/api/state' && req.method === 'GET') {
+        res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ state: currentExperienceState.phase }));
         return;
     }
     

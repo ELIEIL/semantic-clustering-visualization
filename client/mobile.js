@@ -115,7 +115,7 @@ function connect() {
         }
         
         if (data.type === 'participant_count') {
-            updateWaitingPlayerCount(data.count);
+            updateWaitingPlayerCount(data.count, data.max);
         }
 
         if (data.type === 'experience_start') {
@@ -3620,9 +3620,11 @@ function initWaitingRoomSymbols() {
     });
 }
 
-function updateWaitingPlayerCount(count) {
-    const el = document.getElementById('waitingPlayerCount');
-    if (el) el.textContent = count;
+function updateWaitingPlayerCount(count, max) {
+    const countEl = document.getElementById('waitingPlayerCount');
+    const maxEl   = document.getElementById('waitingPlayerMax');
+    if (countEl) countEl.textContent = count;
+    if (maxEl && max !== undefined) maxEl.textContent = max;
 }
 
 connect();
