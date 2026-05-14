@@ -65,7 +65,7 @@ const userVotes = new Map(); // userId -> [{ postId, vote, timestamp }]
 const userPreferences = new Map(); // userId -> { topics, bias, keywords, sources }
 
 // Synchronized countdown timer (30 seconds for posting phase - TESTING)
-let countdownTime = 30; // seconds
+let countdownTime = 90; // seconds
 let countdownInterval = null;
 
 // Global experience state for mobile sync
@@ -187,7 +187,7 @@ function startCountdownTimer() {
         clearInterval(countdownInterval);
     }
     
-    countdownTime = 30; // Reset to 30 seconds
+    countdownTime = 90; // Reset to 90 seconds
     
     countdownInterval = setInterval(() => {
         if (countdownTime <= 0) {
@@ -1401,16 +1401,22 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // End experience endpoint - allows ELO GUI button to trigger end on main display
+    // End experience endpoint - full reset (same as WebSocket end_experience handler)
     if (req.url === '/api/end-experience' && req.method === 'POST') {
-        broadcastToDisplays({ type: 'end_experience' });
+        if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+        resetCountdownTimer();
+        approvedPosts = [];
+        clusterVotes.clear();
+        clientClusterVotes.clear();
         currentExperienceState = { phase: 'idle', data: null };
+        broadcastToAll({ type: 'end_experience' });
+        broadcastToAll({ type: 'clear_all_posts' });
         res.writeHead(200, {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
         });
         res.end(JSON.stringify({ ok: true }));
-        console.log('🔚 ELO GUI triggered end experience');
+        console.log('🔚 ELO GUI triggered full reset — returning to idle');
         return;
     }
 
