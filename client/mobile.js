@@ -2903,7 +2903,7 @@ function showDebaterActiveScreen() {
         `;
         const timerText = document.createElement('p');
         timerText.id = 'debaterActiveTimer';
-        timerText.textContent = '0:30';
+        timerText.textContent = '2:00';
         timerText.style.cssText = `
             font-family: 'DS-Digital', 'Courier New', monospace;
             font-size: 40px; color: #0b0701; margin: 0; letter-spacing: 2px;
@@ -3095,7 +3095,7 @@ function updateDebateTimer(data) {
         // YOUR TURN — show new Figma-styled active screen
         removeDebaterWaitScreen();
         showDebaterActiveScreen();
-        updateDebaterActiveTimer(data.turnTimeRemaining ?? 30);
+        updateDebaterActiveTimer(data.turnTimeRemaining ?? 120);
 
         // Keep legacy elements in sync (hidden behind overlay)
         headerText.textContent = 'YOUR TURN!';
@@ -3123,7 +3123,7 @@ function updateDebateTimer(data) {
 
 // Draw segmented circular timer for debate mobile UI
 function drawDebateTimerSegments(container, timeRemaining, groupNumber) {
-    const progress = timeRemaining / 30; // 1 to 0 as time goes down (30 seconds)
+    const progress = timeRemaining / 120; // 1 to 0 as time goes down (120 seconds)
     const totalSegments = 40;
     const remainingSegments = Math.ceil(progress * totalSegments);
     
@@ -3163,7 +3163,7 @@ function drawDebateTimerSegments(container, timeRemaining, groupNumber) {
 
 // Draw segmented circular timer (old function for listeners)
 function drawTimerSegments(container, timeRemaining, currentTurn) {
-    const progress = timeRemaining / 30; // 1 to 0 as time goes down (30 seconds)
+    const progress = timeRemaining / 120; // 1 to 0 as time goes down (120 seconds)
     const totalSegments = 40;
     const remainingSegments = Math.ceil(progress * totalSegments);
     const segmentAngle = (2 * Math.PI) / totalSegments;

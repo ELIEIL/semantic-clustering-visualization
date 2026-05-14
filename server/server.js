@@ -580,9 +580,9 @@ wss.on('connection', (ws) => {
                 currentExperienceState.phase = 'debate';
                 currentExperienceState.data = {};
                 
-                // Set world clock for debate timer (30 seconds)
-                worldClock.debateTimeRemaining = 30;
-                console.log('⏱️ World clock: Debate timer started at 30s');
+                // Set world clock for debate timer (120 seconds = 2 minutes per turn)
+                worldClock.debateTimeRemaining = 120;
+                console.log('⏱️ World clock: Debate timer started at 120s');
                 
                 // Broadcast start debate voting to all mobile clients
                 wss.clients.forEach(client => {
@@ -1386,18 +1386,16 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     
-    // Start experience endpoint - allows ELO GUI button to start experience directly
+    // Start experience endpoint - triggers the display's startExperience() via trigger_start_experience
     if (req.url === '/api/start-experience' && req.method === 'POST') {
-        startCountdownTimer();
-        currentExperienceState.phase = 'posting';
-        currentExperienceState.data = { countdownTime };
-        broadcastToAll({ type: 'experience_start' });
+        currentExperienceState.phase = 'posting'; // Update phase for ELO polling
+        broadcastToDisplays({ type: 'trigger_start_experience' });
         res.writeHead(200, {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
         });
         res.end(JSON.stringify({ ok: true }));
-        console.log('🎬 ELO GUI triggered start — countdown started, broadcasting experience_start');
+        console.log('🎬 ELO GUI triggered start — broadcasting trigger_start_experience to display');
         return;
     }
 
