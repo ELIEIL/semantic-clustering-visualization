@@ -756,7 +756,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .debate-timer-text {
-    font-family: 'DS-Digital', 'Courier New', monospace;
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
     font-size: 72px;
     font-weight: bold;
     color: #FFF;
@@ -959,7 +959,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .countdown-timer {
-    font-family: 'DS-Digital', 'Courier New', monospace;
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
     font-size: 32px;
     font-weight: 400;
     color: #000;

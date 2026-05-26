@@ -1567,7 +1567,7 @@ function showListenerWaitingScreen() {
     document.body.appendChild(listenerScreen);
 }
 
-// Debate Argumentation overlay (Logos / Etos / Patos)
+// Debate Argumentation overlay (Logos / Ethos / Pathos)
 function showArgumentationOverlay() {
     const existing = document.getElementById('argumentationOverlay');
     if (existing) existing.remove();
@@ -1804,13 +1804,13 @@ function showArgumentationOverlay() {
         <circle cx="37" cy="16" r="14.5" stroke="white" stroke-width="1.5"/>
     </svg>`;
 
-    // ETOS icon: heart
-    const etosIcon = `<svg width="38" height="34" viewBox="0 0 38 34" fill="none">
+    // ETHOS icon: heart
+    const ethosIcon = `<svg width="38" height="34" viewBox="0 0 38 34" fill="none">
         <path d="M19 31 C19 31 2 20 2 10 C2 5.5 5.5 2 10 2 C13.5 2 16.5 4 19 7 C21.5 4 24.5 2 28 2 C32.5 2 36 5.5 36 10 C36 20 19 31 19 31Z" stroke="white" stroke-width="1.5" fill="none"/>
     </svg>`;
 
-    // PATOS icon: 8-point starburst
-    const patosIcon = `<svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+    // PATHOS icon: 8-point starburst
+    const pathosIcon = `<svg width="40" height="40" viewBox="0 0 40 40" fill="none">
         <line x1="20" y1="2" x2="20" y2="38" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
         <line x1="2" y1="20" x2="38" y2="20" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
         <line x1="6.1" y1="6.1" x2="33.9" y2="33.9" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
@@ -1826,13 +1826,13 @@ function showArgumentationOverlay() {
     ));
     greenSection.appendChild(makeDivider());
     greenSection.appendChild(makeColumn(
-        etosIcon, 'ETOS',
+        ethosIcon, 'ETHOS',
         'Appeal to credibility and ethics. Establish trust and demonstrate your reliability',
         ['Show expertise or experience', 'Demonstrate fairness and respect', 'Build trust with your audience']
     ));
     greenSection.appendChild(makeDivider());
     greenSection.appendChild(makeColumn(
-        patosIcon, 'PATOS',
+        pathosIcon, 'PATHOS',
         'Appeal to emotions and values. Connect with the audience on a personal level',
         ['Share stories and real-life examples', 'Highlight impact and consequences', 'Inspire empathy and values']
     ));
@@ -2576,7 +2576,10 @@ function showDebateVoting() {
 // Store user's group assignment and original topic color
 let userGroup = 1;         // DEFAULT for testing — set to null in production
 let userRole = 'debater';  // DEFAULT for testing — set to null in production
-window.forceRole = { role: 'debater', group: 1 }; // DEV: override server role — set to null in production
+if (!window.forceRole) {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    window.forceRole = isLocalhost ? { role: 'debater', group: 1 } : { role: 'listener', group: null };
+}
 let originalTopicColor = null; // Store the original cluster color
 
 // Track vote balance (starts at 0, negative = red winning, positive = green winning)
@@ -2841,7 +2844,7 @@ function buildActiveTimerRing(timeRemaining, totalTime, groupColor) {
     return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
 }
 
-let debaterTurnTotalTime = 30;
+let debaterTurnTotalTime = 30; // seconds per turn
 
 // Debater active screen — shown when it IS the user's turn
 function showDebaterActiveScreen() {
@@ -2903,9 +2906,9 @@ function showDebaterActiveScreen() {
         `;
         const timerText = document.createElement('p');
         timerText.id = 'debaterActiveTimer';
-        timerText.textContent = '2:00';
+        timerText.textContent = '0:30';
         timerText.style.cssText = `
-            font-family: 'DS-Digital', 'Courier New', monospace;
+            font-family: 'MD Thermochrome 0.4 Trial', monospace;
             font-size: 40px; color: #0b0701; margin: 0; letter-spacing: 2px;
         `;
         const timerLabel = document.createElement('p');
@@ -3069,6 +3072,9 @@ function removeDebaterOverScreen() {
 
 // Update debate timer display on mobile
 function updateDebateTimer(data) {
+    // Listeners have their own voting UI — skip all debater-specific screens
+    if (userRole === 'listener') return;
+
     const debateSection = document.getElementById('debateVotingSection');
     const headerText = document.getElementById('debateHeaderText');
     const instructionText = document.getElementById('debateInstructionText');
@@ -3123,7 +3129,7 @@ function updateDebateTimer(data) {
 
 // Draw segmented circular timer for debate mobile UI
 function drawDebateTimerSegments(container, timeRemaining, groupNumber) {
-    const progress = timeRemaining / 120; // 1 to 0 as time goes down (120 seconds)
+    const progress = timeRemaining / 30; // 1 to 0 as time goes down (30 seconds)
     const totalSegments = 40;
     const remainingSegments = Math.ceil(progress * totalSegments);
     
@@ -3163,7 +3169,7 @@ function drawDebateTimerSegments(container, timeRemaining, groupNumber) {
 
 // Draw segmented circular timer (old function for listeners)
 function drawTimerSegments(container, timeRemaining, currentTurn) {
-    const progress = timeRemaining / 120; // 1 to 0 as time goes down (120 seconds)
+    const progress = timeRemaining / 30; // 1 to 0 as time goes down (30 seconds)
     const totalSegments = 40;
     const remainingSegments = Math.ceil(progress * totalSegments);
     const segmentAngle = (2 * Math.PI) / totalSegments;

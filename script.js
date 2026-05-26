@@ -2545,6 +2545,10 @@ window.resetExperience = function() {
         // Reset role assignment state
         roleAssignmentActive = false;
         roleAssignmentPhase = 'idle';
+        roleAssignmentAutoTriggered = false;
+        winningCluster = null;
+        debateQuestion = null;
+        debatePositions = null;
         
         // Hide countdown display
         const displayCountdown = document.getElementById('displayCountdown');
@@ -2907,7 +2911,7 @@ function startDebateTimer() {
     // Reset timer state
     currentTurnNumber = 0;
     currentTurn = 1; // Start with Group 1
-    turnTimeRemaining = 120; // 120 seconds (2 minutes) per turn
+    turnTimeRemaining = 30; // 30 seconds per turn
     debateTimerActive = true;
     
     // Clear any existing timer
@@ -3012,7 +3016,7 @@ function startDebateTimer() {
             } else {
                 // Switch turns
                 currentTurn = currentTurn === 1 ? 2 : 1;
-                turnTimeRemaining = 120; // 120 seconds (2 minutes) per turn
+                turnTimeRemaining = 30; // 30 seconds per turn
                 console.log(`⏱️ Turn ${currentTurnNumber + 1} - Group ${currentTurn}`);
                 
                 // Broadcast turn switch
@@ -6489,27 +6493,27 @@ function drawFinalRoleAssignmentScreen(alpha) {
     drawingContext.lineDashOffset = 0;
     pop();
     
-    // Group 1 text - all tightly stacked in center (sans-serif, LEFT-aligned, smaller)
+    // Group 1 text - centered within circle
     fill(220, 50, 50, alpha);
-    textAlign(LEFT, CENTER);
+    textAlign(CENTER, CENTER);
     textSize(48);
     textFont('sans-serif');
-    text('Group 1', leftCircleX - 80, circleY - 50);
+    text('Group 1', leftCircleX, circleY - 50);
     
-    // Group 1 instruction - very close to title (sans-serif, gray, smaller, LEFT-aligned)
+    // Group 1 instruction - centered
     fill(160, 160, 160, alpha);
     textSize(16);
     textFont('sans-serif');
-    text('Press "ready up" when', leftCircleX - 80, circleY - 5);
-    text('you\'re ready to start the', leftCircleX - 80, circleY + 13);
-    text('debate!', leftCircleX - 80, circleY + 31);
+    text('Press "ready up" when', leftCircleX, circleY - 5);
+    text('you\'re ready to start the', leftCircleX, circleY + 13);
+    text('debate!', leftCircleX, circleY + 31);
     
-    // Group 1 ready count - very close to instructions (MD Thermochrome, LEFT-aligned, smaller)
+    // Group 1 ready count - centered
     fill(220, 50, 50, alpha);
-    textAlign(LEFT, CENTER);
+    textAlign(CENTER, CENTER);
     textSize(64);
     if (customFontSemibold) textFont(customFontSemibold);
-    text(`${group1Ready}/${group1Total}`, leftCircleX - 80, circleY + 80);
+    text(`${group1Ready}/${group1Total}`, leftCircleX, circleY + 80);
     
     // Group 2 circle (blue, dashed, rotating)
     push();
@@ -6527,27 +6531,27 @@ function drawFinalRoleAssignmentScreen(alpha) {
     drawingContext.lineDashOffset = 0;
     pop();
     
-    // Group 2 text - all tightly stacked in center (sans-serif, RIGHT-aligned, smaller)
+    // Group 2 text - centered within circle
     fill(50, 100, 220, alpha);
-    textAlign(RIGHT, CENTER);
+    textAlign(CENTER, CENTER);
     textSize(48);
     textFont('sans-serif');
-    text('Group 2', rightCircleX + 80, circleY - 50);
+    text('Group 2', rightCircleX, circleY - 50);
     
-    // Group 2 instruction - very close to title (sans-serif, gray, smaller, RIGHT-aligned)
+    // Group 2 instruction - centered
     fill(160, 160, 160, alpha);
     textSize(16);
     textFont('sans-serif');
-    text('Press "ready up" when', rightCircleX + 80, circleY - 5);
-    text('you\'re ready to start the', rightCircleX + 80, circleY + 13);
-    text('debate!', rightCircleX + 80, circleY + 31);
+    text('Press "ready up" when', rightCircleX, circleY - 5);
+    text('you\'re ready to start the', rightCircleX, circleY + 13);
+    text('debate!', rightCircleX, circleY + 31);
     
-    // Group 2 ready count - very close to instructions (MD Thermochrome, RIGHT-aligned, smaller)
+    // Group 2 ready count - centered
     fill(50, 100, 220, alpha);
-    textAlign(RIGHT, CENTER);
+    textAlign(CENTER, CENTER);
     textSize(64);
     if (customFontSemibold) textFont(customFontSemibold);
-    text(`${group2Ready}/${group2Total}`, rightCircleX + 80, circleY + 80);
+    text(`${group2Ready}/${group2Total}`, rightCircleX, circleY + 80);
     
     pop();
 }
@@ -7165,6 +7169,64 @@ function endExperience(fromServer = false) {
     }
     
     console.log('🏁 Experience ended — full reset, returning to idle');
+}
+
+// Simulate end-of-debate results with preset vote counts (Group 1: 43, Group 2: 32)
+function simulateResults() {
+    // Set preset vote counts
+    redVoteCount   = 43; // Group 1
+    greenVoteCount = 32; // Group 2
+
+    // Stop any running debate timer
+    if (debateTimerInterval) {
+        clearInterval(debateTimerInterval);
+        debateTimerInterval = null;
+    }
+    debateTimerActive  = false;
+    debateVotingActive = true;
+
+    // Activate the p5 canvas (same as startExperience does)
+    idleScreenActive  = false;
+    experienceStarted = true;
+    const idleLayer = document.getElementById('idle-layer');
+    const p5Canvas  = document.getElementById('p5-canvas');
+    if (idleLayer) idleLayer.style.opacity = '0';
+    if (p5Canvas)  p5Canvas.style.opacity  = '1';
+
+    // Reset animation timers
+    window.debateOverAnimStart = null;
+    window.winnerAnimStart     = null;
+    voteCountAnimation         = 0;
+
+    // Phase 1: Debate Over screen
+    debateOverPhase = 'debate-over';
+    console.log('🎬 SIM — Phase 1: Debate Over');
+
+    // Phase 2: Vote Counting (after 5s)
+    setTimeout(() => {
+        debateOverPhase    = 'vote-counting';
+        voteCountAnimation = 0;
+        console.log('🎬 SIM — Phase 2: Vote Counting');
+
+        // Phase 3: Winner (after 8s)
+        setTimeout(() => {
+            debateOverPhase = 'winner';
+            winnerGroup     = redVoteCount >= greenVoteCount ? 1 : 2;
+            console.log(`🎬 SIM — Phase 3: Winner — Group ${winnerGroup}`);
+
+            // Show Return button
+            const returnBtn = document.getElementById('returnToIdleBtn');
+            if (returnBtn) {
+                returnBtn.style.display = 'block';
+                requestAnimationFrame(() => { returnBtn.style.opacity = '1'; });
+            }
+
+            // Broadcast winner to mobiles
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'winner_announcement', winnerGroup }));
+            }
+        }, 8000);
+    }, 5000);
 }
 
 // Mouse click handler (idle start button removed — use #startExpBtn)

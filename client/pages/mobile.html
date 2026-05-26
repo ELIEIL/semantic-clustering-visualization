@@ -130,34 +130,89 @@
                 
                 <!-- Timer countdown overlay -->
                 <div class="debate-timer-overlay">
-                    <p class="debate-timer-text" id="debateTimerText">2:00</p>
+                    <p class="debate-timer-text" id="debateTimerText">0:30</p>
                 </div>
             </div>
         </div>
         
         <!-- Listener Voting Section (for audience) — Figma 2411-1385 -->
-        <div id="listenerVotingSection" class="listener-voting-section" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; flex-direction: column; align-items: center; justify-content: space-between; padding: 25px 25px 14px 25px; box-sizing: border-box;">
-            <!-- Header Container -->
-            <div style="display: flex; flex-direction: column; gap: 5px; align-items: flex-start; padding: 10px; width: 100%;">
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%;">
-                    <p style="font-family: 'MD Thermochrome 0.4 Trial', monospace; font-size: 40px; font-weight: 600; letter-spacing: 6px; color: #0b0701; margin: 0; text-align: center; width: 100%;">VOTE</p>
+        <div id="listenerVotingSection" style="
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #ffffff;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            box-sizing: border-box;
+            overflow: hidden;
+        ">
+            <!-- Inner Debate Container — pt-25 pb-14 px-25 -->
+            <div style="
+                display: flex; flex-direction: column;
+                align-items: center; justify-content: space-between;
+                width: 100%; height: 100%;
+                padding: 25px 25px 14px 25px;
+                box-sizing: border-box;
+                overflow: hidden;
+            ">
+                <!-- Header Container -->
+                <div style="
+                    display: flex; flex-direction: column;
+                    gap: 5px; align-items: flex-start;
+                    padding: 10px; width: 100%; flex-shrink: 0;
+                ">
+                    <!-- VOTE title -->
+                    <p style="
+                        font-family: 'MD Thermochrome 0.4 Trial', monospace;
+                        font-size: 40px; font-weight: 600;
+                        letter-spacing: 6px; color: #0b0701;
+                        margin: 0; width: 100%;
+                    ">VOTE</p>
+                    <!-- Description -->
+                    <p style="
+                        font-family: 'MD Primer Trial', Georgia, serif;
+                        font-size: 20px; font-weight: 500;
+                        color: #0b0701; margin: 0; line-height: 1.4;
+                        width: 100%;
+                    ">Vote for the group you agree with to decide the winner of the debate. Use the buttons on the mobile controller to cast your vote.</p>
                 </div>
-                <p style="font-family: 'MD Primer Trial', Georgia, serif; font-size: 20px; color: #0b0701; margin: 0; line-height: 1.4; width: 100%;">Vote for the group you agree with to decide the winner of the debate. Use the buttons on the mobile controller to cast your vote.</p>
-            </div>
-            
-            <!-- Groups Container (640px tall, relative positioning) -->
-            <div style="position: relative; height: 640px; width: 100%;">
-                <!-- Group 1 Circle — left: 9px, top: 43px -->
-                <div id="listenerVoteGroup1" style="position: absolute; left: 9px; top: 43px; width: 200px; height: 200px; border: 3.029px dashed #D62828; border-radius: 50%; display: flex; flex-direction: column; gap: 6.057px; align-items: center; justify-content: center; padding: 6.057px; box-shadow: 5px 5px 10px 0px rgba(0,0,0,0.25); cursor: pointer;">
-                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
-                        <p style="font-family: 'MD Primer Trial', Georgia, serif; font-weight: bold; font-size: 29.074px; color: #D62828; margin: 0; white-space: nowrap;">Group 1</p>
+
+                <!-- Groups Container — 640px tall, relative -->
+                <div style="position: relative; height: 640px; width: 100%; flex-shrink: 0;">
+                    <!-- Group 1 Circle — left: 9px, top: 43px -->
+                    <div id="listenerVoteGroup1" style="
+                        position: absolute; left: 9px; top: 43px;
+                        width: 200px; height: 200px;
+                        border: 3.029px dashed #D62828; border-radius: 50%;
+                        display: flex; flex-direction: column;
+                        gap: 6.057px; align-items: center; justify-content: center;
+                        padding: 6.057px; box-sizing: border-box;
+                        box-shadow: 5px 5px 10px 0px rgba(0,0,0,0.25);
+                        cursor: pointer;
+                    ">
+                        <p style="
+                            font-family: 'MD Primer Trial', Georgia, serif;
+                            font-weight: 700; font-size: 29.074px;
+                            color: #D62828; margin: 0; white-space: nowrap;
+                        ">Group 1</p>
                     </div>
-                </div>
-                
-                <!-- Group 2 Circle — left: 131px, top: 320px -->
-                <div id="listenerVoteGroup2" style="position: absolute; left: 131px; top: 320px; width: 200px; height: 200px; border: 3.029px dashed #0000FE; border-radius: 50%; display: flex; flex-direction: column; gap: 6.057px; align-items: center; justify-content: center; padding: 6.057px; box-shadow: 5px 5px 10px 0px rgba(0,0,0,0.25); cursor: pointer;">
-                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
-                        <p style="font-family: 'MD Primer Trial', Georgia, serif; font-weight: bold; font-size: 29.074px; color: #0000FE; margin: 0; white-space: nowrap;">Group 2</p>
+
+                    <!-- Group 2 Circle — left: 131px, top: 320px -->
+                    <div id="listenerVoteGroup2" style="
+                        position: absolute; left: 131px; top: 320px;
+                        width: 200px; height: 200px;
+                        border: 3.029px dashed #0000FE; border-radius: 50%;
+                        display: flex; flex-direction: column;
+                        gap: 6.057px; align-items: center; justify-content: center;
+                        padding: 6.057px; box-sizing: border-box;
+                        box-shadow: 5px 5px 10px 0px rgba(0,0,0,0.25);
+                        cursor: pointer;
+                    ">
+                        <p style="
+                            font-family: 'MD Primer Trial', Georgia, serif;
+                            font-weight: 700; font-size: 29.074px;
+                            color: #0000FE; margin: 0; white-space: nowrap;
+                        ">Group 2</p>
                     </div>
                 </div>
             </div>

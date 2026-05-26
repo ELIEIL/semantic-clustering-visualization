@@ -65,7 +65,7 @@ const userVotes = new Map(); // userId -> [{ postId, vote, timestamp }]
 const userPreferences = new Map(); // userId -> { topics, bias, keywords, sources }
 
 // Synchronized countdown timer (30 seconds for posting phase - TESTING)
-let countdownTime = 90; // seconds
+let countdownTime = 30; // seconds
 let countdownInterval = null;
 
 // Global experience state for mobile sync
@@ -187,7 +187,7 @@ function startCountdownTimer() {
         clearInterval(countdownInterval);
     }
     
-    countdownTime = 90; // Reset to 90 seconds
+    countdownTime = 30; // Reset to 30 seconds
     
     countdownInterval = setInterval(() => {
         if (countdownTime <= 0) {
@@ -580,9 +580,9 @@ wss.on('connection', (ws) => {
                 currentExperienceState.phase = 'debate';
                 currentExperienceState.data = {};
                 
-                // Set world clock for debate timer (120 seconds = 2 minutes per turn)
-                worldClock.debateTimeRemaining = 120;
-                console.log('⏱️ World clock: Debate timer started at 120s');
+                // Set world clock for debate timer (30 seconds per turn)
+                worldClock.debateTimeRemaining = 30;
+                console.log('⏱️ World clock: Debate timer started at 30s');
                 
                 // Broadcast start debate voting to all mobile clients
                 wss.clients.forEach(client => {
