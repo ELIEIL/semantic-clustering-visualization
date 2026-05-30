@@ -113,7 +113,7 @@
     ">&#8617; RETURN</button>
 
     <!-- QR Code + Facilitator controls (START / END only) -->
-    <div id="controlsContainer" style="position: fixed; top: 20px; left: 20px; z-index: 3000; display: flex; flex-direction: column; gap: 6px;">
+    <div id="controlsContainer" style="position: fixed; top: 20px; left: 20px; z-index: 3000; display: none; flex-direction: column; gap: 6px;">
         <img id="qrCodeImage" src="/api/qr-code" alt="Mobile Controller QR Code" style="display: block; width: 120px; height: 120px;">
         <button id="startExpBtn" onclick="startExperience()">&#9654; START</button>
         <button id="endExpBtn"   onclick="endExperience()">&#9632; END</button>
@@ -165,6 +165,19 @@
         function hardRefresh() {
             window.location.href = window.location.pathname + '?nocache=' + Date.now();
         }
+
+        // Keyboard shortcuts for facilitator
+        document.addEventListener('keydown', function(e) {
+            if (!e.metaKey) return;
+            if (e.key === 's') { e.preventDefault(); startExperience(); }
+            if (e.key === 'e') { e.preventDefault(); endExperience(); }
+            if (e.key === 'r') { e.preventDefault(); hardRefresh(); }
+            if (e.key === 'k') {
+                e.preventDefault();
+                const c = document.getElementById('controlsContainer');
+                c.style.display = (c.style.display === 'none') ? 'flex' : 'none';
+            }
+        });
 
         // Timer will be updated via WebSocket messages from server
         window.updateCountdownDisplay = function(time) {
