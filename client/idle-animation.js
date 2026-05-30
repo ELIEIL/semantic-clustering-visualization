@@ -13,7 +13,7 @@
     const HOLD_MS        = 5000;
     const BETWEEN_MS     = 1000;
     const FONT_NAME      = 'MD Thermochrome 0.4 Trial';
-    const REDDIT_URL     = 'http://localhost:5001/api/reddit?subreddit=conspiracy%2Bunpopularopinion%2BAmItheAsshole%2Bpolitics%2BPoliticalDiscussion&limit=25';
+    const REDDIT_URL     = 'http://localhost:3000/api/reddit?subreddit=conspiracy%2Bunpopularopinion%2BAmItheAsshole%2Bpolitics%2BPoliticalDiscussion&limit=25';
     const MAX_POOL       = 100;
 
     let container      = null;

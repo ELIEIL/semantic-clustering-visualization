@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode'); // For generating QR code images
+const axios = require('axios');
 const ngrok = require('ngrok');
 const os = require('os');
 const CONFIG = require('./config.js');
@@ -1846,6 +1847,34 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     
+    // Reddit proxy endpoint — used by idle-animation.js for real-time posts
+    if (req.url.startsWith('/api/reddit')) {
+        const parsedUrl = new URL(req.url, `http://localhost:${HTTP_PORT}`);
+        const subreddit = parsedUrl.searchParams.get('subreddit') || 'unpopularopinion+AmItheAsshole+politics+PoliticalDiscussion+conspiracy';
+        const limit     = parseInt(parsedUrl.searchParams.get('limit') || '25', 10);
+
+        try {
+            const redditRes = await axios.get(
+                `https://www.reddit.com/r/${subreddit}/hot.json?limit=${limit}`,
+                { headers: { 'User-Agent': 'diploma-debate-experience/1.0' }, timeout: 8000 }
+            );
+            const posts = (redditRes.data?.data?.children || [])
+                .map(c => ({ title: c.data.title }))
+                .filter(p => p.title && p.title.length > 10 && p.title.length < 200);
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Cache-Control': 'no-cache'
+            });
+            res.end(JSON.stringify({ posts }));
+        } catch (err) {
+            console.warn('⚠️  Reddit fetch failed:', err.message);
+            res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ posts: [], error: 'Reddit unavailable' }));
+        }
+        return;
+    }
+
     // Regular file serving
     // Resolve file path relative to project root (one level up from server directory)
     // Strip query parameters (e.g., ?v=3 for cache busting)
