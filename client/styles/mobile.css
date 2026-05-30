@@ -12,8 +12,8 @@
 }
 
 @font-face {
-    font-family: 'MD Primer Trail';
-    src: local('MD Primer Trail');
+    font-family: 'MD Primer Trial';
+    src: url('../fonts/MDPrimerTrial/MDPrimerTrial-Regular.otf') format('opentype');
     font-weight: normal;
     font-style: normal;
 }
@@ -25,7 +25,7 @@ html {
 }
 
 body {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, BlinkMacSystemFont, sans-serif;
     background: #fff;
     height: 100%;
     width: 100%;
@@ -245,7 +245,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .cluster-header h1 {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Thermochrome 0.4 Trial', monospace;
     font-size: 36px;
     font-weight: 400;
     margin: 0 0 5px 0;
@@ -265,7 +265,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .cluster-subtitle {
-    font-family: 'MD Primer Trial', Georgia, serif;
+    font-family: 'MD Primer Trial', -apple-system, sans-serif;
     font-size: 24px;
     color: #8f8f8f;
     margin: 0;
@@ -426,7 +426,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .clustering-phase-text {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 24px;
     font-weight: 400;
     color: #000;
@@ -569,7 +569,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .task-header {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 28px;
     font-weight: 600;
     color: #000;
@@ -577,7 +577,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .task-instruction {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 16px;
     font-weight: 400;
     color: #666;
@@ -598,7 +598,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .role-label {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 14px;
     font-weight: 400;
     color: #666;
@@ -608,7 +608,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .role-name {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 48px;
     font-weight: 600;
     color: #000;
@@ -628,7 +628,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .group-name {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 32px;
     font-weight: 600;
     margin: 0 0 12px 0;
@@ -643,7 +643,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .group-instruction {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 16px;
     font-weight: 400;
     color: #666;
@@ -656,7 +656,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .role-title {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 48px;
     font-weight: 400;
     color: #fff;
@@ -665,7 +665,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .role-subtitle {
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 24px;
     font-weight: 300;
     color: #fff;
@@ -930,7 +930,7 @@ body.keyboard-visible .mobile-container {
     padding: 0;
     margin-bottom: 20px;
     font-size: 56px;
-    font-family: 'MD Primer Trail', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, BlinkMacSystemFont, sans-serif;
     border: none;
     border-radius: 0;
     resize: none;
@@ -1078,7 +1078,7 @@ body.keyboard-visible .mobile-container {
 
 /* Ready-up button */
 .ready-instruction {
-    font-family: 'MD Primer Trail', -apple-system, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, sans-serif;
     font-size: 14px;
     font-weight: 400;
     color: #666;
@@ -1094,7 +1094,7 @@ body.keyboard-visible .mobile-container {
     color: #fff;
     border: 2px solid #000;
     border-radius: 8px;
-    font-family: 'MD Primer Trail', -apple-system, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, sans-serif;
     font-size: 18px;
     font-weight: 600;
     cursor: pointer;
@@ -1502,7 +1502,7 @@ body.keyboard-visible .mobile-container {
 }
 
 .waiting-title {
-    font-family: 'MD Primer Trail', -apple-system, sans-serif;
+    font-family: 'MD Primer Trial', -apple-system, sans-serif;
     font-size: 24px;
     font-weight: 500;
     color: #ffffff;

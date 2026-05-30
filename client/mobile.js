@@ -135,10 +135,18 @@ function connect() {
         if (data.type === 'end_experience') {
             currentPhase = 'idle';
             console.log('🏁 Experience ended - returning to idle screen');
+            // Remove ALL dynamic screens (listener, debater, reveal, etc.) before showing idle
+            if (typeof cleanupAllScreens === 'function') cleanupAllScreens();
             const idleSection = document.getElementById('idleSection');
             const inputSection = document.getElementById('inputSection');
             if (idleSection) idleSection.style.display = 'flex';
             if (inputSection) inputSection.style.display = 'none';
+        }
+
+        if (data.type === 'clear_session') {
+            // Full cache reset — remove stored session so next run starts completely fresh
+            localStorage.removeItem('debateSessionId');
+            console.log('🧹 Session cleared — fresh start for next run');
         }
         
         if (data.type === 'state_sync') {
@@ -281,16 +289,6 @@ function connect() {
         // This code below will be called by displayRoleAssignment after delay
         function displayRoleAssignment(data) {
             
-            // DEV OVERRIDE: if window.forceRole is set, ignore server assignment
-            if (window.forceRole) {
-                data = Object.assign({}, data, { role: window.forceRole.role, group: window.forceRole.group });
-                console.log(`🛠️ forceRole override: ${data.role} group ${data.group}`);
-                // Notify server of the override so it tracks this client correctly
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'force_role_override', role: data.role, group: data.group }));
-                }
-            }
-
             // Store user's role and group
             userRole = data.role;
             if (data.role === 'debater') {
@@ -1611,20 +1609,6 @@ function showArgumentationOverlay() {
         box-sizing: border-box;
     `;
 
-    // ── Rotating dashed circle (top-right) ──────────────────
-    const circleWrapper = document.createElement('div');
-    circleWrapper.style.cssText = `
-        position: absolute; top: 49px; right: 8px;
-        width: 125px; height: 125px;
-        animation: spinCW 14s linear infinite;
-        pointer-events: none;
-    `;
-    const r = 57, circ = 2 * Math.PI * r;
-    const dash = (circ / 12).toFixed(1), gap = (circ / 12 * 0.6).toFixed(1);
-    circleWrapper.innerHTML = `<svg width="125" height="125" viewBox="0 0 125 125" fill="none">
-        <circle cx="62.5" cy="62.5" r="${r}" stroke="#3f985b" stroke-width="4" stroke-dasharray="${dash} ${gap}" stroke-linecap="round"/>
-    </svg>`;
-
     // ── X CLOSE button ───────────────────────────────────────
     const closeWrapper = document.createElement('div');
     closeWrapper.style.cssText = `
@@ -1747,7 +1731,7 @@ function showArgumentationOverlay() {
         descText.textContent = description;
         descText.style.cssText = `
             font-family: 'MD Primer Trial', Georgia, serif;
-            font-size: 10px; color: #fff;
+            font-size: 14px; color: #fff;
             margin: 0; line-height: 1.4;
         `;
         descBox.appendChild(descText);
@@ -1760,7 +1744,7 @@ function showArgumentationOverlay() {
         useLabel.textContent = 'COMMON USE';
         useLabel.style.cssText = `
             font-family: 'MD Thermochrome 0.4 Trial', monospace;
-            font-size: 10px; font-weight: 600;
+            font-size: 12px; font-weight: 600;
             letter-spacing: 1.5px; text-transform: uppercase;
             color: #fff; margin: 0;
         `;
@@ -1775,7 +1759,7 @@ function showArgumentationOverlay() {
             li.textContent = b;
             li.style.cssText = `
                 font-family: 'MD Primer Trial', Georgia, serif;
-                font-size: 10px; font-weight: 600;
+                font-size: 13px; font-weight: 600;
                 color: #fff; line-height: 1.3;
             `;
             ul.appendChild(li);
@@ -1837,7 +1821,6 @@ function showArgumentationOverlay() {
         ['Share stories and real-life examples', 'Highlight impact and consequences', 'Inspire empathy and values']
     ));
 
-    panel.appendChild(circleWrapper);
     panel.appendChild(closeWrapper);
     panel.appendChild(headerText);
     panel.appendChild(greenSection);
@@ -1856,6 +1839,7 @@ function showDebaterReadyScreen(group) {
     const groupColor = group === 1 ? '#D62828' : '#0000FE';
     const groupColorFaded = group === 1 ? 'rgba(214,40,40,0.65)' : 'rgba(0,0,254,0.65)';
     const groupLabel = group === 1 ? 'GROUP 1' : 'GROUP 2';
+    const stanceLabel = group === 1 ? 'AGAINST' : 'FOR';
     const question = (window.debateQuestion || 'Should fossil fuels be banned entirely?').toUpperCase();
 
     const debaterScreen = document.createElement('div');
@@ -1951,7 +1935,7 @@ function showDebaterReadyScreen(group) {
     </svg>`;
 
     const groupDetails = document.createElement('div');
-    groupDetails.style.cssText = `display:flex; flex-direction:column; gap:10px; align-items:flex-start;`;
+    groupDetails.style.cssText = `display:flex; flex-direction:column; gap:6px; align-items:flex-start;`;
 
     const groupName = document.createElement('p');
     groupName.textContent = groupLabel;
@@ -1964,9 +1948,9 @@ function showDebaterReadyScreen(group) {
         white-space: nowrap;
     `;
 
-    const roleLabel = document.createElement('p');
-    roleLabel.textContent = 'DEBATER';
-    roleLabel.style.cssText = `
+    const stanceText = document.createElement('p');
+    stanceText.textContent = stanceLabel;
+    stanceText.style.cssText = `
         font-family: 'MD Thermochrome 0.4 Trial', monospace;
         font-size: 24px;
         font-weight: 600;
@@ -1976,7 +1960,7 @@ function showDebaterReadyScreen(group) {
     `;
 
     groupDetails.appendChild(groupName);
-    groupDetails.appendChild(roleLabel);
+    groupDetails.appendChild(stanceText);
     groupInfo.appendChild(chatIcon);
     groupInfo.appendChild(groupDetails);
 

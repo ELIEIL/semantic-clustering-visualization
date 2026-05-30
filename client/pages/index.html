@@ -35,7 +35,7 @@
         }
 
         /* Facilitator control buttons */
-        #startExpBtn, #endExpBtn {
+        #startExpBtn, #endExpBtn, #refreshBtn {
             font-size: 11px;
             letter-spacing: 2px;
             padding: 6px 14px;
@@ -48,6 +48,7 @@
         }
         #startExpBtn  { color: #FDED6B; border-color: #FDED6B; }
         #endExpBtn    { color: #D62828; border-color: #D62828; display: none; }
+        #refreshBtn   { color: #ffffff; border-color: #ffffff; }
         
         @keyframes morphMetaball {
             0% {
@@ -111,12 +112,12 @@
         transition: opacity 1.2s ease;
     ">&#8617; RETURN</button>
 
-    <!-- QR Code + Facilitator controls -->
+    <!-- QR Code + Facilitator controls (START / END only) -->
     <div id="controlsContainer" style="position: fixed; top: 20px; left: 20px; z-index: 3000; display: flex; flex-direction: column; gap: 6px;">
         <img id="qrCodeImage" src="/api/qr-code" alt="Mobile Controller QR Code" style="display: block; width: 120px; height: 120px;">
         <button id="startExpBtn" onclick="startExperience()">&#9654; START</button>
         <button id="endExpBtn"   onclick="endExperience()">&#9632; END</button>
-        <button id="simResultsBtn" onclick="simulateResults()">&#9654;&#9654; SIM RESULTS</button>
+        <button id="refreshBtn"  onclick="hardRefresh()">&#8635; REFRESH</button>
     </div>
     
     <!-- SVG Filter for Metaball Effect -->
@@ -160,6 +161,11 @@
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
         
+        // Hard refresh — bypasses browser cache entirely
+        function hardRefresh() {
+            window.location.href = window.location.pathname + '?nocache=' + Date.now();
+        }
+
         // Timer will be updated via WebSocket messages from server
         window.updateCountdownDisplay = function(time) {
             displayCountdownElement.textContent = formatTime(time);
@@ -182,7 +188,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js" crossorigin="anonymous"></script>
 <script src="../typing-animation.js"></script>
 <script src="../idle-animation.js"></script>
-<script src="../../script.js" defer></script>
+<script src="../../script.js?v=3" defer></script>
 
 </body>
 </html>

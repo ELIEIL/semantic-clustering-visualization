@@ -42,6 +42,7 @@ const rateLimitMap = new Map();
 // Role assignment
 let nextClientId = 1;
 const clientRoles = new Map(); // sessionId -> {role, group, stance} - persists across reconnects
+let roleAssignmentInProgress = false; // Guard against duplicate assign_roles triggers
 
 // Cluster voting state
 const clusterVotes = new Map(); // clusterId -> vote count
@@ -64,7 +65,7 @@ const postVotes = new Map(); // postId -> { upvotes: 0, downvotes: 0, voters: Se
 const userVotes = new Map(); // userId -> [{ postId, vote, timestamp }]
 const userPreferences = new Map(); // userId -> { topics, bias, keywords, sources }
 
-// Synchronized countdown timer (30 seconds for posting phase - TESTING)
+// Synchronized countdown timer (30 seconds for posting phase)
 let countdownTime = 30; // seconds
 let countdownInterval = null;
 
@@ -215,7 +216,7 @@ function resetCountdownTimer() {
         countdownInterval = null;
     }
     countdownTime = 30;
-    console.log('⏸️  Timer ready - waiting for Start button...');
+    console.log('⏸️  Timer ready - waiting for Start button (30s)...');
 }
 
 wss.on('connection', (ws) => {
@@ -479,12 +480,15 @@ wss.on('connection', (ws) => {
                 if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
                 resetCountdownTimer();
                 
-                // Clear posts and votes for next run
+                // Clear posts, votes, and role assignments for next run
                 approvedPosts = [];
                 clusterVotes.clear();
                 clientClusterVotes.clear();
+                clientRoles.clear();
+                debaterReadyState.clear();
                 
                 console.log('🏁 Experience ended — full reset, returning to idle');
+                roleAssignmentInProgress = false;
                 
                 // Update global state
                 currentExperienceState.phase = 'idle';
@@ -493,6 +497,7 @@ wss.on('connection', (ws) => {
                 // Broadcast end + clear to all clients
                 broadcastToAll({ type: 'end_experience' });
                 broadcastToAll({ type: 'clear_all_posts' });
+                broadcastToAll({ type: 'clear_session' });
                 return;
             }
             
@@ -685,8 +690,42 @@ wss.on('connection', (ws) => {
             }
             
             if (data.type === 'assign_roles') {
-                // Assign roles with distribution: 30% Group 1, 30% Group 2, 40% Listeners
-                const clientIds = Array.from(mobileClients.keys());
+                // Guard: ignore duplicate triggers (multiple display connections firing at once)
+                if (roleAssignmentInProgress) {
+                    console.log('⚠️ assign_roles already in progress, ignoring duplicate');
+                    return;
+                }
+                roleAssignmentInProgress = true;
+                setTimeout(() => { roleAssignmentInProgress = false; }, 5000); // reset after 5s
+                
+                // Assign roles prioritizing debaters first (Group 1 & 2), then listeners
+                
+                // Purge any stale/closed connections before counting
+                for (const [id, client] of mobileClients.entries()) {
+                    if (client.readyState !== WebSocket.OPEN) {
+                        console.log(`🧹 Removing stale connection ${id} (readyState: ${client.readyState})`);
+                        mobileClients.delete(id);
+                    }
+                }
+                
+                // Deduplicate by sessionId: if the same physical device (same sessionId) has
+                // multiple OPEN connections (e.g. after a page refresh), keep only the most
+                // recently created one (highest clientId). This prevents ghost connections from
+                // inflating the count and causing the real phone to be assigned listener.
+                const sessionToLatestClientId = new Map();
+                for (const [clientId, client] of mobileClients.entries()) {
+                    if (client.sessionId) {
+                        const existing = sessionToLatestClientId.get(client.sessionId);
+                        if (existing === undefined || clientId > existing) {
+                            sessionToLatestClientId.set(client.sessionId, clientId);
+                        }
+                    } else {
+                        // No sessionId — include as unique
+                        sessionToLatestClientId.set(`no-session-${clientId}`, clientId);
+                    }
+                }
+                const clientIds = Array.from(sessionToLatestClientId.values());
+                console.log(`📱 Unique physical devices after dedup: ${clientIds.length} (raw connections: ${mobileClients.size})`);
                 
                 if (clientIds.length < 1) {
                     console.log('⚠️ No mobile clients connected for role assignment');
@@ -700,26 +739,41 @@ wss.on('connection', (ws) => {
                 console.log('📦 Role assignment with cluster:', clusterName);
                 console.log('📝 Debate argument:', debateArgument);
                 
-                // Random role assignment: 25% Group 1, 25% Group 2, 50% Listeners
+                // Debater-first assignment strategy:
+                //  - If only one device: make it a Group 1 debater (Against)
+                //  - If at least two devices: always allocate
+                //      1× Group 1 debater (Against) and 1× Group 2 debater (For)
+                //    Remaining devices become listeners.
                 clientRoles.clear();
                 debaterReadyState.clear();
                 
                 const totalClients = clientIds.length;
-                const group1Count = Math.round(totalClients * 0.25);
-                const group2Count = Math.round(totalClients * 0.25);
-                const listenerCount = totalClients - group1Count - group2Count;
+                let group1Count = 0;
+                let group2Count = 0;
+                let listenerCount = 0;
+
+                if (totalClients === 1) {
+                    group1Count = 1;
+                    group2Count = 0;
+                    listenerCount = 0;
+                } else if (totalClients >= 2) {
+                    // Guarantee one debater per group; everyone else is a listener
+                    group1Count = 1;
+                    group2Count = 1;
+                    listenerCount = totalClients - 2;
+                }
                 
-                // Build shuffled role pool
+                // Sort clientIds DESCENDING so the most-recently-connected phones
+                // (highest clientIds) are assigned debater roles first. This guarantees
+                // the user's current phone always gets debater even if ghost connections exist.
+                clientIds.sort((a, b) => b - a);
+
+                // Role pool: debaters first, then listeners — NO shuffle, order matters
                 const rolePool = [
                     ...Array(group1Count).fill({ role: 'debater', group: 1, stance: 'Against' }),
                     ...Array(group2Count).fill({ role: 'debater', group: 2, stance: 'For' }),
                     ...Array(listenerCount).fill({ role: 'listener', group: null, stance: null })
                 ];
-                // Fisher-Yates shuffle
-                for (let i = rolePool.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [rolePool[i], rolePool[j]] = [rolePool[j], rolePool[i]];
-                }
                 
                 let group1Assigned = 0, group2Assigned = 0, listenersAssigned = 0;
                 
@@ -1406,6 +1460,9 @@ const server = http.createServer(async (req, res) => {
         approvedPosts = [];
         clusterVotes.clear();
         clientClusterVotes.clear();
+        clientRoles.clear();
+        debaterReadyState.clear();
+        roleAssignmentInProgress = false;
         currentExperienceState = { phase: 'idle', data: null };
         broadcastToAll({ type: 'end_experience' });
         broadcastToAll({ type: 'clear_all_posts' });
@@ -1826,7 +1883,14 @@ const server = http.createServer(async (req, res) => {
                 res.end('Server Error: ' + error.code);
             }
         } else {
-            res.writeHead(200, { 'Content-Type': contentType });
+            const headers = { 'Content-Type': contentType };
+            // Never cache HTML or JS/CSS — ensures all clients always get the latest version
+            if (['.html', '.js', '.css'].includes(extname)) {
+                headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+                headers['Pragma'] = 'no-cache';
+                headers['Expires'] = '0';
+            }
+            res.writeHead(200, headers);
             res.end(content, 'utf-8');
         }
     });

@@ -2853,14 +2853,14 @@ window.startDebateVoting = async function() {
         await generateDebateQuestion();
     }
     
-    // Hide timer and QR code
+    // Hide timer and QR code (keep buttons always visible)
     const headlineDisplay = document.getElementById('headlineDisplay');
-    const controlsContainer = document.getElementById('controlsContainer');
+    const qrCode = document.getElementById('qrCodeImage');
     if (headlineDisplay) {
         headlineDisplay.style.display = 'none';
     }
-    if (controlsContainer) {
-        controlsContainer.style.display = 'none';
+    if (qrCode) {
+        qrCode.style.display = 'none';
     }
     
     // Activate debate voting
@@ -3544,6 +3544,18 @@ function connectWebSocket() {
             }
             
             switch(data.phase) {
+                case 'idle':
+                    // Server is in idle state (e.g. after restart or full reset)
+                    // Reset all experience flags so the next run starts clean
+                    roleAssignmentAutoTriggered = false;
+                    roleAssignmentActive = false;
+                    roleAssignmentPhase = 'idle';
+                    debateVotingActive = false;
+                    debateTimerActive = false;
+                    votingPhaseActive = false;
+                    console.log('✅ State sync idle — experience flags reset');
+                    break;
+
                 case 'voting':
                     votingPhaseActive = true;
                     // Sync voting timer to world clock
@@ -3618,6 +3630,11 @@ function connectWebSocket() {
         }
         
         if (data.type === 'countdown_update') {
+            // Hide QR code when posting timer runs out
+            if (data.time === 0) {
+                const qrEl = document.getElementById('qrCodeImage');
+                if (qrEl) qrEl.style.display = 'none';
+            }
             // Update countdown timer display
             if (window.updateCountdownDisplay) {
                 window.updateCountdownDisplay(data.time);
@@ -6656,18 +6673,18 @@ function drawListenerVotingCircles() {
     fill(220, 53, 69);
     textAlign(CENTER, CENTER);
     textSize(32);
-    if (customFontPrimer) textFont(customFontPrimer); // MD Primer for pixelated style
+    if (customFont) textFont(customFont); // MD Thermochrome
     text('Group 1', leftX, circleY - 20);
     
     fill(255);
     textSize(48);
-    textFont('DS-Digital, monospace'); // Digital clock font
+    if (customFont) textFont(customFont); // MD Thermochrome
     if (debateTimerActive && currentTurn === 1) {
         const minutes = Math.floor(turnTimeRemaining / 60);
         const seconds = Math.floor(turnTimeRemaining % 60);
-        text(`${minutes}:${seconds.toString().padStart(2, '0')}`, leftX, circleY + 30);
+        text(`${String(minutes).padStart(2,'0')}:${seconds.toString().padStart(2, '0')}`, leftX, circleY + 30);
     } else {
-        text('- - : - -', leftX, circleY + 30);
+        text('--:--', leftX, circleY + 30);
     }
     pop();
     
@@ -6706,18 +6723,18 @@ function drawListenerVotingCircles() {
     fill(0, 0, 254); // Blue
     textAlign(CENTER, CENTER);
     textSize(32);
-    if (customFontPrimer) textFont(customFontPrimer); // MD Primer for pixelated style
+    if (customFont) textFont(customFont); // MD Thermochrome
     text('Group 2', rightX, circleY - 20);
     
     fill(255);
     textSize(48);
-    textFont('DS-Digital, monospace'); // Digital clock font
+    if (customFont) textFont(customFont); // MD Thermochrome
     if (debateTimerActive && currentTurn === 2) {
         const minutes = Math.floor(turnTimeRemaining / 60);
         const seconds = Math.floor(turnTimeRemaining % 60);
-        text(`${minutes}:${seconds.toString().padStart(2, '0')}`, rightX, circleY + 30);
+        text(`${String(minutes).padStart(2,'0')}:${seconds.toString().padStart(2, '0')}`, rightX, circleY + 30);
     } else {
-        text('- - : - -', rightX, circleY + 30);
+        text('--:--', rightX, circleY + 30);
     }
     pop();
     
@@ -7138,10 +7155,10 @@ function endExperience(fromServer = false) {
     }
     
     // Restore elements hidden during debate/role-assignment for next run
-    const headlineDisplay   = document.getElementById('headlineDisplay');
-    const controlsContainer = document.getElementById('controlsContainer');
-    if (headlineDisplay)   headlineDisplay.style.display   = 'block';
-    if (controlsContainer) controlsContainer.style.display = 'block';
+    const headlineDisplay = document.getElementById('headlineDisplay');
+    const qrCodeRestore   = document.getElementById('qrCodeImage');
+    if (headlineDisplay) headlineDisplay.style.display = 'block';
+    if (qrCodeRestore)   qrCodeRestore.style.display   = 'block';
     
     // ── Reverse transition: p5 fades out, idle layer fades in with chars materialising
     if (p5Canvas)  p5Canvas.style.opacity  = '0';
@@ -7162,10 +7179,15 @@ function endExperience(fromServer = false) {
         if (startBtn) startBtn.style.display = 'block';
     }, 1600);
     
+    // Also reset the auto-trigger flag so next run can trigger role assignment
+    roleAssignmentAutoTriggered = false;
+
     // Notify server: end experience + clear all posts on mobile clients
     if (!fromServer && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'end_experience' }));
         ws.send(JSON.stringify({ type: 'clear_all_posts' }));
+        // Tell mobile clients to clear their sessionId so they start fresh next run
+        ws.send(JSON.stringify({ type: 'clear_session' }));
     }
     
     console.log('🏁 Experience ended — full reset, returning to idle');
@@ -7315,21 +7337,21 @@ function drawDebateVotingScreen() {
     fill(220, 53, 69); // Red for group name
     textAlign(CENTER, CENTER);
     textSize(36);
-    if (customFontPrimer) textFont(customFontPrimer); // MD Primer Trial
+    if (customFont) textFont(customFont); // MD Thermochrome
     text('Group 1', leftX, circleY - 20);
     
     // Timer (white color, only show when it's their turn)
     fill(255); // White for timer
-    textFont('DS-Digital'); // Digital timer font
+    if (customFont) textFont(customFont); // MD Thermochrome
     if (debateTimerActive && currentTurn === 1) {
         textSize(56);
         const minutes = Math.floor(turnTimeRemaining / 60);
         const seconds = turnTimeRemaining % 60;
-        text(`${minutes}:${seconds.toString().padStart(2, '0')}`, leftX, circleY + 30);
+        text(`${String(minutes).padStart(2,'0')}:${seconds.toString().padStart(2, '0')}`, leftX, circleY + 30);
     } else if (currentTurn === 2) {
         // Show dashes when listening
         textSize(56);
-        text('- - : - -', leftX, circleY + 30);
+        text('--:--', leftX, circleY + 30);
     }
     
     pop();
@@ -7377,21 +7399,21 @@ function drawDebateVotingScreen() {
     fill(0, 0, 254); // Blue for group name
     textAlign(CENTER, CENTER);
     textSize(36);
-    if (customFontPrimer) textFont(customFontPrimer); // MD Primer Trial
+    if (customFont) textFont(customFont); // MD Thermochrome
     text('Group 2', rightX, circleY - 20);
     
     // Timer (white color, only show when it's their turn)
     fill(255); // White for timer
-    textFont('DS-Digital'); // Digital timer font
+    if (customFont) textFont(customFont); // MD Thermochrome
     if (debateTimerActive && currentTurn === 2) {
         textSize(56);
         const minutes = Math.floor(turnTimeRemaining / 60);
         const seconds = turnTimeRemaining % 60;
-        text(`${minutes}:${seconds.toString().padStart(2, '0')}`, rightX, circleY + 30);
+        text(`${String(minutes).padStart(2,'0')}:${seconds.toString().padStart(2, '0')}`, rightX, circleY + 30);
     } else if (currentTurn === 1) {
         // Show dashes when listening
         textSize(56);
-        text('- - : - -', rightX, circleY + 30);
+        text('--:--', rightX, circleY + 30);
     }
     
     pop();
