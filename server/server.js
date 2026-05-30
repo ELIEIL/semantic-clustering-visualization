@@ -1854,12 +1854,22 @@ const server = http.createServer(async (req, res) => {
         const limit     = parseInt(parsedUrl.searchParams.get('limit') || '25', 10);
 
         try {
-            const redditRes = await axios.get(
-                `https://www.reddit.com/r/${subreddit}/hot.json?limit=${limit}`,
-                { headers: { 'User-Agent': 'diploma-debate-experience/1.0' }, timeout: 8000 }
+            const rssRes = await axios.get(
+                `https://www.reddit.com/r/${subreddit}/hot/.rss?limit=${limit}`,
+                {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'application/rss+xml, application/xml, text/xml'
+                    },
+                    timeout: 8000,
+                    responseType: 'text'
+                }
             );
-            const posts = (redditRes.data?.data?.children || [])
-                .map(c => ({ title: c.data.title }))
+            // Parse titles from RSS XML — skip first <title> (subreddit name)
+            const matches = [...rssRes.data.matchAll(/<title>([\s\S]*?)<\/title>/g)];
+            const posts = matches
+                .slice(1) // skip subreddit title
+                .map(m => ({ title: m[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim() }))
                 .filter(p => p.title && p.title.length > 10 && p.title.length < 200);
             res.writeHead(200, {
                 'Content-Type': 'application/json',
